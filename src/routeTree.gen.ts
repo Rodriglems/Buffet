@@ -13,9 +13,14 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ClienteRouteImport } from './routes/cliente'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminCustosRouteImport } from './routes/admin.custos'
+import { Route as AdminFinanceiroRouteImport } from './routes/admin.financeiro'
+import { Route as AdminPagamentosRouteImport } from './routes/admin.pagamentos'
 import { Route as AdminClientesIndexRouteImport } from './routes/admin.clientes.index'
 import { Route as AdminClientesIdRouteImport } from './routes/admin.clientes.$id'
 import { Route as AdminClientesNovoRouteImport } from './routes/admin.clientes.novo'
+import { Route as AdminContratosIndexRouteImport } from './routes/admin.contratos.index'
+import { Route as AdminContratosIdRouteImport } from './routes/admin.contratos.$id'
 import { Route as AdminEventosIndexRouteImport } from './routes/admin.eventos.index'
 import { Route as AdminEventosIdRouteImport } from './routes/admin.eventos.$id'
 import { Route as AdminEventosNovoRouteImport } from './routes/admin.eventos.novo'
@@ -43,6 +48,21 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCustosRoute = AdminCustosRouteImport.update({
+  id: '/custos',
+  path: '/custos',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminFinanceiroRoute = AdminFinanceiroRouteImport.update({
+  id: '/financeiro',
+  path: '/financeiro',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPagamentosRoute = AdminPagamentosRouteImport.update({
+  id: '/pagamentos',
+  path: '/pagamentos',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminClientesIndexRoute = AdminClientesIndexRouteImport.update({
   id: '/clientes/',
   path: '/clientes/',
@@ -56,6 +76,16 @@ const AdminClientesIdRoute = AdminClientesIdRouteImport.update({
 const AdminClientesNovoRoute = AdminClientesNovoRouteImport.update({
   id: '/clientes/novo',
   path: '/clientes/novo',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminContratosIndexRoute = AdminContratosIndexRouteImport.update({
+  id: '/contratos/',
+  path: '/contratos/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminContratosIdRoute = AdminContratosIdRouteImport.update({
+  id: '/contratos/$id',
+  path: '/contratos/$id',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminEventosIndexRoute = AdminEventosIndexRouteImport.update({
@@ -93,28 +123,38 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/cliente': typeof ClienteRoute
+  '/admin/custos': typeof AdminCustosRoute
+  '/admin/financeiro': typeof AdminFinanceiroRoute
+  '/admin/pagamentos': typeof AdminPagamentosRoute
   '/admin/': typeof AdminIndexRoute
   '/admin/clientes/$id': typeof AdminClientesIdRoute
   '/admin/clientes/novo': typeof AdminClientesNovoRoute
+  '/admin/contratos/$id': typeof AdminContratosIdRoute
   '/admin/eventos/$id': typeof AdminEventosIdRoute
   '/admin/eventos/novo': typeof AdminEventosNovoRoute
   '/admin/orcamentos/$id': typeof AdminOrcamentosIdRoute
   '/admin/orcamentos/novo': typeof AdminOrcamentosNovoRoute
   '/admin/clientes/': typeof AdminClientesIndexRoute
+  '/admin/contratos/': typeof AdminContratosIndexRoute
   '/admin/eventos/': typeof AdminEventosIndexRoute
   '/admin/orcamentos/': typeof AdminOrcamentosIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/cliente': typeof ClienteRoute
+  '/admin/custos': typeof AdminCustosRoute
+  '/admin/financeiro': typeof AdminFinanceiroRoute
+  '/admin/pagamentos': typeof AdminPagamentosRoute
   '/admin': typeof AdminIndexRoute
   '/admin/clientes/$id': typeof AdminClientesIdRoute
   '/admin/clientes/novo': typeof AdminClientesNovoRoute
+  '/admin/contratos/$id': typeof AdminContratosIdRoute
   '/admin/eventos/$id': typeof AdminEventosIdRoute
   '/admin/eventos/novo': typeof AdminEventosNovoRoute
   '/admin/orcamentos/$id': typeof AdminOrcamentosIdRoute
   '/admin/orcamentos/novo': typeof AdminOrcamentosNovoRoute
   '/admin/clientes': typeof AdminClientesIndexRoute
+  '/admin/contratos': typeof AdminContratosIndexRoute
   '/admin/eventos': typeof AdminEventosIndexRoute
   '/admin/orcamentos': typeof AdminOrcamentosIndexRoute
 }
@@ -123,14 +163,19 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/cliente': typeof ClienteRoute
+  '/admin/custos': typeof AdminCustosRoute
+  '/admin/financeiro': typeof AdminFinanceiroRoute
+  '/admin/pagamentos': typeof AdminPagamentosRoute
   '/admin/': typeof AdminIndexRoute
   '/admin/clientes/$id': typeof AdminClientesIdRoute
   '/admin/clientes/novo': typeof AdminClientesNovoRoute
+  '/admin/contratos/$id': typeof AdminContratosIdRoute
   '/admin/eventos/$id': typeof AdminEventosIdRoute
   '/admin/eventos/novo': typeof AdminEventosNovoRoute
   '/admin/orcamentos/$id': typeof AdminOrcamentosIdRoute
   '/admin/orcamentos/novo': typeof AdminOrcamentosNovoRoute
   '/admin/clientes/': typeof AdminClientesIndexRoute
+  '/admin/contratos/': typeof AdminContratosIndexRoute
   '/admin/eventos/': typeof AdminEventosIndexRoute
   '/admin/orcamentos/': typeof AdminOrcamentosIndexRoute
 }
@@ -140,28 +185,38 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/cliente'
+    | '/admin/custos'
+    | '/admin/financeiro'
+    | '/admin/pagamentos'
     | '/admin/'
     | '/admin/clientes/$id'
     | '/admin/clientes/novo'
+    | '/admin/contratos/$id'
     | '/admin/eventos/$id'
     | '/admin/eventos/novo'
     | '/admin/orcamentos/$id'
     | '/admin/orcamentos/novo'
     | '/admin/clientes/'
+    | '/admin/contratos/'
     | '/admin/eventos/'
     | '/admin/orcamentos/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/cliente'
+    | '/admin/custos'
+    | '/admin/financeiro'
+    | '/admin/pagamentos'
     | '/admin'
     | '/admin/clientes/$id'
     | '/admin/clientes/novo'
+    | '/admin/contratos/$id'
     | '/admin/eventos/$id'
     | '/admin/eventos/novo'
     | '/admin/orcamentos/$id'
     | '/admin/orcamentos/novo'
     | '/admin/clientes'
+    | '/admin/contratos'
     | '/admin/eventos'
     | '/admin/orcamentos'
   id:
@@ -169,14 +224,19 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/cliente'
+    | '/admin/custos'
+    | '/admin/financeiro'
+    | '/admin/pagamentos'
     | '/admin/'
     | '/admin/clientes/$id'
     | '/admin/clientes/novo'
+    | '/admin/contratos/$id'
     | '/admin/eventos/$id'
     | '/admin/eventos/novo'
     | '/admin/orcamentos/$id'
     | '/admin/orcamentos/novo'
     | '/admin/clientes/'
+    | '/admin/contratos/'
     | '/admin/eventos/'
     | '/admin/orcamentos/'
   fileRoutesById: FileRoutesById
@@ -217,6 +277,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/custos': {
+      id: '/admin/custos'
+      path: '/custos'
+      fullPath: '/admin/custos'
+      preLoaderRoute: typeof AdminCustosRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/financeiro': {
+      id: '/admin/financeiro'
+      path: '/financeiro'
+      fullPath: '/admin/financeiro'
+      preLoaderRoute: typeof AdminFinanceiroRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/pagamentos': {
+      id: '/admin/pagamentos'
+      path: '/pagamentos'
+      fullPath: '/admin/pagamentos'
+      preLoaderRoute: typeof AdminPagamentosRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/clientes/': {
       id: '/admin/clientes/'
       path: '/clientes'
@@ -236,6 +317,20 @@ declare module '@tanstack/react-router' {
       path: '/clientes/novo'
       fullPath: '/admin/clientes/novo'
       preLoaderRoute: typeof AdminClientesNovoRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/contratos/': {
+      id: '/admin/contratos/'
+      path: '/contratos'
+      fullPath: '/admin/contratos/'
+      preLoaderRoute: typeof AdminContratosIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/contratos/$id': {
+      id: '/admin/contratos/$id'
+      path: '/contratos/$id'
+      fullPath: '/admin/contratos/$id'
+      preLoaderRoute: typeof AdminContratosIdRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/eventos/': {
@@ -284,27 +379,37 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
+  AdminCustosRoute: typeof AdminCustosRoute
+  AdminFinanceiroRoute: typeof AdminFinanceiroRoute
+  AdminPagamentosRoute: typeof AdminPagamentosRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminClientesIdRoute: typeof AdminClientesIdRoute
   AdminClientesNovoRoute: typeof AdminClientesNovoRoute
+  AdminContratosIdRoute: typeof AdminContratosIdRoute
   AdminEventosIdRoute: typeof AdminEventosIdRoute
   AdminEventosNovoRoute: typeof AdminEventosNovoRoute
   AdminOrcamentosIdRoute: typeof AdminOrcamentosIdRoute
   AdminOrcamentosNovoRoute: typeof AdminOrcamentosNovoRoute
   AdminClientesIndexRoute: typeof AdminClientesIndexRoute
+  AdminContratosIndexRoute: typeof AdminContratosIndexRoute
   AdminEventosIndexRoute: typeof AdminEventosIndexRoute
   AdminOrcamentosIndexRoute: typeof AdminOrcamentosIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminCustosRoute: AdminCustosRoute,
+  AdminFinanceiroRoute: AdminFinanceiroRoute,
+  AdminPagamentosRoute: AdminPagamentosRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminClientesIdRoute: AdminClientesIdRoute,
   AdminClientesNovoRoute: AdminClientesNovoRoute,
+  AdminContratosIdRoute: AdminContratosIdRoute,
   AdminEventosIdRoute: AdminEventosIdRoute,
   AdminEventosNovoRoute: AdminEventosNovoRoute,
   AdminOrcamentosIdRoute: AdminOrcamentosIdRoute,
   AdminOrcamentosNovoRoute: AdminOrcamentosNovoRoute,
   AdminClientesIndexRoute: AdminClientesIndexRoute,
+  AdminContratosIndexRoute: AdminContratosIndexRoute,
   AdminEventosIndexRoute: AdminEventosIndexRoute,
   AdminOrcamentosIndexRoute: AdminOrcamentosIndexRoute,
 }
