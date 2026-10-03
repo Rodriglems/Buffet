@@ -858,4 +858,4 @@ export function atividadesDoCliente(clienteId: string) {
 }
 
 /** Cliente demonstrativo do portal (área /cliente). */
-export const clienteLogado = clientes[0];
+export const clienteLogado = clientes[0]!;
