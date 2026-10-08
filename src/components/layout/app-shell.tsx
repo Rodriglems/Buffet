@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Bell, LogOut, Menu, Search, Settings } from "lucide-react";
+import { Bell, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -167,6 +167,7 @@ function Breadcrumbs() {
 
 export function AppShell({ nav, area, usuario, trocarPara }: ShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const naoLidas = notificacoes.filter((n) => !n.lida).length;
 
   return (
