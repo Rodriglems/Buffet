@@ -1,6 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Bell, LogOut, Menu, Search } from "lucide-react";
+import { Bell, LogOut, Menu, Search, Settings } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -60,6 +63,47 @@ function NavLinks({ nav, onNavigate }: { nav: NavGroup[]; onNavigate?: () => voi
         </div>
       ))}
     </nav>
+  );
+}
+
+function saudacao() {
+  const h = new Date().getHours();
+  return h < 12 ? "Bom dia!" : h < 18 ? "Boa tarde!" : "Boa noite!";
+}
+
+function RailLink({ to, label, icon: Icon, active }: { to: string; label: string; icon: LucideIcon; active?: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          to={to}
+          aria-label={label}
+          className={cn(
+            "relative grid size-11 place-items-center rounded-xl transition-colors",
+            active ? "bg-primary text-primary-foreground" : "text-foreground/60 hover:bg-secondary hover:text-foreground",
+          )}
+        >
+          <Icon className="size-5" />
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function IconRail({ nav }: { nav: NavGroup[] }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const itens = nav.flatMap((g) => g.items).filter((i) => !/configuracoes|perfil/.test(i.to));
+  return (
+    <TooltipProvider delayDuration={100}>
+      <nav className="mt-8 flex flex-col items-center gap-1.5 overflow-y-auto">
+        {itens.map((item) => {
+          const active =
+            item.to === "/admin" || item.to === "/cliente" ? pathname === item.to : pathname.startsWith(item.to);
+          return <RailLink key={item.to} to={item.to} label={item.label} icon={item.icon} active={active} />;
+        })}
+      </nav>
+    </TooltipProvider>
   );
 }
 
@@ -129,18 +173,23 @@ export function AppShell({ nav, area, usuario, trocarPara }: ShellProps) {
     <div className="min-h-screen">
       <AmbientLight />
 
-      {/* Sidebar desktop */}
-      <aside className="glass-bar fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-white/60 px-4 py-6 lg:flex">
-        <Brand />
-        <div className="mt-4 flex-1 overflow-y-auto">
-          <NavLinks nav={nav} />
+      {/* Sidebar desktop — trilho de ícones */}
+      <aside className="bg-surface fixed inset-y-0 left-0 z-20 hidden w-20 flex-col items-center border-r border-border py-5 lg:flex">
+        <Link to={area === "admin" ? "/admin" : "/cliente"} aria-label="Início" className="bg-primary text-primary-foreground grid size-11 place-items-center rounded-full">
+          <span className="font-display text-base font-bold">M</span>
+        </Link>
+        <IconRail nav={nav} />
+        <TooltipProvider delayDuration={100}>
+        <div className="mt-auto flex flex-col items-center gap-2">
+          <RailLink to={area === "admin" ? "/admin/configuracoes" : "/cliente/perfil"} label="Configurações" icon={Settings} />
+          <RailLink to="/" label="Sair" icon={LogOut} />
         </div>
-        <SidebarFooter area={area} />
+        </TooltipProvider>
       </aside>
 
-      <div className="lg:pl-60">
-        <header className="glass-bar sticky top-0 z-10 border-b border-white/60">
-          <div className="flex items-center gap-3 px-4 py-3 lg:px-8">
+      <div className="lg:pl-20">
+        <header className="bg-background/80 sticky top-0 z-10 backdrop-blur-xl">
+          <div className="flex items-center gap-3 px-4 py-4 lg:px-8">
             {/* Menu mobile */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
@@ -160,20 +209,25 @@ export function AppShell({ nav, area, usuario, trocarPara }: ShellProps) {
               </SheetContent>
             </Sheet>
 
-            <div className="relative hidden w-full max-w-md sm:block">
+            <div className="hidden leading-tight md:block">
+              <p className="font-display text-base font-semibold">{saudacao()}</p>
+              <p className="text-muted-foreground text-xs">Mesa · Buffet &amp; Eventos</p>
+            </div>
+
+            <div className="relative mx-auto hidden w-full max-w-md sm:block">
               <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
-                className="bg-surface border-0 pl-9 ring-1 ring-black/5"
-                placeholder="Buscar eventos, clientes, contratos…"
+                className="bg-surface h-10 rounded-xl border-0 pl-9 ring-1 ring-black/5"
+                placeholder="Buscar cliente, evento ou proposta…"
               />
             </div>
 
-            <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            <div className="ml-auto flex items-center gap-2 sm:ml-0 sm:gap-3">
               <Button
                 asChild
                 variant="ghost"
                 size="icon"
-                className="bg-surface relative ring-1 ring-black/5"
+                className="bg-surface relative rounded-full ring-1 ring-black/5"
               >
                 <Link
                   to={area === "admin" ? "/admin/notificacoes" : "/cliente"}
@@ -189,7 +243,7 @@ export function AppShell({ nav, area, usuario, trocarPara }: ShellProps) {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="bg-surface flex items-center gap-2.5 rounded-lg py-1.5 pr-3 pl-1.5 ring-1 ring-black/5">
-                    <span className="bg-brand/12 text-brand font-display grid size-7 place-items-center rounded-md text-[11px] font-semibold">
+                    <span className="bg-primary text-primary-foreground font-display grid size-8 place-items-center rounded-full text-[11px] font-semibold">
                       {usuario.iniciais}
                     </span>
                     <span className="hidden leading-tight sm:block">
