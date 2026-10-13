@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,7 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { clientes, eventos } from "@/data/mock";
+import { listarEventos } from "@/features/eventos/server-functions";
+import { criarOrcamento, enviarOrcamento } from "@/features/orcamentos/server-functions";
 import { formatBRL } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/orcamentos/novo")({
@@ -24,12 +26,14 @@ export const Route = createFileRoute("/admin/orcamentos/novo")({
       { title: "Criar orçamento — Mesa Buffet & Eventos" },
       {
         name: "description",
-        content: "Monte a proposta comercial com itens, quantidades, descontos e condições de pagamento.",
+        content:
+          "Monte a proposta comercial com itens, quantidades, descontos e condições de pagamento.",
       },
       { property: "og:title", content: "Criar orçamento — Mesa Buffet & Eventos" },
       { property: "og:description", content: "Editor de propostas comerciais do buffet." },
     ],
   }),
+  loader: () => listarEventos({ data: { page: 1, pageSize: 100 } }),
   component: NovoOrcamento,
 });
 
@@ -45,6 +49,13 @@ interface Linha {
 
 function NovoOrcamento() {
   const navigate = useNavigate();
+  const { items: eventos } = Route.useLoaderData();
+  const criar = useServerFn(criarOrcamento);
+  const enviar = useServerFn(enviarOrcamento);
+  const [eventoId, setEventoId] = useState("");
+  const [validade, setValidade] = useState("");
+  const [observacoes, setObservacoes] = useState("");
+  const [salvando, setSalvando] = useState(false);
   const [itens, setItens] = useState<Linha[]>([
     {
       id: 1,
@@ -80,8 +91,44 @@ function NovoOrcamento() {
   function adicionar() {
     setItens((p) => [
       ...p,
-      { id: Date.now(), servico: "", descricao: "", quantidade: 1, unidade: "pessoa", valorUnitario: 0, desconto: 0 },
+      {
+        id: Date.now(),
+        servico: "",
+        descricao: "",
+        quantidade: 1,
+        unidade: "pessoa",
+        valorUnitario: 0,
+        desconto: 0,
+      },
     ]);
+  }
+
+  async function salvar(deveEnviar: boolean) {
+    setSalvando(true);
+    try {
+      const criado = await criar({
+        data: {
+          eventoId,
+          validade: validade ? new Date(`${validade}T00:00:00.000Z`) : null,
+          desconto: descontoGeral,
+          observacoes: observacoes || null,
+          itens: itens.map((item) => ({
+            descricao: item.servico || item.descricao,
+            quantidade: item.quantidade,
+            unidade: item.unidade,
+            valorUnitario: item.valorUnitario,
+            desconto: item.desconto,
+          })),
+        },
+      });
+      if (deveEnviar) await enviar({ data: { id: criado.id } });
+      toast.success(deveEnviar ? "Orçamento enviado ao cliente." : "Rascunho salvo.");
+      await navigate({ to: "/admin/orcamentos" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nao foi possivel salvar o orçamento.");
+    } finally {
+      setSalvando(false);
+    }
   }
 
   return (
@@ -93,14 +140,14 @@ function NovoOrcamento() {
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div>
             <Label className="mb-1.5 block">Cliente</Label>
-            <Select>
+            <Select value={eventoId} onValueChange={setEventoId}>
               <SelectTrigger className="bg-surface w-full border-0 ring-1 ring-black/5">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
-                {clientes.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nome}
+                {eventos.map((evento) => (
+                  <SelectItem key={evento.id} value={evento.id}>
+                    {evento.cliente.nome}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -108,7 +155,7 @@ function NovoOrcamento() {
           </div>
           <div>
             <Label className="mb-1.5 block">Evento</Label>
-            <Select>
+            <Select value={eventoId} onValueChange={setEventoId}>
               <SelectTrigger className="bg-surface w-full border-0 ring-1 ring-black/5">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
@@ -125,13 +172,31 @@ function NovoOrcamento() {
             <Label htmlFor="validade" className="mb-1.5 block">
               Validade da proposta
             </Label>
-            <Input id="validade" type="date" className="bg-surface border-0 ring-1 ring-black/5" />
+            <Input
+              id="validade"
+              type="date"
+              value={validade}
+              onChange={(event) => setValidade(event.target.value)}
+              className="bg-surface border-0 ring-1 ring-black/5"
+            />
           </div>
           <div>
             <Label htmlFor="dataev" className="mb-1.5 block">
               Data do evento
             </Label>
-            <Input id="dataev" type="date" className="bg-surface border-0 ring-1 ring-black/5" />
+            <Input
+              id="dataev"
+              type="date"
+              disabled
+              value={
+                eventos.find((evento) => evento.id === eventoId)?.dataEvento
+                  ? new Date(eventos.find((evento) => evento.id === eventoId)!.dataEvento)
+                      .toISOString()
+                      .slice(0, 10)
+                  : ""
+              }
+              className="bg-surface border-0 ring-1 ring-black/5"
+            />
           </div>
         </div>
       </Panel>
@@ -235,6 +300,8 @@ function NovoOrcamento() {
           <div className="mt-4 grid grid-cols-1 gap-4">
             <Textarea
               rows={3}
+              value={observacoes}
+              onChange={(event) => setObservacoes(event.target.value)}
               placeholder="Observações visíveis ao cliente"
               className="bg-surface border-0 ring-1 ring-black/5"
             />
@@ -276,18 +343,14 @@ function NovoOrcamento() {
         </Button>
         <Button
           variant="outline"
-          onClick={() => {
-            toast.success("Rascunho salvo.");
-            navigate({ to: "/admin/orcamentos" });
-          }}
+          disabled={salvando || !eventoId || itens.length === 0}
+          onClick={() => void salvar(false)}
         >
           Salvar rascunho
         </Button>
         <Button
-          onClick={() => {
-            toast.success("Orçamento enviado ao cliente.");
-            navigate({ to: "/admin/orcamentos" });
-          }}
+          disabled={salvando || !eventoId || itens.length === 0}
+          onClick={() => void salvar(true)}
         >
           Enviar orçamento
         </Button>

@@ -30,7 +30,8 @@ Empresa
 
 ## Configuração local
 
-Copie `.env.example` para `.env` e ajuste a URL:
+Copie `.env.example` para `.env` e ajuste a URL usada pelos comandos executados
+no host:
 
 ```env
 DATABASE_URL="postgresql://usuario:senha@localhost:5432/buffet?schema=public"
@@ -50,6 +51,44 @@ npm run db:deploy
 ```
 
 O acesso ao banco no servidor deve ser obtido por `getPrisma()` em `src/lib/prisma.server.ts`. O Client gerado fica em `src/generated/prisma` e não é versionado.
+
+## PostgreSQL com Docker Compose
+
+O `compose.yaml` fornece dois serviços:
+
+- `db`, baseado em PostgreSQL 17, com healthcheck e dados persistidos no volume
+  nomeado `postgres_data`;
+- `app`, que aguarda o healthcheck do banco e executa o servidor Nitro na porta
+  interna `3000`.
+
+Variáveis aceitas pelo Compose:
+
+- `APP_PORT` e `POSTGRES_PORT`: portas publicadas no host;
+- `POSTGRES_DB`, `POSTGRES_USER` e `POSTGRES_PASSWORD`: criação e acesso ao
+  banco.
+
+Dentro da rede do Compose, a aplicação recebe uma `DATABASE_URL` construída com
+essas credenciais e usa `db` como hostname. A `DATABASE_URL` do `.env` continua
+apontando para `localhost`, para comandos Prisma executados no host.
+
+```sh
+docker compose up --build -d
+docker compose ps
+docker compose logs -f app
+```
+
+O startup da aplicação executa somente `.output/server/index.mjs`: ele não
+roda `prisma migrate deploy`, `prisma migrate dev` nem qualquer outra alteração
+de schema. Quando necessário, aplique migrations conscientemente a partir do
+host:
+
+```sh
+npm ci
+npm run db:deploy
+```
+
+Finalize os containers com `docker compose down`. Os dados permanecem no
+volume; use `docker compose down --volumes` apenas quando quiser removê-los.
 
 ## Regras que ficam na aplicação
 

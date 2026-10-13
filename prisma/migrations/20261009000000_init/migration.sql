@@ -319,6 +319,9 @@ CREATE INDEX "usuarios_empresa_id_ativo_idx" ON "usuarios"("empresa_id", "ativo"
 CREATE UNIQUE INDEX "usuarios_empresa_id_email_key" ON "usuarios"("empresa_id", "email");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "usuarios_email_key" ON "usuarios"("email");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "usuarios_empresa_id_id_key" ON "usuarios"("empresa_id", "id");
 
 -- CreateIndex

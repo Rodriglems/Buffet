@@ -109,7 +109,7 @@ model Empresa {
   razaoSocial  String   @map("razao_social")
   nomeFantasia String   @map("nome_fantasia")
   cnpj         String   @unique @db.VarChar(14)
-  email        String
+  email        String        @unique
   telefone     String?  @db.VarChar(20)
   whatsapp     String?  @db.VarChar(20)
   cep          String?  @db.VarChar(8)

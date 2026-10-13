@@ -1,4 +1,5 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { PageHeader, Panel, PanelHeader } from "@/components/panel";
@@ -6,14 +7,12 @@ import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { obterEmpresa } from "@/features/empresa/server-functions";
 import {
-  clienteById,
-  empresa,
-  eventoById,
-  orcamentoById,
-  totalOrcamento,
-  versoesNegociacao,
-} from "@/data/mock";
+  aprovarOrcamento,
+  enviarOrcamento,
+  obterOrcamento,
+} from "@/features/orcamentos/server-functions";
 import { formatBRL, formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/orcamentos/$id")({
@@ -22,24 +21,80 @@ export const Route = createFileRoute("/admin/orcamentos/$id")({
       { title: "Orçamento — Mesa Buffet & Eventos" },
       {
         name: "description",
-        content: "Visualize a proposta exatamente como o cliente a recebe e acompanhe a negociação.",
+        content:
+          "Visualize a proposta exatamente como o cliente a recebe e acompanhe a negociação.",
       },
       { property: "og:title", content: "Orçamento — Mesa Buffet & Eventos" },
       { property: "og:description", content: "Proposta comercial e histórico de versões." },
     ],
   }),
+  loader: async ({ params }) => {
+    const [orcamento, empresa] = await Promise.all([
+      obterOrcamento({ data: { id: params.id } }),
+      obterEmpresa(),
+    ]);
+    return { orcamento, empresa };
+  },
   component: DetalheOrcamento,
 });
 
 function DetalheOrcamento() {
-  const { id } = Route.useParams();
-  const orcamento = orcamentoById(id);
-  if (!orcamento) throw notFound();
-
-  const cliente = clienteById(orcamento.clienteId);
-  const evento = eventoById(orcamento.eventoId);
-  const { subtotal, desconto, total } = totalOrcamento(orcamento);
-  const versoes = versoesNegociacao[orcamento.id] ?? [];
+  const dados = Route.useLoaderData();
+  const enviar = useServerFn(enviarOrcamento);
+  const aprovar = useServerFn(aprovarOrcamento);
+  const cliente = {
+    ...dados.orcamento.evento.cliente,
+    documento: dados.orcamento.evento.cliente.cpfCnpj ?? "Não informado",
+  };
+  const evento = {
+    ...dados.orcamento.evento,
+    data: dados.orcamento.evento.dataEvento,
+    local: dados.orcamento.evento.localNome ?? "Local a definir",
+    convidados: dados.orcamento.evento.quantidadeConvidados,
+    horaInicio: dados.orcamento.evento.horaInicio
+      ? new Date(dados.orcamento.evento.horaInicio).toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "a definir",
+    horaFim: dados.orcamento.evento.horaFim
+      ? new Date(dados.orcamento.evento.horaFim).toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "a definir",
+  };
+  const empresa = {
+    nome: dados.empresa.nomeFantasia,
+    cnpj: dados.empresa.cnpj,
+    telefone: dados.empresa.telefone ?? "",
+    email: dados.empresa.email,
+  };
+  const orcamento = {
+    ...dados.orcamento,
+    codigo: `#${dados.orcamento.numero}`,
+    data: dados.orcamento.createdAt,
+    validade: dados.orcamento.validade ?? dados.orcamento.createdAt,
+    condicoes: "",
+    itens: dados.orcamento.itens.map((item) => ({
+      ...item,
+      servico: item.servico?.nome ?? item.descricao,
+      quantidade: Number(item.quantidade),
+      valorUnitario: Number(item.valorUnitario),
+      desconto: Number(item.desconto),
+    })),
+  };
+  const subtotal = Number(dados.orcamento.subtotal);
+  const desconto = Number(dados.orcamento.desconto);
+  const total = Number(dados.orcamento.total);
+  const versoes: Array<{
+    versao: number;
+    valor: number;
+    status: string;
+    alteracoes: string;
+    responsavel: string;
+    data: string;
+  }> = [];
 
   return (
     <div className="flex flex-col gap-4">
@@ -49,10 +104,23 @@ function DetalheOrcamento() {
         actions={
           <>
             <StatusBadge status={orcamento.status} className="px-3 py-1.5" />
-            <Button variant="outline" onClick={() => toast.success("Orçamento reenviado ao cliente.")}>
+            <Button
+              variant="outline"
+              onClick={() =>
+                void enviar({ data: { id: orcamento.id } })
+                  .then(() => toast.success("Orçamento enviado ao cliente."))
+                  .catch(() => toast.error("Não foi possível enviar."))
+              }
+            >
               Reenviar
             </Button>
-            <Button onClick={() => toast.success("Contrato gerado a partir do orçamento.")}>
+            <Button
+              onClick={() =>
+                void aprovar({ data: { id: orcamento.id } })
+                  .then(() => toast.success("Contrato gerado a partir do orçamento."))
+                  .catch(() => toast.error("Não foi possível gerar o contrato."))
+              }
+            >
               Gerar contrato
             </Button>
           </>
@@ -82,8 +150,12 @@ function DetalheOrcamento() {
               </div>
               <div className="text-right">
                 <p className="font-display text-sm font-semibold">Proposta {orcamento.codigo}</p>
-                <p className="text-muted-foreground text-[11px]">Emitida em {formatDate(orcamento.data)}</p>
-                <p className="text-muted-foreground text-[11px]">Válida até {formatDate(orcamento.validade)}</p>
+                <p className="text-muted-foreground text-[11px]">
+                  Emitida em {formatDate(orcamento.data)}
+                </p>
+                <p className="text-muted-foreground text-[11px]">
+                  Válida até {formatDate(orcamento.validade)}
+                </p>
               </div>
             </div>
 
@@ -99,7 +171,8 @@ function DetalheOrcamento() {
                 <p className="text-muted-foreground text-[11px] tracking-wide uppercase">Evento</p>
                 <p className="mt-1 text-sm font-medium">{evento?.nome}</p>
                 <p className="text-muted-foreground text-xs">
-                  {evento && `${formatDate(evento.data)} · ${evento.horaInicio} às ${evento.horaFim}`}
+                  {evento &&
+                    `${formatDate(evento.data)} · ${evento.horaInicio} às ${evento.horaFim}`}
                 </p>
                 <p className="text-muted-foreground text-xs">{evento?.local}</p>
                 <p className="text-muted-foreground text-xs">{evento?.convidados} convidados</p>
@@ -126,7 +199,9 @@ function DetalheOrcamento() {
                       </td>
                       <td className="text-muted-foreground py-3 pr-3">{i.quantidade}</td>
                       <td className="text-muted-foreground py-3 pr-3">{i.unidade}</td>
-                      <td className="text-muted-foreground py-3 pr-3">{formatBRL(i.valorUnitario)}</td>
+                      <td className="text-muted-foreground py-3 pr-3">
+                        {formatBRL(i.valorUnitario)}
+                      </td>
                       <td className="py-3 text-right font-medium">
                         {formatBRL(i.quantidade * i.valorUnitario - i.desconto)}
                       </td>
@@ -157,7 +232,9 @@ function DetalheOrcamento() {
               <div className="mt-6 grid grid-cols-1 gap-4 border-t border-border pt-6 sm:grid-cols-2">
                 {orcamento.observacoes && (
                   <div>
-                    <p className="text-muted-foreground text-[11px] tracking-wide uppercase">Observações</p>
+                    <p className="text-muted-foreground text-[11px] tracking-wide uppercase">
+                      Observações
+                    </p>
                     <p className="mt-1 text-xs text-pretty">{orcamento.observacoes}</p>
                   </div>
                 )}
@@ -173,22 +250,33 @@ function DetalheOrcamento() {
             )}
 
             <div className="mt-6 flex flex-wrap justify-end gap-2 border-t border-border pt-6">
-              <Button variant="outline" onClick={() => toast("Solicitação de alteração registrada.")}>
+              <Button
+                variant="outline"
+                onClick={() => toast("Solicitação de alteração registrada.")}
+              >
                 Solicitar alteração
               </Button>
               <Button variant="outline" onClick={() => toast.error("Orçamento rejeitado.")}>
                 Rejeitar
               </Button>
-              <Button onClick={() => toast.success("Orçamento aprovado.")}>Aprovar orçamento</Button>
+              <Button onClick={() => toast.success("Orçamento aprovado.")}>
+                Aprovar orçamento
+              </Button>
             </div>
           </Panel>
         </TabsContent>
 
         <TabsContent value="negociacao" className="mt-4">
           <Panel className="p-5">
-            <PanelHeader title="Histórico de versões" subtitle="Alterações desde a proposta inicial" />
+            <PanelHeader
+              title="Histórico de versões"
+              subtitle="Alterações desde a proposta inicial"
+            />
             {versoes.length === 0 ? (
-              <EmptyState title="Sem versões anteriores" description="Esta proposta ainda está na versão inicial." />
+              <EmptyState
+                title="Sem versões anteriores"
+                description="Esta proposta ainda está na versão inicial."
+              />
             ) : (
               <ol className="mt-4 flex flex-col">
                 {versoes.map((v, i) => (
@@ -204,7 +292,9 @@ function DetalheOrcamento() {
                         <p className="text-sm font-medium">{formatBRL(v.valor)}</p>
                         <StatusBadge status={v.status} />
                       </div>
-                      <p className="text-muted-foreground mt-1 text-xs text-pretty">{v.alteracoes}</p>
+                      <p className="text-muted-foreground mt-1 text-xs text-pretty">
+                        {v.alteracoes}
+                      </p>
                       <p className="text-muted-foreground mt-1 text-[11px]">
                         {v.responsavel} · {formatDate(v.data)}
                       </p>

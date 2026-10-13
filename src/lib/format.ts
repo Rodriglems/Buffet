@@ -10,9 +10,11 @@ export function formatBRLShort(value: number): string {
   return `R$ ${value.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
 }
 
-/** Recebe ISO (aaaa-mm-dd) e devolve dd/mm/aaaa. */
-export function formatDate(iso: string): string {
-  const [y, m, d] = iso.split("-");
+/** Recebe uma data ou ISO e devolve dd/mm/aaaa. */
+export function formatDate(value: string | Date): string {
+  const iso = value instanceof Date ? value.toISOString() : value;
+  const [y, m, rawDay] = iso.split("-");
+  const d = rawDay?.slice(0, 2);
   if (!y || !m || !d) return iso;
   return `${d}/${m}/${y}`;
 }

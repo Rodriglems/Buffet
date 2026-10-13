@@ -1,125 +1,99 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { clienteById, contratoById, empresa, eventoById, orcamentos, totalOrcamento } from "@/data/mock";
+import {
+  cancelarContrato,
+  enviarContrato,
+  obterContrato,
+} from "@/features/contratos/server-functions";
 import { formatBRL, formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/contratos/$id")({
-  head: () => ({
-    meta: [
-      { title: "Contrato digital — Mesa Buffet & Eventos" },
-      { name: "description", content: "Contrato digital do evento com termos, valores e área de assinatura." },
-      { property: "og:title", content: "Contrato digital — Mesa Buffet & Eventos" },
-      { property: "og:description", content: "Termos contratuais e assinatura eletrônica." },
-    ],
-  }),
+  loader: ({ params }) => obterContrato({ data: { id: params.id } }),
   component: DetalheContrato,
 });
 
 function DetalheContrato() {
-  const { id } = Route.useParams();
-  const contrato = contratoById(id);
-  if (!contrato) throw notFound();
-
-  const cliente = clienteById(contrato.clienteId);
-  const evento = eventoById(contrato.eventoId);
-  const orcamento = orcamentos.find((o) => o.eventoId === contrato.eventoId);
-
+  const contrato = Route.useLoaderData();
+  const enviar = useServerFn(enviarContrato);
+  const cancelar = useServerFn(cancelarContrato);
+  const router = useRouter();
+  async function executar(action: "enviar" | "cancelar") {
+    try {
+      if (action === "enviar") await enviar({ data: { id: contrato.id } });
+      else await cancelar({ data: { id: contrato.id } });
+      toast.success(action === "enviar" ? "Contrato enviado." : "Contrato cancelado.");
+      await router.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Operação não concluída.");
+    }
+  }
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title={`Contrato ${contrato.codigo}`}
-        subtitle={`${cliente?.nome} · emitido em ${formatDate(contrato.data)}`}
+        title={`Contrato #${contrato.numero}`}
+        subtitle={`${contrato.evento.cliente.nome} · ${contrato.evento.nome}`}
         actions={
           <>
-            <StatusBadge status={contrato.status} className="px-3 py-1.5" />
-            <Button variant="outline" onClick={() => toast.success("Contrato enviado para assinatura.")}>
-              Enviar para assinatura
-            </Button>
-            <Button onClick={() => toast.success("Download iniciado.")}>Baixar contrato</Button>
+            <StatusBadge status={contrato.status} />
+            {contrato.status === "RASCUNHO" && (
+              <Button onClick={() => void executar("enviar")}>Enviar para assinatura</Button>
+            )}
+            {contrato.status !== "ASSINADO" && contrato.status !== "CANCELADO" && (
+              <Button variant="outline" onClick={() => void executar("cancelar")}>
+                Cancelar
+              </Button>
+            )}
           </>
         }
       />
-
-      <Panel className="p-6 sm:p-8">
-        <div className="grid grid-cols-1 gap-6 border-b border-border pb-6 sm:grid-cols-2">
-          <div>
-            <p className="text-muted-foreground text-[11px] tracking-wide uppercase">Contratada</p>
-            <p className="mt-1 text-sm font-medium">{empresa.nome}</p>
-            <p className="text-muted-foreground text-xs">CNPJ {empresa.cnpj}</p>
-            <p className="text-muted-foreground text-xs">{empresa.endereco}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-[11px] tracking-wide uppercase">Contratante</p>
-            <p className="mt-1 text-sm font-medium">{cliente?.nome}</p>
-            <p className="text-muted-foreground text-xs">{cliente?.documento}</p>
-            <p className="text-muted-foreground text-xs">{cliente?.email}</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 py-6 sm:grid-cols-2">
-          <div>
-            <p className="text-muted-foreground text-[11px] tracking-wide uppercase">Evento</p>
-            <p className="mt-1 text-sm font-medium">{evento?.nome}</p>
-            <p className="text-muted-foreground text-xs">
-              {evento && `${formatDate(evento.data)} · ${evento.horaInicio} às ${evento.horaFim}`}
-            </p>
-            <p className="text-muted-foreground text-xs">{evento?.local}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-[11px] tracking-wide uppercase">Valor contratado</p>
-            <p className="font-display mt-1 text-xl font-semibold">{formatBRL(contrato.valor)}</p>
-          </div>
-        </div>
-
-        {orcamento && (
-          <div className="border-t border-border py-6">
-            <p className="text-muted-foreground text-[11px] tracking-wide uppercase">Serviços contratados</p>
-            <ul className="mt-2 flex flex-col gap-2">
-              {orcamento.itens.map((i) => (
-                <li key={i.id} className="flex justify-between gap-4 text-sm">
-                  <span>
-                    {i.servico}
-                    <span className="text-muted-foreground"> · {i.quantidade} {i.unidade}</span>
-                  </span>
-                  <span className="font-medium">{formatBRL(i.quantidade * i.valorUnitario)}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-3 text-right text-sm">
-              <span className="text-muted-foreground">Total da proposta: </span>
-              <span className="font-medium">{formatBRL(totalOrcamento(orcamento).total)}</span>
-            </p>
-          </div>
-        )}
-
-        <div className="border-t border-border py-6">
-          <p className="text-muted-foreground text-[11px] tracking-wide uppercase">Termos contratuais</p>
-          <p className="text-muted-foreground mt-2 text-xs text-pretty">
-            O presente contrato tem por objeto a prestação de serviços de buffet para o evento descrito
-            acima. O cancelamento com menos de 30 dias de antecedência implica retenção de 40% do valor.
-            Alterações no número de convidados devem ser comunicadas com 10 dias de antecedência.
-            {orcamento?.condicoes ? ` Condições de pagamento: ${orcamento.condicoes}` : ""}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Panel className="p-5">
+          <p className="text-muted-foreground text-xs">Valor</p>
+          <p className="font-display text-xl font-semibold">
+            {formatBRL(Number(contrato.valorTotal))}
           </p>
-        </div>
-
-        <div className="border-t border-border pt-6">
-          <p className="text-muted-foreground text-[11px] tracking-wide uppercase">Assinatura</p>
-          {contrato.status === "Assinado" ? (
-            <div className="bg-success/10 text-success mt-2 rounded-xl p-4 text-sm">
-              Contrato assinado em {formatDate(contrato.assinadoEm!)} às {contrato.assinadoHora}.
-            </div>
-          ) : (
-            <div className="bg-surface mt-2 rounded-xl p-6 text-center ring-1 ring-black/5">
-              <p className="text-muted-foreground text-xs">
-                Aguardando assinatura eletrônica do contratante.
-              </p>
-            </div>
-          )}
-        </div>
+        </Panel>
+        <Panel className="p-5">
+          <p className="text-muted-foreground text-xs">Enviado</p>
+          <p>{contrato.enviadoEm ? formatDate(contrato.enviadoEm) : "—"}</p>
+        </Panel>
+        <Panel className="p-5">
+          <p className="text-muted-foreground text-xs">Assinado</p>
+          <p>{contrato.assinadoEm ? formatDate(contrato.assinadoEm) : "—"}</p>
+        </Panel>
+      </div>
+      <Panel className="p-6">
+        <h2 className="font-display font-semibold">Conteúdo</h2>
+        <p className="mt-4 whitespace-pre-wrap text-sm">
+          {contrato.conteudo ?? "Conteúdo contratual ainda não informado."}
+        </p>
+        {contrato.documentoUrl && (
+          <Button className="mt-4" variant="outline" asChild>
+            <a href={contrato.documentoUrl} target="_blank" rel="noreferrer">
+              Abrir documento
+            </a>
+          </Button>
+        )}
+      </Panel>
+      <Panel className="p-5">
+        <h2 className="font-display font-semibold">Parcelas</h2>
+        <ul className="mt-3 divide-y divide-border">
+          {contrato.pagamentos.map((item) => (
+            <li key={item.id} className="flex justify-between py-3 text-sm">
+              <span>
+                Parcela {item.numeroParcela} · {formatDate(item.dataVencimento)}
+              </span>
+              <span>
+                {formatBRL(Number(item.valor))} · {item.status}
+              </span>
+            </li>
+          ))}
+        </ul>
       </Panel>
     </div>
   );

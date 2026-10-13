@@ -15,8 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { eventos, nomeCliente } from "@/data/mock";
-import { formatBRL, formatDate } from "@/lib/format";
+import { listarEventos } from "@/features/eventos/server-functions";
+import { formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/eventos/")({
   head: () => ({
@@ -24,18 +24,21 @@ export const Route = createFileRoute("/admin/eventos/")({
       { title: "Eventos — Mesa Buffet & Eventos" },
       {
         name: "description",
-        content: "Gerencie todos os eventos do buffet em lista ou calendário, com filtros e status.",
+        content:
+          "Gerencie todos os eventos do buffet em lista ou calendário, com filtros e status.",
       },
       { property: "og:title", content: "Eventos — Mesa Buffet & Eventos" },
       { property: "og:description", content: "Lista e calendário de eventos do buffet." },
     ],
   }),
+  loader: () => listarEventos({ data: { page: 1, pageSize: 100 } }),
   component: EventosPage,
 });
 
 const TODOS = "todos";
 
 function EventosPage() {
+  const { items: eventos } = Route.useLoaderData();
   const [busca, setBusca] = useState("");
   const [tipo, setTipo] = useState(TODOS);
   const [status, setStatus] = useState(TODOS);
@@ -43,7 +46,7 @@ function EventosPage() {
   const lista = eventos.filter(
     (e) =>
       (e.nome.toLowerCase().includes(busca.toLowerCase()) ||
-        nomeCliente(e.clienteId).toLowerCase().includes(busca.toLowerCase())) &&
+        e.cliente.nome.toLowerCase().includes(busca.toLowerCase())) &&
       (tipo === TODOS || e.tipo === tipo) &&
       (status === TODOS || e.status === status),
   );
@@ -53,7 +56,8 @@ function EventosPage() {
 
   // Calendário simples do mês com maior concentração de eventos.
   const porData = lista.reduce<Record<string, typeof eventos>>((acc, e) => {
-    (acc[e.data] ||= []).push(e);
+    const data = new Date(e.dataEvento).toISOString().slice(0, 10);
+    (acc[data] ||= []).push(e);
     return acc;
   }, {});
 
@@ -123,7 +127,10 @@ function EventosPage() {
         <TabsContent value="lista" className="mt-4">
           <Panel className="p-5">
             {lista.length === 0 ? (
-              <EmptyState title="Nenhum evento encontrado" description="Ajuste os filtros aplicados." />
+              <EmptyState
+                title="Nenhum evento encontrado"
+                description="Ajuste os filtros aplicados."
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[840px] text-left text-sm">
@@ -142,16 +149,22 @@ function EventosPage() {
                     {lista.map((e) => (
                       <tr key={e.id}>
                         <td className="py-3 pr-3">
-                          <Link to="/admin/eventos/$id" params={{ id: e.id }} className="font-medium hover:underline">
+                          <Link
+                            to="/admin/eventos/$id"
+                            params={{ id: e.id }}
+                            className="font-medium hover:underline"
+                          >
                             {e.nome}
                           </Link>
                           <p className="text-muted-foreground text-[11px]">{e.tipo}</p>
                         </td>
-                        <td className="text-muted-foreground py-3 pr-3">{nomeCliente(e.clienteId)}</td>
-                        <td className="text-muted-foreground py-3 pr-3">{formatDate(e.data)}</td>
-                        <td className="text-muted-foreground py-3 pr-3">{e.local}</td>
-                        <td className="py-3 pr-3">{e.convidados}</td>
-                        <td className="py-3 pr-3 font-medium">{formatBRL(e.valor)}</td>
+                        <td className="text-muted-foreground py-3 pr-3">{e.cliente.nome}</td>
+                        <td className="text-muted-foreground py-3 pr-3">
+                          {formatDate(e.dataEvento)}
+                        </td>
+                        <td className="text-muted-foreground py-3 pr-3">{e.localNome ?? "—"}</td>
+                        <td className="py-3 pr-3">{e.quantidadeConvidados}</td>
+                        <td className="py-3 pr-3 font-medium">—</td>
                         <td className="py-3">
                           <StatusBadge status={e.status} />
                         </td>
@@ -176,11 +189,21 @@ function EventosPage() {
                       {itens.map((e) => (
                         <li key={e.id} className="flex items-start justify-between gap-2">
                           <div>
-                            <Link to="/admin/eventos/$id" params={{ id: e.id }} className="text-xs font-medium hover:underline">
+                            <Link
+                              to="/admin/eventos/$id"
+                              params={{ id: e.id }}
+                              className="text-xs font-medium hover:underline"
+                            >
                               {e.nome}
                             </Link>
                             <p className="text-muted-foreground text-[11px]">
-                              {e.horaInicio}–{e.horaFim} · {e.local}
+                              {e.horaInicio
+                                ? new Date(e.horaInicio).toLocaleTimeString("pt-BR", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : "Horário a definir"}{" "}
+                              · {e.localNome ?? "Local a definir"}
                             </p>
                           </div>
                           <StatusBadge status={e.status} dot={false} />

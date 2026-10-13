@@ -1,15 +1,22 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { clienteNav } from "@/components/layout/nav-config";
-import { clienteLogado } from "@/data/mock";
+import { currentUser } from "@/features/auth/server-functions";
 
 export const Route = createFileRoute("/cliente")({
+  loader: async () => {
+    const usuario = await currentUser();
+    if (!usuario) throw redirect({ to: "/" });
+    if (usuario.role !== "CLIENT") throw redirect({ to: "/admin" });
+    return usuario;
+  },
   component: ClienteLayout,
 });
 
 function ClienteLayout() {
-  const iniciais = clienteLogado.nome
+  const usuario = Route.useLoaderData();
+  const iniciais = usuario.nome
     .split(" ")
     .filter((p) => p.length > 2)
     .slice(0, 2)
@@ -21,8 +28,7 @@ function ClienteLayout() {
     <AppShell
       nav={clienteNav}
       area="cliente"
-      usuario={{ nome: clienteLogado.nome, cargo: "Cliente", iniciais }}
-      trocarPara={{ label: "Ver painel administrativo", to: "/admin" }}
+      usuario={{ nome: usuario.nome, cargo: "Cliente", iniciais }}
     />
   );
 }

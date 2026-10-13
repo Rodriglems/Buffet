@@ -4,29 +4,36 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, Panel } from "@/components/panel";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
-import { atividades, nomeCliente } from "@/data/mock";
+import { listarAtividades } from "@/features/atividades/server-functions";
 import { formatDate } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
 
 export const Route = createFileRoute("/admin/atividades")({
   head: () => pageMeta("Atividades", "Histórico completo de ações realizadas no sistema."),
+  loader: () => listarAtividades({ data: { page: 1, pageSize: 100 } }),
   component: Atividades,
 });
 
 const tipos = ["Todos", "Orçamento", "Contrato", "Pagamento", "Evento", "Cliente"] as const;
 
 function Atividades() {
+  const { items: atividades } = Route.useLoaderData();
   const [tipo, setTipo] = useState<(typeof tipos)[number]>("Todos");
   const lista = [...atividades]
-    .filter((a) => tipo === "Todos" || a.tipo === tipo)
-    .sort((a, b) => (b.data + b.hora).localeCompare(a.data + a.hora));
+    .filter((a) => tipo === "Todos" || a.tipo.includes(tipo.toUpperCase()))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Atividades" subtitle="Registro de tudo que aconteceu no sistema" />
       <div className="flex flex-wrap gap-2">
         {tipos.map((t) => (
-          <Button key={t} size="sm" variant={t === tipo ? "default" : "outline"} onClick={() => setTipo(t)}>
+          <Button
+            key={t}
+            size="sm"
+            variant={t === tipo ? "default" : "outline"}
+            onClick={() => setTipo(t)}
+          >
             {t}
           </Button>
         ))}
@@ -41,14 +48,20 @@ function Atividades() {
                 <div className="min-w-0">
                   <p className="text-sm text-pretty">{a.descricao}</p>
                   <p className="text-muted-foreground mt-0.5 text-xs">
-                    {a.usuario}
-                    {a.clienteId ? ` · ${nomeCliente(a.clienteId)}` : ""}
+                    {a.usuario?.nome ?? "Sistema"}
+                    {a.entidadeTipo ? ` · ${a.entidadeTipo}` : ""}
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="bg-brand/12 text-brand rounded-full px-2 py-0.5 text-[11px] font-medium">{a.tipo}</span>
+                  <span className="bg-brand/12 text-brand rounded-full px-2 py-0.5 text-[11px] font-medium">
+                    {a.tipo}
+                  </span>
                   <p className="text-muted-foreground mt-1 text-[11px]">
-                    {formatDate(a.data)} · {a.hora}
+                    {formatDate(a.createdAt)} ·{" "}
+                    {new Date(a.createdAt).toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </p>
                 </div>
               </li>

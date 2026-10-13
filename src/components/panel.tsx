@@ -1,13 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-export function Panel({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+export function Panel({ children, className }: { children: ReactNode; className?: string }) {
   return <section className={cn("panel", className)}>{children}</section>;
 }
 
@@ -80,7 +74,9 @@ export function StatCard({
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
         {badge && (
-          <span className={cn("rounded-md px-1.5 py-0.5 text-[11px] font-medium", tones[badgeTone])}>
+          <span
+            className={cn("rounded-md px-1.5 py-0.5 text-[11px] font-medium", tones[badgeTone])}
+          >
             {badge}
           </span>
         )}

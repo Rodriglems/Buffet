@@ -3,17 +3,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/states";
-import { clienteLogado, eventos } from "@/data/mock";
-import { formatBRL, formatDate } from "@/lib/format";
+import { listarEventos } from "@/features/eventos/server-functions";
+import { formatDate } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
 
 export const Route = createFileRoute("/cliente/eventos")({
   head: () => pageMeta("Meus eventos", "Detalhes dos seus eventos contratados."),
+  loader: () => listarEventos({ data: { page: 1, pageSize: 100 } }),
   component: MeusEventos,
 });
 
 function MeusEventos() {
-  const lista = eventos.filter((e) => e.clienteId === clienteLogado.id);
+  const { items: lista } = Route.useLoaderData();
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Meus eventos" subtitle={`${lista.length} evento(s)`} />
@@ -32,12 +33,31 @@ function MeusEventos() {
             <StatusBadge status={e.status} />
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-            <div><dt className="text-muted-foreground text-[11px] uppercase">Data</dt><dd>{formatDate(e.data)}</dd></div>
-            <div><dt className="text-muted-foreground text-[11px] uppercase">Horário</dt><dd>{e.horaInicio}–{e.horaFim}</dd></div>
-            <div><dt className="text-muted-foreground text-[11px] uppercase">Convidados</dt><dd>{e.convidados}</dd></div>
-            <div><dt className="text-muted-foreground text-[11px] uppercase">Valor</dt><dd>{formatBRL(e.valor)}</dd></div>
+            <div>
+              <dt className="text-muted-foreground text-[11px] uppercase">Data</dt>
+              <dd>{formatDate(e.dataEvento)}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground text-[11px] uppercase">Horário</dt>
+              <dd>
+                {e.horaInicio
+                  ? new Date(e.horaInicio).toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "A definir"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground text-[11px] uppercase">Convidados</dt>
+              <dd>{e.quantidadeConvidados}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground text-[11px] uppercase">Status</dt>
+              <dd>{e.status}</dd>
+            </div>
           </dl>
-          <p className="text-muted-foreground mt-3 text-xs">{e.local} · {e.endereco}</p>
+          <p className="text-muted-foreground mt-3 text-xs">{e.localNome ?? "Local a definir"}</p>
         </Panel>
       ))}
     </div>

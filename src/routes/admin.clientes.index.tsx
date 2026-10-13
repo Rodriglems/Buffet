@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { clientes } from "@/data/mock";
+import { listarClientes } from "@/features/clientes/server-functions";
 import { formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/clientes/")({
@@ -28,16 +28,18 @@ export const Route = createFileRoute("/admin/clientes/")({
       { property: "og:description", content: "Gerencie a base de clientes do seu buffet." },
     ],
   }),
+  loader: () => listarClientes({ data: { page: 1, pageSize: 100, busca: "" } }),
   component: ClientesPage,
 });
 
 function ClientesPage() {
   const [busca, setBusca] = useState("");
+  const { items: clientes } = Route.useLoaderData();
   const lista = clientes.filter(
     (c) =>
       c.nome.toLowerCase().includes(busca.toLowerCase()) ||
-      c.documento.includes(busca) ||
-      c.email.toLowerCase().includes(busca.toLowerCase()),
+      (c.cpfCnpj ?? "").includes(busca) ||
+      (c.email ?? "").toLowerCase().includes(busca.toLowerCase()),
   );
 
   return (
@@ -102,15 +104,19 @@ function ClientesPage() {
                       >
                         {c.nome}
                       </Link>
-                      <p className="text-muted-foreground text-[11px]">{c.origem}</p>
+                      <p className="text-muted-foreground text-[11px]">
+                        {c.tipoPessoa === "FISICA" ? "Pessoa física" : "Pessoa jurídica"}
+                      </p>
                     </td>
-                    <td className="text-muted-foreground py-3 pr-3">{c.documento}</td>
-                    <td className="text-muted-foreground py-3 pr-3">{c.telefone}</td>
-                    <td className="text-muted-foreground py-3 pr-3">{c.email}</td>
-                    <td className="py-3 pr-3">{c.qtdEventos}</td>
-                    <td className="text-muted-foreground py-3 pr-3">{formatDate(c.ultimoEvento)}</td>
+                    <td className="text-muted-foreground py-3 pr-3">{c.cpfCnpj ?? "—"}</td>
+                    <td className="text-muted-foreground py-3 pr-3">
+                      {c.telefone ?? c.whatsapp ?? "—"}
+                    </td>
+                    <td className="text-muted-foreground py-3 pr-3">{c.email ?? "—"}</td>
+                    <td className="py-3 pr-3">—</td>
+                    <td className="text-muted-foreground py-3 pr-3">{formatDate(c.createdAt)}</td>
                     <td className="py-3 pr-3">
-                      <StatusBadge status={c.status} />
+                      <StatusBadge status="Ativo" />
                     </td>
                     <td className="py-3 text-right">
                       <DropdownMenu>

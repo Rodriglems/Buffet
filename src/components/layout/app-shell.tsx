@@ -1,5 +1,6 @@
-import { useState, type ReactNode } from "react";
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { Bell, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -17,7 +18,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AmbientLight } from "@/components/ambient-light";
-import { notificacoes } from "@/data/mock";
+import { logout } from "@/features/auth/server-functions";
+import { listarNotificacoes } from "@/features/notificacoes/server-functions";
 import { cn } from "@/lib/utils";
 import type { NavGroup } from "./nav-config";
 
@@ -25,7 +27,6 @@ interface ShellProps {
   nav: NavGroup[];
   area: "admin" | "cliente";
   usuario: { nome: string; cargo: string; iniciais: string };
-  trocarPara: { label: string; to: string };
 }
 
 function NavLinks({ nav, onNavigate }: { nav: NavGroup[]; onNavigate?: () => void }) {
@@ -71,7 +72,17 @@ function saudacao() {
   return h < 12 ? "Bom dia!" : h < 18 ? "Boa tarde!" : "Boa noite!";
 }
 
-function RailLink({ to, label, icon: Icon, active }: { to: string; label: string; icon: LucideIcon; active?: boolean }) {
+function RailLink({
+  to,
+  label,
+  icon: Icon,
+  active,
+}: {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  active?: boolean;
+}) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -80,7 +91,9 @@ function RailLink({ to, label, icon: Icon, active }: { to: string; label: string
           aria-label={label}
           className={cn(
             "relative grid size-11 place-items-center rounded-xl transition-colors",
-            active ? "bg-primary text-primary-foreground" : "text-foreground/60 hover:bg-secondary hover:text-foreground",
+            active
+              ? "bg-primary text-primary-foreground"
+              : "text-foreground/60 hover:bg-secondary hover:text-foreground",
           )}
         >
           <Icon className="size-5" />
@@ -99,8 +112,18 @@ function IconRail({ nav }: { nav: NavGroup[] }) {
       <nav className="mt-8 flex flex-col items-center gap-1.5 overflow-y-auto">
         {itens.map((item) => {
           const active =
-            item.to === "/admin" || item.to === "/cliente" ? pathname === item.to : pathname.startsWith(item.to);
-          return <RailLink key={item.to} to={item.to} label={item.label} icon={item.icon} active={active} />;
+            item.to === "/admin" || item.to === "/cliente"
+              ? pathname === item.to
+              : pathname.startsWith(item.to);
+          return (
+            <RailLink
+              key={item.to}
+              to={item.to}
+              label={item.label}
+              icon={item.icon}
+              active={active}
+            />
+          );
         })}
       </nav>
     </TooltipProvider>
@@ -149,7 +172,9 @@ function Breadcrumbs() {
   if (partes.length <= 1) return null;
 
   const rotulo = (p: string) =>
-    decodeURIComponent(p).replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+    decodeURIComponent(p)
+      .replace(/-/g, " ")
+      .replace(/^\w/, (c) => c.toUpperCase());
 
   return (
     <p className="text-muted-foreground mb-4 text-xs">
@@ -165,10 +190,24 @@ function Breadcrumbs() {
   );
 }
 
-export function AppShell({ nav, area, usuario, trocarPara }: ShellProps) {
+export function AppShell({ nav, area, usuario }: ShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
-  const naoLidas = notificacoes.filter((n) => !n.lida).length;
+  const [naoLidas, setNaoLidas] = useState(0);
+  const navigate = useNavigate();
+  const sairNoServidor = useServerFn(logout);
+  const carregarNotificacoes = useServerFn(listarNotificacoes);
+
+  useEffect(() => {
+    void carregarNotificacoes({ data: { page: 1, pageSize: 1, apenasNaoLidas: true } })
+      .then((resultado) => setNaoLidas(resultado.naoLidas))
+      .catch(() => setNaoLidas(0));
+  }, [carregarNotificacoes]);
+
+  async function sair() {
+    await sairNoServidor();
+    await navigate({ to: "/" });
+  }
 
   return (
     <div className="min-h-screen">
@@ -183,7 +222,11 @@ export function AppShell({ nav, area, usuario, trocarPara }: ShellProps) {
       >
         {collapsed ? (
           <>
-            <Link to={area === "admin" ? "/admin" : "/cliente"} aria-label="Início" className="bg-primary text-primary-foreground grid size-11 place-items-center rounded-full">
+            <Link
+              to={area === "admin" ? "/admin" : "/cliente"}
+              aria-label="Início"
+              className="bg-primary text-primary-foreground grid size-11 place-items-center rounded-full"
+            >
               <span className="font-display text-base font-bold">M</span>
             </Link>
             <IconRail nav={nav} />
@@ -201,8 +244,23 @@ export function AppShell({ nav, area, usuario, trocarPara }: ShellProps) {
                   </TooltipTrigger>
                   <TooltipContent side="right">Expandir menu</TooltipContent>
                 </Tooltip>
-                <RailLink to={area === "admin" ? "/admin/configuracoes" : "/cliente/perfil"} label="Configurações" icon={Settings} />
-                <RailLink to="/" label="Sair" icon={LogOut} />
+                <RailLink
+                  to={area === "admin" ? "/admin/configuracoes" : "/cliente/perfil"}
+                  label="Configurações"
+                  icon={Settings}
+                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => void sair()}
+                      aria-label="Sair"
+                      className="text-foreground/60 hover:bg-secondary grid size-11 place-items-center rounded-xl"
+                    >
+                      <LogOut className="size-5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Sair</TooltipContent>
+                </Tooltip>
               </div>
             </TooltipProvider>
           </>
@@ -301,15 +359,12 @@ export function AppShell({ nav, area, usuario, trocarPara }: ShellProps) {
                       Meu perfil
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to={trocarPara.to}>{trocarPara.label}</Link>
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link to="/">
+                    <button type="button" className="w-full" onClick={() => void sair()}>
                       <LogOut className="size-4" />
                       Sair
-                    </Link>
+                    </button>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

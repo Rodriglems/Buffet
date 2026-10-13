@@ -22,7 +22,9 @@ export function Timeline({ items }: { items: TimelineItem[] }) {
       {items.map((item, i) => (
         <li key={item.id} className="relative flex gap-3">
           <div className="flex flex-col items-center">
-            <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", dots[item.tone ?? "neutral"])} />
+            <span
+              className={cn("mt-1.5 size-2 shrink-0 rounded-full", dots[item.tone ?? "neutral"])}
+            />
             {i < items.length - 1 && <span className="w-px flex-1 bg-border" />}
           </div>
           <div className={cn(i < items.length - 1 && "pb-4")}>
@@ -35,13 +37,7 @@ export function Timeline({ items }: { items: TimelineItem[] }) {
   );
 }
 
-export function StepTimeline({
-  steps,
-  current,
-}: {
-  steps: string[];
-  current: number;
-}) {
+export function StepTimeline({ steps, current }: { steps: string[]; current: number }) {
   return (
     <ol className="flex flex-col gap-0 sm:flex-row sm:items-start">
       {steps.map((step, i) => {

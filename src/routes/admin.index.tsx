@@ -24,12 +24,35 @@ import { toast } from "sonner";
 import { Panel } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { eventos, nomeCliente, orcamentos, parcelas, receitaMensal } from "@/data/mock";
+import { listarEventos } from "@/features/eventos/server-functions";
+import { obterResumoFinanceiro } from "@/features/financeiro/server-functions";
+import { listarOrcamentos } from "@/features/orcamentos/server-functions";
+import { listarPagamentos } from "@/features/pagamentos/server-functions";
 import { formatBRLShort } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
 
 export const Route = createFileRoute("/admin/")({
-  head: () => pageMeta("Seu dia", "Pendências, próximos eventos, agenda da semana e resumo financeiro do buffet."),
+  head: () =>
+    pageMeta(
+      "Seu dia",
+      "Pendências, próximos eventos, agenda da semana e resumo financeiro do buffet.",
+    ),
+  loader: async () => {
+    const fim = new Date();
+    const inicio = new Date(fim.getFullYear(), 0, 1);
+    const [eventos, orcamentos, pagamentos, financeiro] = await Promise.all([
+      listarEventos({ data: { page: 1, pageSize: 100 } }),
+      listarOrcamentos({ data: { page: 1, pageSize: 100 } }),
+      listarPagamentos({ data: { page: 1, pageSize: 100 } }),
+      obterResumoFinanceiro({ data: { inicio, fim } }),
+    ]);
+    return {
+      eventos: eventos.items,
+      orcamentos: orcamentos.items,
+      pagamentos: pagamentos.items,
+      financeiro,
+    };
+  },
   component: Dashboard,
 });
 
@@ -71,8 +94,62 @@ function IconBox({ icon: Icon, dark }: { icon: LucideIcon; dark?: boolean }) {
 }
 
 function Dashboard() {
+  const dados = Route.useLoaderData();
+  const statusEvento: Record<string, string> = {
+    PLANEJAMENTO: "Planejamento",
+    ORCAMENTO: "Orçamento",
+    NEGOCIACAO: "Negociação",
+    APROVADO: "Aprovado",
+    CONTRATO: "Contrato",
+    ASSINADO: "Assinado",
+    CONFIRMADO: "Confirmado",
+    REALIZADO: "Realizado",
+    FINALIZADO: "Finalizado",
+    CANCELADO: "Cancelado",
+  };
+  const eventos = dados.eventos.map((evento) => ({
+    ...evento,
+    data: evento.dataEvento.slice(0, 10),
+    local: evento.localNome ?? "Local a definir",
+    convidados: evento.quantidadeConvidados,
+    clienteId: evento.clienteId,
+    status: statusEvento[evento.status] ?? evento.status,
+  }));
+  const orcamentos = dados.orcamentos.map((orcamento) => ({
+    ...orcamento,
+    codigo: `#${orcamento.numero}`,
+    clienteId: orcamento.evento.clienteId,
+    status: orcamento.status === "EM_NEGOCIACAO" ? "Em negociação" : orcamento.status,
+  }));
+  const parcelas = dados.pagamentos.map((pagamento) => ({
+    ...pagamento,
+    clienteId: pagamento.contrato.evento.clienteId,
+    vencimento: pagamento.dataVencimento.slice(0, 10),
+    valor: Number(pagamento.valor),
+    status:
+      pagamento.status === "PAGO"
+        ? "Pago"
+        : pagamento.status === "ATRASADO"
+          ? "Atrasado"
+          : pagamento.status === "PENDENTE"
+            ? "Pendente"
+            : "Cancelado",
+  }));
+  const nomeCliente = (clienteId: string) =>
+    dados.eventos.find((evento) => evento.clienteId === clienteId)?.cliente.nome ?? "Cliente";
+  const receitaMensal = [
+    {
+      mes: "Atual",
+      receita: Number(dados.financeiro.faturamento),
+      custos: Number(dados.financeiro.custos),
+    },
+  ];
   const hoje = new Date();
-  const dataHoje = hoje.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
+  const dataHoje = hoje.toLocaleDateString("pt-BR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   const futuros = eventos
     .filter((e) => e.status !== "Finalizado" && e.status !== "Cancelado")
@@ -194,13 +271,18 @@ function Dashboard() {
                 {futuros.slice(0, 3).map((e) => {
                   const Icon = iconeTipo[e.tipo] ?? Users;
                   return (
-                    <tr key={e.id} className="hover:bg-background/70 border-b border-border last:border-0">
+                    <tr
+                      key={e.id}
+                      className="hover:bg-background/70 border-b border-border last:border-0"
+                    >
                       <td className="py-3 pr-3">
                         <div className="flex items-center gap-3">
                           <IconBox icon={Icon} />
                           <div>
                             <p className="font-medium">{e.nome}</p>
-                            <p className="text-muted-foreground text-xs">{nomeCliente(e.clienteId)}</p>
+                            <p className="text-muted-foreground text-xs">
+                              {nomeCliente(e.clienteId)}
+                            </p>
                           </div>
                         </div>
                       </td>
@@ -212,7 +294,8 @@ function Dashboard() {
                           params={{ id: e.id }}
                           className="flex items-center gap-1 text-xs font-semibold"
                         >
-                          {proximaAcao[e.status] ?? "Abrir evento"} <ArrowRight className="size-3.5" />
+                          {proximaAcao[e.status] ?? "Abrir evento"}{" "}
+                          <ArrowRight className="size-3.5" />
                         </Link>
                       </td>
                     </tr>
@@ -226,7 +309,9 @@ function Dashboard() {
         <Panel className="p-5">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-base font-semibold">Resumo financeiro</h2>
-            <span className="bg-surface rounded-lg px-3 py-1.5 text-xs ring-1 ring-black/5">Outubro de 2026</span>
+            <span className="bg-surface rounded-lg px-3 py-1.5 text-xs ring-1 ring-black/5">
+              Outubro de 2026
+            </span>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
@@ -235,7 +320,10 @@ function Dashboard() {
               { icon: Clock, label: "Vencido", v: vencido },
               { icon: BarChart3, label: "Resultado previsto", v: resultado },
             ].map((k) => (
-              <div key={k.label} className="bg-surface flex items-center gap-3 rounded-xl p-3 ring-1 ring-black/5">
+              <div
+                key={k.label}
+                className="bg-surface flex items-center gap-3 rounded-xl p-3 ring-1 ring-black/5"
+              >
                 <IconBox icon={k.icon} />
                 <div className="min-w-0">
                   <p className="text-muted-foreground text-[11px]">{k.label}</p>
@@ -247,8 +335,14 @@ function Dashboard() {
           <div className="mt-5 flex items-center justify-between">
             <p className="text-sm font-medium">Receitas e custos</p>
             <div className="text-muted-foreground flex gap-4 text-[11px]">
-              <span className="flex items-center gap-1.5"><span className="bg-chart-1 size-2 rounded-full" />Receitas</span>
-              <span className="flex items-center gap-1.5"><span className="bg-chart-2 size-2 rounded-full" />Custos</span>
+              <span className="flex items-center gap-1.5">
+                <span className="bg-chart-1 size-2 rounded-full" />
+                Receitas
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="bg-chart-2 size-2 rounded-full" />
+                Custos
+              </span>
             </div>
           </div>
           <div className="mt-2 h-44">
@@ -256,10 +350,31 @@ function Dashboard() {
               <BarChart data={receitaMensal} barGap={4}>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="mes" tickLine={false} axisLine={false} fontSize={11} />
-                <YAxis tickLine={false} axisLine={false} fontSize={11} width={44} tickFormatter={(v) => `${v / 1000} mil`} />
-                <Tooltip cursor={{ fill: "var(--muted)" }} formatter={(v: number) => formatBRLShort(v)} />
-                <Bar dataKey="receita" name="Receitas" fill="var(--chart-1)" radius={[4, 4, 0, 0]} maxBarSize={18} />
-                <Bar dataKey="custos" name="Custos" fill="var(--chart-2)" radius={[4, 4, 0, 0]} maxBarSize={18} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={11}
+                  width={44}
+                  tickFormatter={(v) => `${v / 1000} mil`}
+                />
+                <Tooltip
+                  cursor={{ fill: "var(--muted)" }}
+                  formatter={(v: number) => formatBRLShort(v)}
+                />
+                <Bar
+                  dataKey="receita"
+                  name="Receitas"
+                  fill="var(--chart-1)"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={18}
+                />
+                <Bar
+                  dataKey="custos"
+                  name="Custos"
+                  fill="var(--chart-2)"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={18}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -275,11 +390,20 @@ function Dashboard() {
             <p className="text-primary-foreground/70 text-sm">
               {curta(proximo.data)} · {proximo.convidados} convidados
             </p>
-            <Progress value={75} className="bg-primary-foreground/20 mt-4 h-2.5 [&>div]:bg-primary-foreground" />
+            <Progress
+              value={75}
+              className="bg-primary-foreground/20 mt-4 h-2.5 [&>div]:bg-primary-foreground"
+            />
             <p className="mt-3 text-sm font-medium">Preparação do evento</p>
             <p className="text-primary-foreground/70 text-xs">6 de 8 tarefas concluídas</p>
-            <Button asChild variant="secondary" className="bg-primary-foreground text-primary mt-5 h-11 w-full rounded-xl hover:bg-primary-foreground/90">
-              <Link to="/admin/eventos/$id" params={{ id: proximo.id }}>Abrir evento</Link>
+            <Button
+              asChild
+              variant="secondary"
+              className="bg-primary-foreground text-primary mt-5 h-11 w-full rounded-xl hover:bg-primary-foreground/90"
+            >
+              <Link to="/admin/eventos/$id" params={{ id: proximo.id }}>
+                Abrir evento
+              </Link>
             </Button>
           </section>
         )}

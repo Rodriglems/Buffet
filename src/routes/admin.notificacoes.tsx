@@ -1,22 +1,30 @@
-import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
-import { notificacoes as inicial } from "@/data/mock";
+import {
+  listarNotificacoes,
+  marcarNotificacaoLida,
+  marcarTodasLidas,
+} from "@/features/notificacoes/server-functions";
 import { formatDate } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/notificacoes")({
   head: () => pageMeta("Notificações", "Alertas de contratos, pagamentos, orçamentos e eventos."),
+  loader: () => listarNotificacoes({ data: { page: 1, pageSize: 100, apenasNaoLidas: false } }),
   component: Notificacoes,
 });
 
 function Notificacoes() {
-  const [lista, setLista] = useState(inicial);
+  const { items: lista } = Route.useLoaderData();
+  const marcarUma = useServerFn(marcarNotificacaoLida);
+  const marcarTodas = useServerFn(marcarTodasLidas);
+  const router = useRouter();
   const naoLidas = lista.filter((n) => !n.lida).length;
 
   return (
@@ -29,8 +37,9 @@ function Notificacoes() {
             variant="outline"
             disabled={!naoLidas}
             onClick={() => {
-              setLista((l) => l.map((n) => ({ ...n, lida: true })));
-              toast.success("Todas marcadas como lidas.");
+              void marcarTodas()
+                .then(() => router.invalidate())
+                .then(() => toast.success("Todas marcadas como lidas."));
             }}
           >
             Marcar todas como lidas
@@ -45,17 +54,32 @@ function Notificacoes() {
             {lista.map((n) => (
               <li key={n.id}>
                 <button
-                  className={cn("flex w-full items-start gap-3 rounded-xl p-3 text-left hover:bg-accent/40", !n.lida && "bg-brand/5")}
-                  onClick={() => setLista((l) => l.map((x) => (x.id === n.id ? { ...x, lida: true } : x)))}
+                  className={cn(
+                    "flex w-full items-start gap-3 rounded-xl p-3 text-left hover:bg-accent/40",
+                    !n.lida && "bg-brand/5",
+                  )}
+                  onClick={() =>
+                    void marcarUma({ data: { id: n.id } }).then(() => router.invalidate())
+                  }
                 >
-                  <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", n.lida ? "bg-transparent" : "bg-brand")} />
+                  <span
+                    className={cn(
+                      "mt-1.5 size-2 shrink-0 rounded-full",
+                      n.lida ? "bg-transparent" : "bg-brand",
+                    )}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{n.titulo}</p>
-                    <p className="text-muted-foreground text-xs">{n.descricao}</p>
+                    <p className="text-muted-foreground text-xs">{n.mensagem}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-muted-foreground text-[11px]">{formatDate(n.data)}</p>
-                    <p className="text-muted-foreground text-[11px]">{n.hora}</p>
+                    <p className="text-muted-foreground text-[11px]">{formatDate(n.createdAt)}</p>
+                    <p className="text-muted-foreground text-[11px]">
+                      {new Date(n.createdAt).toLocaleTimeString("pt-BR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
                   </div>
                 </button>
               </li>

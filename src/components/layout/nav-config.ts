@@ -12,8 +12,12 @@ import {
   Wallet,
   History,
   Bell,
+  BriefcaseBusiness,
+  Files,
   FolderOpen,
   PartyPopper,
+  UserCog,
+  UserPlus,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -33,7 +37,9 @@ export const adminNav: NavGroup[] = [
     label: "Gestão",
     items: [
       { label: "Dashboard", to: "/admin", icon: LayoutDashboard },
+      { label: "Leads", to: "/admin/leads", icon: UserPlus },
       { label: "Clientes", to: "/admin/clientes", icon: Users },
+      { label: "Serviços", to: "/admin/servicos", icon: BriefcaseBusiness },
       { label: "Eventos", to: "/admin/eventos", icon: PartyPopper },
       { label: "Orçamentos", to: "/admin/orcamentos", icon: FileText },
       { label: "Contratos", to: "/admin/contratos", icon: FileSignature },
@@ -53,6 +59,8 @@ export const adminNav: NavGroup[] = [
       { label: "Agenda", to: "/admin/agenda", icon: CalendarDays },
       { label: "Atividades", to: "/admin/atividades", icon: History },
       { label: "Notificações", to: "/admin/notificacoes", icon: Bell },
+      { label: "Documentos", to: "/admin/documentos", icon: Files },
+      { label: "Usuários", to: "/admin/usuarios", icon: UserCog },
       { label: "Configurações", to: "/admin/configuracoes", icon: Settings },
     ],
   },

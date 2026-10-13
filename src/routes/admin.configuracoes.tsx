@@ -1,4 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import type { FormEvent } from "react";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { PageHeader, Panel, PanelHeader } from "@/components/panel";
@@ -7,25 +9,56 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { empresa, usuarioAdmin } from "@/data/mock";
+import { atualizarEmpresa, obterEmpresa } from "@/features/empresa/server-functions";
+import { listarUsuarios } from "@/features/usuarios/server-functions";
 import { pageMeta } from "@/lib/meta";
 
 export const Route = createFileRoute("/admin/configuracoes")({
   head: () => pageMeta("Configurações", "Dados da empresa, usuários e preferências do sistema."),
+  loader: async () => {
+    const [empresa, usuarios] = await Promise.all([
+      obterEmpresa(),
+      listarUsuarios({ data: { page: 1, pageSize: 100 } }),
+    ]);
+    return { empresa, usuarios: usuarios.items };
+  },
   component: Configuracoes,
 });
 
-function Campo({ label, value }: { label: string; value: string }) {
+function Campo({ label, name, value }: { label: string; name: string; value: string }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label>{label}</Label>
-      <Input defaultValue={value} />
+      <Label htmlFor={name}>{label}</Label>
+      <Input id={name} name={name} defaultValue={value} />
     </div>
   );
 }
 
 function Configuracoes() {
-  const salvar = () => toast.success("Alterações salvas.");
+  const { empresa, usuarios } = Route.useLoaderData();
+  const atualizar = useServerFn(atualizarEmpresa);
+  const router = useRouter();
+  const salvarPreferencia = () => toast.success("Preferência atualizada.");
+  async function salvar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const text = (name: string) => String(form.get(name) ?? "").trim();
+    try {
+      await atualizar({
+        data: {
+          razaoSocial: text("razaoSocial"),
+          nomeFantasia: text("nomeFantasia"),
+          cnpj: text("cnpj").replace(/\D/g, ""),
+          telefone: text("telefone").replace(/\D/g, "") || null,
+          email: text("email"),
+        },
+      });
+      toast.success("Alterações salvas.");
+      await router.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao salvar.");
+    }
+  }
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Configurações" subtitle="Ajuste os dados e preferências do sistema" />
@@ -37,37 +70,42 @@ function Configuracoes() {
         </TabsList>
         <TabsContent value="empresa" className="mt-4">
           <Panel className="p-5">
-            <PanelHeader title="Dados da empresa" subtitle="Aparecem nos orçamentos e contratos" />
-            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Campo label="Nome" value={empresa.nome} />
-              <Campo label="CNPJ" value={empresa.cnpj} />
-              <Campo label="Telefone" value={empresa.telefone} />
-              <Campo label="E-mail" value={empresa.email} />
-              <div className="sm:col-span-2">
-                <Campo label="Endereço" value={empresa.endereco} />
+            <form onSubmit={salvar}>
+              <PanelHeader
+                title="Dados da empresa"
+                subtitle="Aparecem nos orçamentos e contratos"
+              />
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Campo label="Razão social" name="razaoSocial" value={empresa.razaoSocial} />
+                <Campo label="Nome fantasia" name="nomeFantasia" value={empresa.nomeFantasia} />
+                <Campo label="CNPJ" name="cnpj" value={empresa.cnpj} />
+                <Campo label="Telefone" name="telefone" value={empresa.telefone ?? ""} />
+                <Campo label="E-mail" name="email" value={empresa.email} />
               </div>
-            </div>
-            <div className="mt-4 flex justify-end">
-              <Button onClick={salvar}>Salvar</Button>
-            </div>
+              <div className="mt-4 flex justify-end">
+                <Button type="submit">Salvar</Button>
+              </div>
+            </form>
           </Panel>
         </TabsContent>
         <TabsContent value="usuarios" className="mt-4">
           <Panel className="p-5">
             <PanelHeader
               title="Equipe"
-              action={<Button size="sm" onClick={() => toast.success("Convite enviado.")}>Convidar usuário</Button>}
+              action={
+                <Button size="sm" asChild>
+                  <Link to="/admin/usuarios">Gerenciar usuários</Link>
+                </Button>
+              }
             />
             <ul className="mt-4 divide-y divide-border">
-              {[
-                { nome: usuarioAdmin.nome, cargo: usuarioAdmin.cargo },
-                { nome: "Rafael Nunes", cargo: "Financeiro" },
-                { nome: "Beatriz Lima", cargo: "Comercial" },
-              ].map((u) => (
+              {usuarios.map((u) => (
                 <li key={u.nome} className="flex items-center justify-between py-3">
                   <div>
                     <p className="text-sm font-medium">{u.nome}</p>
-                    <p className="text-muted-foreground text-xs">{u.cargo}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {u.role} · {u.ativo ? "Ativo" : "Inativo"}
+                    </p>
                   </div>
                   <Button size="sm" variant="outline" onClick={() => toast("Permissões em breve.")}>
                     Permissões
@@ -89,7 +127,7 @@ function Configuracoes() {
               ].map((p, i) => (
                 <label key={p} className="flex items-center justify-between gap-4 text-sm">
                   {p}
-                  <Switch defaultChecked={i < 3} onCheckedChange={salvar} />
+                  <Switch defaultChecked={i < 3} onCheckedChange={salvarPreferencia} />
                 </label>
               ))}
             </div>

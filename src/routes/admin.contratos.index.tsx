@@ -2,22 +2,27 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
-import { contratos, nomeCliente, nomeEvento } from "@/data/mock";
+import { listarContratos } from "@/features/contratos/server-functions";
 import { formatBRL, formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/contratos/")({
   head: () => ({
     meta: [
       { title: "Contratos — Mesa Buffet & Eventos" },
-      { name: "description", content: "Contratos digitais do buffet: emissão, envio e assinatura." },
+      {
+        name: "description",
+        content: "Contratos digitais do buffet: emissão, envio e assinatura.",
+      },
       { property: "og:title", content: "Contratos — Mesa Buffet & Eventos" },
       { property: "og:description", content: "Gestão de contratos e assinaturas." },
     ],
   }),
+  loader: () => listarContratos({ data: { page: 1, pageSize: 100 } }),
   component: ContratosPage,
 });
 
 function ContratosPage() {
+  const { items: contratos } = Route.useLoaderData();
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Contratos" subtitle={`${contratos.length} contratos registrados`} />
@@ -39,19 +44,23 @@ function ContratosPage() {
               {contratos.map((c) => (
                 <tr key={c.id}>
                   <td className="py-3 pr-3">
-                    <Link to="/admin/contratos/$id" params={{ id: c.id }} className="font-medium hover:underline">
-                      {c.codigo}
+                    <Link
+                      to="/admin/contratos/$id"
+                      params={{ id: c.id }}
+                      className="font-medium hover:underline"
+                    >
+                      #{c.numero.toString()}
                     </Link>
                   </td>
-                  <td className="text-muted-foreground py-3 pr-3">{nomeCliente(c.clienteId)}</td>
-                  <td className="text-muted-foreground py-3 pr-3">{nomeEvento(c.eventoId)}</td>
-                  <td className="text-muted-foreground py-3 pr-3">{formatDate(c.data)}</td>
-                  <td className="py-3 pr-3 font-medium">{formatBRL(c.valor)}</td>
+                  <td className="text-muted-foreground py-3 pr-3">{c.evento.cliente.nome}</td>
+                  <td className="text-muted-foreground py-3 pr-3">{c.evento.nome}</td>
+                  <td className="text-muted-foreground py-3 pr-3">{formatDate(c.createdAt)}</td>
+                  <td className="py-3 pr-3 font-medium">{formatBRL(Number(c.valorTotal))}</td>
                   <td className="py-3 pr-3">
                     <StatusBadge status={c.status} />
                   </td>
                   <td className="text-muted-foreground py-3">
-                    {c.assinadoEm ? `${formatDate(c.assinadoEm)} às ${c.assinadoHora}` : "—"}
+                    {c.assinadoEm ? formatDate(c.assinadoEm) : "—"}
                   </td>
                 </tr>
               ))}

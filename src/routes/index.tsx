@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
 
 import { AmbientLight } from "@/components/ambient-light";
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { login } from "@/features/auth/server-functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -34,8 +36,9 @@ function Login() {
   const [verSenha, setVerSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const entrarNoServidor = useServerFn(login);
 
-  function entrar(e: FormEvent, destino: "/admin" | "/cliente") {
+  async function entrar(e: FormEvent) {
     e.preventDefault();
     setErro(null);
 
@@ -43,16 +46,15 @@ function Login() {
       setErro("Informe e-mail e senha para continuar.");
       return;
     }
-    if (senha.length < 4) {
-      setErro("Credenciais inválidas. Verifique seus dados e tente novamente.");
-      return;
-    }
-
     setCarregando(true);
-    setTimeout(() => {
+    try {
+      const resultado = await entrarNoServidor({ data: { email, senha } });
+      await navigate({ to: resultado.destino });
+    } catch {
+      setErro("Credenciais inválidas. Verifique seus dados e tente novamente.");
+    } finally {
       setCarregando(false);
-      navigate({ to: destino });
-    }, 900);
+    }
   }
 
   return (
@@ -77,7 +79,7 @@ function Login() {
           Gerencie eventos, orçamentos e pagamentos em um só lugar.
         </p>
 
-        <form className="mt-6 flex flex-col gap-4" onSubmit={(e) => entrar(e, "/admin")}>
+        <form className="mt-6 flex flex-col gap-4" onSubmit={entrar}>
           {erro && (
             <div
               role="alert"
@@ -138,22 +140,10 @@ function Login() {
             {carregando && <Loader2 className="size-4 animate-spin" />}
             {carregando ? "Entrando…" : "Entrar"}
           </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={(e) => entrar(e, "/cliente")}
-          >
-            Entrar como cliente
-          </Button>
         </form>
 
         <p className="text-muted-foreground mt-6 text-center text-[11px]">
-          Ambiente de demonstração com dados fictícios.{" "}
-          <Link to="/admin" className="text-brand hover:underline">
-            Ver painel
-          </Link>
+          O acesso e o painel são definidos pelo seu perfil de usuário.
         </p>
       </div>
     </div>

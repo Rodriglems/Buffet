@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { nomeCliente, nomeEvento, orcamentos, totalOrcamento } from "@/data/mock";
+import { listarOrcamentos } from "@/features/orcamentos/server-functions";
 import { formatBRL, formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/orcamentos/")({
@@ -23,25 +23,28 @@ export const Route = createFileRoute("/admin/orcamentos/")({
       { title: "Orçamentos — Mesa Buffet & Eventos" },
       {
         name: "description",
-        content: "Controle de propostas comerciais: versões, validade, status e valores por evento.",
+        content:
+          "Controle de propostas comerciais: versões, validade, status e valores por evento.",
       },
       { property: "og:title", content: "Orçamentos — Mesa Buffet & Eventos" },
       { property: "og:description", content: "Gestão de propostas e negociações do buffet." },
     ],
   }),
+  loader: () => listarOrcamentos({ data: { page: 1, pageSize: 100 } }),
   component: OrcamentosPage,
 });
 
 const TODOS = "todos";
 
 function OrcamentosPage() {
+  const { items: orcamentos } = Route.useLoaderData();
   const [busca, setBusca] = useState("");
   const [status, setStatus] = useState(TODOS);
 
   const lista = orcamentos.filter(
     (o) =>
-      (o.codigo.toLowerCase().includes(busca.toLowerCase()) ||
-        nomeCliente(o.clienteId).toLowerCase().includes(busca.toLowerCase())) &&
+      (o.numero.toString().includes(busca) ||
+        o.evento.cliente.nome.toLowerCase().includes(busca.toLowerCase())) &&
       (status === TODOS || o.status === status),
   );
   const statusList = Array.from(new Set(orcamentos.map((o) => o.status)));
@@ -85,7 +88,10 @@ function OrcamentosPage() {
         </div>
 
         {lista.length === 0 ? (
-          <EmptyState title="Nenhum orçamento encontrado" description="Ajuste os filtros aplicados." />
+          <EmptyState
+            title="Nenhum orçamento encontrado"
+            description="Ajuste os filtros aplicados."
+          />
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[880px] text-left text-sm">
@@ -105,16 +111,22 @@ function OrcamentosPage() {
                 {lista.map((o) => (
                   <tr key={o.id}>
                     <td className="py-3 pr-3">
-                      <Link to="/admin/orcamentos/$id" params={{ id: o.id }} className="font-medium hover:underline">
-                        {o.codigo}
+                      <Link
+                        to="/admin/orcamentos/$id"
+                        params={{ id: o.id }}
+                        className="font-medium hover:underline"
+                      >
+                        #{o.numero.toString()}
                       </Link>
                     </td>
-                    <td className="text-muted-foreground py-3 pr-3">{nomeCliente(o.clienteId)}</td>
-                    <td className="text-muted-foreground py-3 pr-3">{nomeEvento(o.eventoId)}</td>
-                    <td className="text-muted-foreground py-3 pr-3">{formatDate(o.data)}</td>
-                    <td className="py-3 pr-3 font-medium">{formatBRL(totalOrcamento(o).total)}</td>
+                    <td className="text-muted-foreground py-3 pr-3">{o.evento.cliente.nome}</td>
+                    <td className="text-muted-foreground py-3 pr-3">{o.evento.nome}</td>
+                    <td className="text-muted-foreground py-3 pr-3">{formatDate(o.createdAt)}</td>
+                    <td className="py-3 pr-3 font-medium">{formatBRL(Number(o.total))}</td>
                     <td className="py-3 pr-3">v{o.versao}</td>
-                    <td className="text-muted-foreground py-3 pr-3">{formatDate(o.validade)}</td>
+                    <td className="text-muted-foreground py-3 pr-3">
+                      {o.validade ? formatDate(o.validade) : "—"}
+                    </td>
                     <td className="py-3">
                       <StatusBadge status={o.status} />
                     </td>

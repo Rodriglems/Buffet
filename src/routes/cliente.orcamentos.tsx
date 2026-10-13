@@ -1,20 +1,33 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { clienteLogado, nomeEvento, orcamentos, totalOrcamento } from "@/data/mock";
+import { aprovarOrcamento, listarOrcamentos } from "@/features/orcamentos/server-functions";
 import { formatBRL, formatDate } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
 
 export const Route = createFileRoute("/cliente/orcamentos")({
   head: () => pageMeta("Meus orçamentos", "Veja, aprove ou peça alterações nas suas propostas."),
+  loader: () => listarOrcamentos({ data: { page: 1, pageSize: 100 } }),
   component: MeusOrcamentos,
 });
 
 function MeusOrcamentos() {
-  const lista = orcamentos.filter((o) => o.clienteId === clienteLogado.id);
+  const { items: lista } = Route.useLoaderData();
+  const aprovar = useServerFn(aprovarOrcamento);
+  const router = useRouter();
+  async function confirmar(id: string) {
+    try {
+      await aprovar({ data: { id } });
+      toast.success("Orçamento aprovado!");
+      await router.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao aprovar.");
+    }
+  }
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Orçamentos" subtitle="Suas propostas" />
@@ -22,25 +35,26 @@ function MeusOrcamentos() {
         <Panel key={o.id} className="p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="font-display text-base font-semibold">{o.codigo} · {nomeEvento(o.eventoId)}</p>
-              <p className="text-muted-foreground text-xs">Versão {o.versao} · válido até {formatDate(o.validade)}</p>
+              <p className="font-display text-base font-semibold">
+                #{o.numero.toString()} · {o.evento.nome}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                Versão {o.versao} · válido até{" "}
+                {o.validade ? formatDate(o.validade) : "sem validade"}
+              </p>
             </div>
             <StatusBadge status={o.status} />
           </div>
-          <ul className="mt-4 flex flex-col gap-1.5 text-sm">
-            {o.itens.map((i) => (
-              <li key={i.id} className="flex justify-between gap-4">
-                <span>{i.servico} <span className="text-muted-foreground">· {i.quantidade} {i.unidade}</span></span>
-                <span>{formatBRL(i.quantidade * i.valorUnitario - i.desconto)}</span>
-              </li>
-            ))}
-          </ul>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-            <p className="font-display text-lg font-semibold">{formatBRL(totalOrcamento(o).total)}</p>
-            {o.status === "Enviado" && (
+            <p className="font-display text-lg font-semibold">{formatBRL(Number(o.total))}</p>
+            {["ENVIADO", "VISUALIZADO", "AGUARDANDO_APROVACAO", "EM_NEGOCIACAO"].includes(
+              o.status,
+            ) && (
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => toast("Pedido de alteração enviado.")}>Pedir alteração</Button>
-                <Button onClick={() => toast.success("Orçamento aprovado!")}>Aprovar</Button>
+                <Button variant="outline" onClick={() => toast("Pedido de alteração enviado.")}>
+                  Pedir alteração
+                </Button>
+                <Button onClick={() => void confirmar(o.id)}>Aprovar</Button>
               </div>
             )}
           </div>
