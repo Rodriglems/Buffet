@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { CalendarPlus } from "lucide-react";
 
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/states";
+import { Button } from "@/components/ui/button";
 import { listarEventos } from "@/features/eventos/server-functions";
 import { formatDate } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
+import { downloadCalendarFile } from "@/lib/sharing";
 
 export const Route = createFileRoute("/cliente/eventos")({
   head: () => pageMeta("Meus eventos", "Detalhes dos seus eventos contratados."),
@@ -57,7 +60,26 @@ function MeusEventos() {
               <dd>{e.status}</dd>
             </div>
           </dl>
-          <p className="text-muted-foreground mt-3 text-xs">{e.localNome ?? "Local a definir"}</p>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <p className="text-muted-foreground text-xs">{e.localNome ?? "Local a definir"}</p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                downloadCalendarFile({
+                  id: e.id,
+                  title: e.nome,
+                  date: e.dataEvento,
+                  startTime: e.horaInicio,
+                  endTime: e.horaFim,
+                  location: e.localNome,
+                  description: e.observacoes,
+                })
+              }
+            >
+              <CalendarPlus className="size-4" /> Adicionar ao calendário
+            </Button>
+          </div>
         </Panel>
       ))}
     </div>

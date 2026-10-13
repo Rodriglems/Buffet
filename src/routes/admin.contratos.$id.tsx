@@ -1,5 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { Printer } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -40,6 +41,9 @@ function DetalheContrato() {
         actions={
           <>
             <StatusBadge status={contrato.status} />
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="size-4" /> Imprimir / PDF
+            </Button>
             {contrato.status === "RASCUNHO" && (
               <Button onClick={() => void executar("enviar")}>Enviar para assinatura</Button>
             )}

@@ -101,6 +101,16 @@ As seguintes operações devem acontecer em transações do Prisma:
 5. Converter lead em cliente sem apagar o lead; seu status passa a `CONVERTIDO`.
 6. Salvar apenas URL e metadados dos documentos no banco; arquivos ficam em storage privado.
 
+## Recursos operacionais preparados
+
+- Eventos podem ser exportados como arquivos `.ics`, compatíveis com Google Calendar,
+  Outlook e Apple Calendar.
+- Orçamentos e contratos possuem layout de impressão para salvar em PDF pelo navegador.
+- O contato do evento pode ser aberto no WhatsApp sem armazenar credenciais de terceiros.
+- A atualização manual de lembretes marca parcelas vencidas e gera resumos diários para
+  administradores, sem duplicar notificações no mesmo dia. Essa função pode ser chamada
+  futuramente por um agendador externo.
+
 ## Segurança e autenticação
 
 `senhaHash` deve receber somente hashes produzidos por Argon2id ou bcrypt, nunca senha em texto. Toda consulta autenticada deve usar a `empresaId` da sessão no servidor. Credenciais e a `DATABASE_URL` nunca devem ser expostas ao frontend.

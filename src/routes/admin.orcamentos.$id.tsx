@@ -1,5 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { Printer } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel, PanelHeader } from "@/components/panel";
@@ -104,6 +105,9 @@ function DetalheOrcamento() {
         actions={
           <>
             <StatusBadge status={orcamento.status} className="px-3 py-1.5" />
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="size-4" /> Imprimir / PDF
+            </Button>
             <Button
               variant="outline"
               onClick={() =>

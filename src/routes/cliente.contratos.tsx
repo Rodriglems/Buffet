@@ -1,5 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { Printer } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -44,6 +45,9 @@ function MeusContratos() {
           </div>
           <div className="flex items-center gap-2">
             <StatusBadge status={c.status} />
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="size-4" /> Imprimir / PDF
+            </Button>
             {c.documentoUrl && (
               <Button variant="outline" asChild>
                 <a href={c.documentoUrl} target="_blank" rel="noreferrer">

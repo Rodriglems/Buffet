@@ -148,3 +148,22 @@
   background-color: oklch(1 0 0 / 80%);
   backdrop-filter: blur(24px);
 }
+
+@media print {
+  aside,
+  header,
+  button,
+  [role="tablist"] {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  .panel {
+    break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #ddd;
+  }
+}

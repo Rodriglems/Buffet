@@ -1,4 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { CalendarPlus, MessageCircle } from "lucide-react";
+import { toast } from "sonner";
 
 import { PageHeader, Panel, StatCard } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
@@ -7,6 +9,7 @@ import { listarAtividades } from "@/features/atividades/server-functions";
 import { obterEvento } from "@/features/eventos/server-functions";
 import { listarPagamentos } from "@/features/pagamentos/server-functions";
 import { formatBRL, formatDate } from "@/lib/format";
+import { createWhatsAppUrl, downloadCalendarFile } from "@/lib/sharing";
 
 export const Route = createFileRoute("/admin/eventos/$id")({
   loader: async ({ params }) => {
@@ -40,9 +43,48 @@ function DetalheEvento() {
         title={evento.nome}
         subtitle={`${evento.cliente.nome} · ${formatDate(evento.dataEvento)} · ${evento.localNome ?? "Local a definir"}`}
         actions={
-          <Button asChild>
-            <Link to="/admin/orcamentos/novo">Novo orçamento</Link>
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              onClick={() =>
+                downloadCalendarFile({
+                  id: evento.id,
+                  title: evento.nome,
+                  date: evento.dataEvento,
+                  startTime: evento.horaInicio,
+                  endTime: evento.horaFim,
+                  location: evento.localNome,
+                  description: evento.observacoes,
+                })
+              }
+            >
+              <CalendarPlus className="size-4" /> Calendário
+            </Button>
+            {evento.cliente.whatsapp && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  try {
+                    window.open(
+                      createWhatsAppUrl(
+                        evento.cliente.whatsapp!,
+                        `Olá ${evento.cliente.nome}, estamos entrando em contato sobre o evento ${evento.nome}, em ${formatDate(evento.dataEvento)}.`,
+                      ),
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "WhatsApp inválido.");
+                  }
+                }}
+              >
+                <MessageCircle className="size-4" /> WhatsApp
+              </Button>
+            )}
+            <Button asChild>
+              <Link to="/admin/orcamentos/novo">Novo orçamento</Link>
+            </Button>
+          </>
         }
       />
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">

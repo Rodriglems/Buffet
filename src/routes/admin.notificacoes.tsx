@@ -6,6 +6,7 @@ import { PageHeader, Panel } from "@/components/panel";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import {
+  gerarLembretesOperacionais,
   listarNotificacoes,
   marcarNotificacaoLida,
   marcarTodasLidas,
@@ -24,6 +25,7 @@ function Notificacoes() {
   const { items: lista } = Route.useLoaderData();
   const marcarUma = useServerFn(marcarNotificacaoLida);
   const marcarTodas = useServerFn(marcarTodasLidas);
+  const gerarLembretes = useServerFn(gerarLembretesOperacionais);
   const router = useRouter();
   const naoLidas = lista.filter((n) => !n.lida).length;
 
@@ -33,17 +35,32 @@ function Notificacoes() {
         title="Notificações"
         subtitle={naoLidas ? `${naoLidas} não lidas` : "Tudo em dia"}
         actions={
-          <Button
-            variant="outline"
-            disabled={!naoLidas}
-            onClick={() => {
-              void marcarTodas()
-                .then(() => router.invalidate())
-                .then(() => toast.success("Todas marcadas como lidas."));
-            }}
-          >
-            Marcar todas como lidas
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                void gerarLembretes()
+                  .then((resultado) => router.invalidate().then(() => resultado))
+                  .then((resultado) =>
+                    toast.success(`${resultado.notificacoesCriadas} lembrete(s) criado(s).`),
+                  )
+                  .catch(() => toast.error("Não foi possível atualizar os lembretes."));
+              }}
+            >
+              Atualizar lembretes
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!naoLidas}
+              onClick={() => {
+                void marcarTodas()
+                  .then(() => router.invalidate())
+                  .then(() => toast.success("Todas marcadas como lidas."));
+              }}
+            >
+              Marcar todas como lidas
+            </Button>
+          </div>
         }
       />
       <Panel className="p-2">
