@@ -1,0 +1,453 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RoleUsuario {
+  ADMIN
+  CLIENT
+
+  @@map("role_usuario")
+}
+
+enum TipoPessoa {
+  FISICA
+  JURIDICA
+
+  @@map("tipo_pessoa")
+}
+
+enum StatusLead {
+  NOVO
+  CONTATO_REALIZADO
+  QUALIFICADO
+  PROPOSTA
+  CONVERTIDO
+  PERDIDO
+
+  @@map("status_lead")
+}
+
+enum StatusEvento {
+  PLANEJAMENTO
+  ORCAMENTO
+  NEGOCIACAO
+  APROVADO
+  CONTRATO
+  ASSINADO
+  CONFIRMADO
+  REALIZADO
+  FINALIZADO
+  CANCELADO
+
+  @@map("status_evento")
+}
+
+enum StatusOrcamento {
+  RASCUNHO
+  ENVIADO
+  VISUALIZADO
+  EM_NEGOCIACAO
+  AGUARDANDO_APROVACAO
+  APROVADO
+  REJEITADO
+  EXPIRADO
+  CANCELADO
+
+  @@map("status_orcamento")
+}
+
+enum StatusContrato {
+  RASCUNHO
+  ENVIADO
+  AGUARDANDO_ASSINATURA
+  ASSINADO
+  CANCELADO
+
+  @@map("status_contrato")
+}
+
+enum TipoAssinatura {
+  CLIENTE
+
+  @@map("tipo_assinatura")
+}
+
+enum StatusAssinatura {
+  PENDENTE
+  ASSINADA
+  RECUSADA
+  CANCELADA
+
+  @@map("status_assinatura")
+}
+
+enum StatusPagamento {
+  PENDENTE
+  PAGO
+  ATRASADO
+  CANCELADO
+
+  @@map("status_pagamento")
+}
+
+enum TipoDocumento {
+  CONTRATO
+  COMPROVANTE
+  DOCUMENTO_CLIENTE
+  OUTRO
+
+  @@map("tipo_documento")
+}
+
+model Empresa {
+  id           String   @id @default(uuid()) @db.Uuid
+  razaoSocial  String   @map("razao_social")
+  nomeFantasia String   @map("nome_fantasia")
+  cnpj         String   @unique @db.VarChar(14)
+  email        String
+  telefone     String?  @db.VarChar(20)
+  whatsapp     String?  @db.VarChar(20)
+  cep          String?  @db.VarChar(8)
+  estado       String?  @db.Char(2)
+  cidade       String?
+  bairro       String?
+  logradouro   String?
+  numero       String?
+  complemento  String?
+  logoUrl      String?  @map("logo_url")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  usuarios   Usuario[]
+  clientes   Cliente[]
+  leads      Lead[]
+  eventos    Evento[]
+  servicos   Servico[]
+  orcamentos Orcamento[]
+  contratos  Contrato[]
+  pagamentos Pagamento[]
+  custos     Custo[]
+  atividades Atividade[]
+  documentos Documento[]
+
+  @@map("empresas")
+}
+
+model Usuario {
+  id           String        @id @default(uuid()) @db.Uuid
+  empresaId    String        @map("empresa_id") @db.Uuid
+  nome         String
+  email        String
+  senhaHash    String        @map("senha_hash")
+  role         RoleUsuario
+  ativo        Boolean       @default(true)
+  ultimoLogin  DateTime?     @map("ultimo_login") @db.Timestamptz(6)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa      Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  cliente      Cliente?
+  assinaturas  Assinatura[]
+  atividades   Atividade[]
+  notificacoes Notificacao[]
+  documentos   Documento[]
+
+  @@unique([empresaId, email])
+  @@unique([empresaId, id])
+  @@index([empresaId, ativo])
+  @@map("usuarios")
+}
+
+model Cliente {
+  id          String      @id @default(uuid()) @db.Uuid
+  empresaId   String      @map("empresa_id") @db.Uuid
+  usuarioId   String?     @unique @map("usuario_id") @db.Uuid
+  nome        String
+  tipoPessoa  TipoPessoa  @map("tipo_pessoa")
+  cpfCnpj     String?     @map("cpf_cnpj") @db.VarChar(14)
+  email       String?
+  telefone    String?     @db.VarChar(20)
+  whatsapp    String?     @db.VarChar(20)
+  cep         String?     @db.VarChar(8)
+  estado      String?     @db.Char(2)
+  cidade      String?
+  bairro      String?
+  logradouro  String?
+  numero      String?
+  complemento String?
+  observacoes String?
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa     Empresa     @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  usuario     Usuario?    @relation(fields: [empresaId, usuarioId], references: [empresaId, id], onDelete: Restrict)
+  eventos     Evento[]
+  documentos  Documento[]
+
+  @@unique([empresaId, cpfCnpj])
+  @@unique([empresaId, usuarioId])
+  @@unique([empresaId, id])
+  @@index([empresaId, nome])
+  @@map("clientes")
+}
+
+model Lead {
+  id                   String     @id @default(uuid()) @db.Uuid
+  empresaId            String     @map("empresa_id") @db.Uuid
+  nome                 String
+  email                String?
+  telefone             String?    @db.VarChar(20)
+  whatsapp             String?    @db.VarChar(20)
+  tipoEvento           String?    @map("tipo_evento")
+  dataEvento           DateTime?  @map("data_evento") @db.Date
+  quantidadeConvidados Int?       @map("quantidade_convidados")
+  origem               String?
+  observacoes          String?
+  status               StatusLead @default(NOVO)
+  createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa              Empresa    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@index([empresaId, status])
+  @@map("leads")
+}
+
+model Evento {
+  id                   String       @id @default(uuid()) @db.Uuid
+  empresaId            String       @map("empresa_id") @db.Uuid
+  clienteId            String       @map("cliente_id") @db.Uuid
+  nome                 String
+  tipo                 String
+  dataEvento           DateTime     @map("data_evento") @db.Date
+  horaInicio           DateTime?    @map("hora_inicio") @db.Time(0)
+  horaFim              DateTime?    @map("hora_fim") @db.Time(0)
+  quantidadeConvidados Int          @map("quantidade_convidados")
+  localNome            String?      @map("local_nome")
+  cep                  String?      @db.VarChar(8)
+  estado               String?      @db.Char(2)
+  cidade               String?
+  bairro               String?
+  logradouro           String?
+  numero               String?
+  complemento          String?
+  status               StatusEvento @default(PLANEJAMENTO)
+  observacoes          String?
+  createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa              Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  cliente              Cliente      @relation(fields: [empresaId, clienteId], references: [empresaId, id], onDelete: Restrict)
+  orcamentos           Orcamento[]
+  contratos            Contrato[]
+  custos               Custo[]
+  documentos           Documento[]
+
+  @@unique([empresaId, id])
+  @@index([empresaId, dataEvento])
+  @@index([clienteId])
+  @@map("eventos")
+}
+
+model Servico {
+  id             String          @id @default(uuid()) @db.Uuid
+  empresaId      String          @map("empresa_id") @db.Uuid
+  nome           String
+  descricao      String?
+  unidade        String
+  precoBase      Decimal         @map("preco_base") @db.Decimal(14, 2)
+  ativo          Boolean         @default(true)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa        Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  orcamentoItens OrcamentoItem[]
+
+  @@unique([empresaId, nome])
+  @@unique([empresaId, id])
+  @@map("servicos")
+}
+
+model Orcamento {
+  id          String          @id @default(uuid()) @db.Uuid
+  empresaId   String          @map("empresa_id") @db.Uuid
+  eventoId    String          @map("evento_id") @db.Uuid
+  numero      BigInt
+  versao      Int             @default(1)
+  status      StatusOrcamento @default(RASCUNHO)
+  validade    DateTime?       @db.Date
+  subtotal    Decimal         @default(0) @db.Decimal(14, 2)
+  desconto    Decimal         @default(0) @db.Decimal(14, 2)
+  total       Decimal         @default(0) @db.Decimal(14, 2)
+  observacoes String?
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa     Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  evento      Evento          @relation(fields: [empresaId, eventoId], references: [empresaId, id], onDelete: Restrict)
+  itens       OrcamentoItem[]
+  contratos   Contrato[]
+
+  @@unique([empresaId, numero, versao])
+  @@unique([empresaId, id])
+  @@unique([empresaId, eventoId, id])
+  @@index([eventoId, versao(sort: Desc)])
+  @@map("orcamentos")
+}
+
+model OrcamentoItem {
+  id            String    @id @default(uuid()) @db.Uuid
+  orcamentoId   String    @map("orcamento_id") @db.Uuid
+  servicoId     String?   @map("servico_id") @db.Uuid
+  descricao     String
+  quantidade    Decimal   @db.Decimal(12, 3)
+  unidade       String
+  valorUnitario Decimal   @map("valor_unitario") @db.Decimal(14, 2)
+  desconto      Decimal   @default(0) @db.Decimal(14, 2)
+  valorTotal    Decimal   @map("valor_total") @db.Decimal(14, 2)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  orcamento     Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  servico       Servico?  @relation(fields: [servicoId], references: [id], onDelete: SetNull)
+
+  @@index([orcamentoId])
+  @@map("orcamento_itens")
+}
+
+model Contrato {
+  id           String         @id @default(uuid()) @db.Uuid
+  empresaId    String         @map("empresa_id") @db.Uuid
+  eventoId     String         @map("evento_id") @db.Uuid
+  orcamentoId  String         @map("orcamento_id") @db.Uuid
+  numero       BigInt
+  status       StatusContrato @default(RASCUNHO)
+  valorTotal   Decimal        @map("valor_total") @db.Decimal(14, 2)
+  conteudo     String?
+  documentoUrl String?        @map("documento_url")
+  enviadoEm    DateTime?      @map("enviado_em") @db.Timestamptz(6)
+  assinadoEm   DateTime?      @map("assinado_em") @db.Timestamptz(6)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa      Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  evento       Evento         @relation(fields: [empresaId, eventoId], references: [empresaId, id], onDelete: Restrict)
+  orcamento    Orcamento      @relation(fields: [empresaId, eventoId, orcamentoId], references: [empresaId, eventoId, id], onDelete: Restrict)
+  assinaturas  Assinatura[]
+  pagamentos   Pagamento[]
+  documentos   Documento[]
+
+  @@unique([empresaId, numero])
+  @@unique([empresaId, id])
+  @@index([eventoId])
+  @@map("contratos")
+}
+
+model Assinatura {
+  id         String           @id @default(uuid()) @db.Uuid
+  contratoId String           @map("contrato_id") @db.Uuid
+  usuarioId  String           @map("usuario_id") @db.Uuid
+  tipo       TipoAssinatura   @default(CLIENTE)
+  status     StatusAssinatura @default(PENDENTE)
+  assinadoEm DateTime?        @map("assinado_em") @db.Timestamptz(6)
+  ip         String?          @db.Inet
+  userAgent  String?          @map("user_agent")
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  contrato   Contrato         @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  usuario    Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@map("assinaturas")
+}
+
+model Pagamento {
+  id             String          @id @default(uuid()) @db.Uuid
+  empresaId      String          @map("empresa_id") @db.Uuid
+  contratoId     String          @map("contrato_id") @db.Uuid
+  numeroParcela  Int             @map("numero_parcela")
+  descricao      String?
+  valor          Decimal         @db.Decimal(14, 2)
+  dataVencimento DateTime        @map("data_vencimento") @db.Date
+  dataPagamento  DateTime?       @map("data_pagamento") @db.Date
+  status         StatusPagamento @default(PENDENTE)
+  formaPagamento String?         @map("forma_pagamento")
+  observacoes    String?
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa        Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  contrato       Contrato        @relation(fields: [empresaId, contratoId], references: [empresaId, id], onDelete: Restrict)
+
+  @@unique([contratoId, numeroParcela])
+  @@index([empresaId, dataVencimento, status])
+  @@map("pagamentos")
+}
+
+model Custo {
+  id          String   @id @default(uuid()) @db.Uuid
+  empresaId   String   @map("empresa_id") @db.Uuid
+  eventoId    String   @map("evento_id") @db.Uuid
+  categoria   String
+  descricao   String
+  fornecedor  String?
+  valor       Decimal  @db.Decimal(14, 2)
+  data        DateTime @db.Date
+  observacoes String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  evento      Evento   @relation(fields: [empresaId, eventoId], references: [empresaId, id], onDelete: Restrict)
+
+  @@index([eventoId, data])
+  @@map("custos")
+}
+
+model Atividade {
+  id           String   @id @default(uuid()) @db.Uuid
+  empresaId    String   @map("empresa_id") @db.Uuid
+  usuarioId    String?  @map("usuario_id") @db.Uuid
+  tipo         String
+  descricao    String
+  entidadeTipo String?  @map("entidade_tipo")
+  entidadeId   String?  @map("entidade_id") @db.Uuid
+  metadata     Json     @default("{}") @db.JsonB
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  usuario      Usuario? @relation(fields: [empresaId, usuarioId], references: [empresaId, id], onDelete: Restrict)
+
+  @@index([empresaId, createdAt(sort: Desc)])
+  @@index([entidadeTipo, entidadeId])
+  @@map("atividades")
+}
+
+model Notificacao {
+  id        String    @id @default(uuid()) @db.Uuid
+  usuarioId String    @map("usuario_id") @db.Uuid
+  tipo      String
+  titulo    String
+  mensagem  String
+  lida      Boolean   @default(false)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lidaEm    DateTime? @map("lida_em") @db.Timestamptz(6)
+  usuario   Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, lida, createdAt(sort: Desc)])
+  @@map("notificacoes")
+}
+
+model Documento {
+  id         String        @id @default(uuid()) @db.Uuid
+  empresaId  String        @map("empresa_id") @db.Uuid
+  usuarioId  String?       @map("usuario_id") @db.Uuid
+  clienteId  String?       @map("cliente_id") @db.Uuid
+  eventoId   String?       @map("evento_id") @db.Uuid
+  contratoId String?       @map("contrato_id") @db.Uuid
+  nome       String
+  tipo       TipoDocumento
+  url        String
+  tamanho    BigInt?
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa    Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  usuario    Usuario?      @relation(fields: [empresaId, usuarioId], references: [empresaId, id], onDelete: Restrict)
+  cliente    Cliente?      @relation(fields: [empresaId, clienteId], references: [empresaId, id], onDelete: Restrict)
+  evento     Evento?       @relation(fields: [empresaId, eventoId], references: [empresaId, id], onDelete: Restrict)
+  contrato   Contrato?     @relation(fields: [empresaId, contratoId], references: [empresaId, id], onDelete: Restrict)
+
+  @@index([empresaId, createdAt(sort: Desc)])
+  @@map("documentos")
+}

@@ -174,21 +174,59 @@ export function AppShell({ nav, area, usuario, trocarPara }: ShellProps) {
     <div className="min-h-screen">
       <AmbientLight />
 
-      {/* Sidebar desktop — trilho de ícones */}
-      <aside className="bg-surface fixed inset-y-0 left-0 z-20 hidden w-20 flex-col items-center border-r border-border py-5 lg:flex">
-        <Link to={area === "admin" ? "/admin" : "/cliente"} aria-label="Início" className="bg-primary text-primary-foreground grid size-11 place-items-center rounded-full">
-          <span className="font-display text-base font-bold">M</span>
-        </Link>
-        <IconRail nav={nav} />
-        <TooltipProvider delayDuration={100}>
-        <div className="mt-auto flex flex-col items-center gap-2">
-          <RailLink to={area === "admin" ? "/admin/configuracoes" : "/cliente/perfil"} label="Configurações" icon={Settings} />
-          <RailLink to="/" label="Sair" icon={LogOut} />
-        </div>
-        </TooltipProvider>
+      {/* Sidebar desktop — trilho de ícones ou expandida */}
+      <aside
+        className={cn(
+          "bg-surface fixed inset-y-0 left-0 z-20 hidden flex-col border-r border-border py-5 transition-[width] duration-200 lg:flex",
+          collapsed ? "w-20 items-center" : "w-64 px-3",
+        )}
+      >
+        {collapsed ? (
+          <>
+            <Link to={area === "admin" ? "/admin" : "/cliente"} aria-label="Início" className="bg-primary text-primary-foreground grid size-11 place-items-center rounded-full">
+              <span className="font-display text-base font-bold">M</span>
+            </Link>
+            <IconRail nav={nav} />
+            <TooltipProvider delayDuration={100}>
+              <div className="mt-auto flex flex-col items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setCollapsed(false)}
+                      aria-label="Expandir menu"
+                      className="text-foreground/60 hover:bg-secondary hover:text-foreground grid size-11 place-items-center rounded-xl transition-colors"
+                    >
+                      <PanelLeftOpen className="size-5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Expandir menu</TooltipContent>
+                </Tooltip>
+                <RailLink to={area === "admin" ? "/admin/configuracoes" : "/cliente/perfil"} label="Configurações" icon={Settings} />
+                <RailLink to="/" label="Sair" icon={LogOut} />
+              </div>
+            </TooltipProvider>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <Brand />
+              <button
+                onClick={() => setCollapsed(true)}
+                aria-label="Minimizar menu"
+                className="text-foreground/60 hover:bg-secondary hover:text-foreground grid size-9 place-items-center rounded-lg transition-colors"
+              >
+                <PanelLeftClose className="size-4" />
+              </button>
+            </div>
+            <div className="mt-4 flex-1 overflow-y-auto">
+              <NavLinks nav={nav} />
+            </div>
+            <SidebarFooter area={area} />
+          </>
+        )}
       </aside>
 
-      <div className="lg:pl-20">
+      <div className={cn("transition-[padding] duration-200", collapsed ? "lg:pl-20" : "lg:pl-64")}>
         <header className="bg-background/80 sticky top-0 z-10 backdrop-blur-xl">
           <div className="flex items-center gap-3 px-4 py-4 lg:px-8">
             {/* Menu mobile */}
