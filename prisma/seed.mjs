@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { randomBytes, scryptSync } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../src/generated/prisma/client.js";
+import { PrismaClient } from "../src/generated/prisma/client.ts";
 
 function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
