@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { listarClientes } from "@/features/clientes/server-functions";
 import {
   createUsuario,
   listUsuarios,
@@ -45,23 +47,32 @@ const initialForm: CreateUsuarioInput = {
   perfil: "Administrador",
   status: "Ativo",
   senha: "",
+  clienteId: null,
 };
 
 function UsuariosPage() {
   const queryClient = useQueryClient();
+  const carregarClientes = useServerFn(listarClientes);
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState(false);
   const [form, setForm] = useState<CreateUsuarioInput>(initialForm);
   const query = useQuery({ queryKey: ["usuarios"], queryFn: listUsuarios });
+  const clientes = useQuery({
+    queryKey: ["clientes-sem-usuario"],
+    queryFn: () => carregarClientes({ data: { page: 1, pageSize: 100, busca: "" } }),
+    enabled: aberto && form.perfil === "Cliente",
+  });
+  const clientesLivres = (clientes.data?.items ?? []).filter((cliente) => !cliente.usuarioId);
   const mutation = useMutation({
     mutationFn: createUsuario,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["usuarios"] });
       setForm(initialForm);
       setAberto(false);
-      toast.success("Usuário convidado.");
+      toast.success("Usuário cadastrado. O acesso já vale com o e-mail e a senha informados.");
     },
-    onError: () => toast.error("Não foi possível convidar o usuário."),
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Não foi possível cadastrar o usuário."),
   });
   const lista = (query.data ?? []).filter((usuario) =>
     [usuario.nome, usuario.email, usuario.perfil].some((valor) =>
@@ -71,6 +82,10 @@ function UsuariosPage() {
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (form.perfil === "Cliente" && !form.clienteId) {
+      toast.error("Selecione o cliente que este usuário poderá acessar.");
+      return;
+    }
     mutation.mutate(form);
   }
 
@@ -82,7 +97,7 @@ function UsuariosPage() {
         actions={
           <Button onClick={() => setAberto(true)}>
             <Plus className="size-4" />
-            Convidar usuário
+            Cadastrar usuário
           </Button>
         }
       />
@@ -104,7 +119,7 @@ function UsuariosPage() {
           <EmptyState
             title="Nenhum usuário encontrado"
             description="Ajuste a busca ou convide uma pessoa da equipe."
-            action={<Button onClick={() => setAberto(true)}>Convidar usuário</Button>}
+            action={<Button onClick={() => setAberto(true)}>Cadastrar usuário</Button>}
           />
         ) : (
           <div className="mt-4 overflow-x-auto">
@@ -133,7 +148,7 @@ function UsuariosPage() {
                             dateStyle: "short",
                             timeStyle: "short",
                           }).format(new Date(usuario.ultimoAcesso))
-                        : "Convite pendente"}
+                        : "Ainda não acessou"}
                     </td>
                     <td className="py-3">
                       <StatusBadge status={usuario.status} />
@@ -150,9 +165,9 @@ function UsuariosPage() {
         <DialogContent>
           <form onSubmit={submit} className="grid gap-4">
             <DialogHeader>
-              <DialogTitle>Convidar usuário</DialogTitle>
+              <DialogTitle>Cadastrar usuário</DialogTitle>
               <DialogDescription>
-                Defina o perfil inicial de acesso à administração.
+                A pessoa entra com o e-mail e a senha definidos aqui. Nenhum e-mail é enviado.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -176,7 +191,7 @@ function UsuariosPage() {
                 />
               </div>
               <div className="grid gap-1.5 sm:col-span-2">
-                <Label htmlFor="usuario-senha">Senha temporária</Label>
+                <Label htmlFor="usuario-senha">Senha</Label>
                 <Input
                   id="usuario-senha"
                   type="password"
@@ -197,9 +212,37 @@ function UsuariosPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Administrador">Administrador</SelectItem>
+                    <SelectItem value="Cliente">Cliente</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              {form.perfil === "Cliente" ? (
+                <div className="grid gap-1.5 sm:col-span-2">
+                  <Label>Cliente vinculado</Label>
+                  <Select
+                    value={form.clienteId ?? undefined}
+                    onValueChange={(clienteId) => setForm({ ...form, clienteId })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um cliente sem acesso" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientesLivres.map((cliente) => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {clientes.isPending ? (
+                    <p className="text-muted-foreground text-xs">Carregando clientes…</p>
+                  ) : clientesLivres.length === 0 ? (
+                    <p className="text-muted-foreground text-xs">
+                      Cadastre um cliente antes de criar o acesso do portal.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="grid gap-1.5">
                 <Label>Status</Label>
                 <Select
@@ -221,7 +264,7 @@ function UsuariosPage() {
                 Cancelar
               </Button>
               <Button type="submit" disabled={mutation.isPending}>
-                {mutation.isPending ? "Enviando…" : "Enviar convite"}
+                {mutation.isPending ? "Salvando…" : "Cadastrar"}
               </Button>
             </DialogFooter>
           </form>

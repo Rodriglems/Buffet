@@ -1,9 +1,17 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { obterCliente } from "@/features/clientes/server-functions";
+import { ClienteForm, type ClienteFormValues } from "@/features/clientes/cliente-form";
+import {
+  atualizarCliente,
+  excluirCliente,
+  obterCliente,
+} from "@/features/clientes/server-functions";
 import { listarContratos } from "@/features/contratos/server-functions";
 import { listarOrcamentos } from "@/features/orcamentos/server-functions";
 import { listarPagamentos } from "@/features/pagamentos/server-functions";
@@ -28,18 +36,95 @@ export const Route = createFileRoute("/admin/clientes/$id")({
   component: DetalheCliente,
 });
 
+function valoresDoCliente(cliente: {
+  nome: string;
+  tipoPessoa: "FISICA" | "JURIDICA";
+  cpfCnpj: string | null;
+  email: string | null;
+  telefone: string | null;
+  whatsapp: string | null;
+  cep: string | null;
+  estado: string | null;
+  cidade: string | null;
+  bairro: string | null;
+  logradouro: string | null;
+  numero: string | null;
+  complemento: string | null;
+  observacoes: string | null;
+}): ClienteFormValues {
+  return {
+    nome: cliente.nome,
+    tipoPessoa: cliente.tipoPessoa,
+    cpfCnpj: cliente.cpfCnpj ?? "",
+    email: cliente.email ?? "",
+    telefone: cliente.telefone ?? "",
+    whatsapp: cliente.whatsapp ?? "",
+    cep: cliente.cep ?? "",
+    estado: cliente.estado?.trim() ?? "",
+    cidade: cliente.cidade ?? "",
+    bairro: cliente.bairro ?? "",
+    logradouro: cliente.logradouro ?? "",
+    numero: cliente.numero ?? "",
+    complemento: cliente.complemento ?? "",
+    observacoes: cliente.observacoes ?? "",
+  };
+}
+
 function DetalheCliente() {
   const { cliente, orcamentos, contratos, pagamentos } = Route.useLoaderData();
+  const navigate = useNavigate();
+  const router = useRouter();
+  const atualizar = useServerFn(atualizarCliente);
+  const excluir = useServerFn(excluirCliente);
+  const [salvando, setSalvando] = useState(false);
+
+  async function remover() {
+    if (!window.confirm(`Excluir o cliente ${cliente.nome}?`)) return;
+    try {
+      await excluir({ data: { id: cliente.id } });
+      toast.success("Cliente excluído.");
+      await navigate({ to: "/admin/clientes" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível excluir o cliente.");
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title={cliente.nome}
         subtitle={`${cliente.cpfCnpj ?? "Sem documento"} · cliente desde ${formatDate(cliente.createdAt)}`}
         actions={
-          <Button asChild>
-            <Link to="/admin/eventos/novo">Criar evento</Link>
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => void remover()}>
+              Excluir
+            </Button>
+            <Button asChild>
+              <Link to="/admin/eventos/novo">Criar evento</Link>
+            </Button>
+          </>
         }
+      />
+      <ClienteForm
+        key={cliente.updatedAt}
+        valores={valoresDoCliente(cliente)}
+        salvando={salvando}
+        textoSalvar="Salvar alterações"
+        cancelarPara="/admin/clientes"
+        onSalvar={async (dados) => {
+          setSalvando(true);
+          try {
+            await atualizar({ data: { id: cliente.id, dados } });
+            toast.success("Cliente atualizado.");
+            await router.invalidate();
+          } catch (error) {
+            toast.error(
+              error instanceof Error ? error.message : "Não foi possível salvar o cliente.",
+            );
+          } finally {
+            setSalvando(false);
+          }
+        }}
       />
       <Panel className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
         <div>

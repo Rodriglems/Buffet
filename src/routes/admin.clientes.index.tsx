@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { MoreHorizontal, Plus, Search } from "lucide-react";
+import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
@@ -13,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { listarClientes } from "@/features/clientes/server-functions";
+import { excluirCliente, listarClientes } from "@/features/clientes/server-functions";
 import { formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/clientes/")({
@@ -33,8 +35,21 @@ export const Route = createFileRoute("/admin/clientes/")({
 });
 
 function ClientesPage() {
+  const router = useRouter();
+  const excluir = useServerFn(excluirCliente);
   const [busca, setBusca] = useState("");
   const { items: clientes } = Route.useLoaderData();
+
+  async function remover(id: string, nome: string) {
+    if (!window.confirm(`Excluir o cliente ${nome}?`)) return;
+    try {
+      await excluir({ data: { id } });
+      toast.success("Cliente excluído.");
+      await router.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível excluir o cliente.");
+    }
+  }
   const lista = clientes.filter(
     (c) =>
       c.nome.toLowerCase().includes(busca.toLowerCase()) ||
@@ -88,7 +103,7 @@ function ClientesPage() {
                   <th className="pb-2 font-medium">Telefone</th>
                   <th className="pb-2 font-medium">E-mail</th>
                   <th className="pb-2 font-medium">Eventos</th>
-                  <th className="pb-2 font-medium">Último evento</th>
+                  <th className="pb-2 font-medium">Cadastro</th>
                   <th className="pb-2 font-medium">Status</th>
                   <th className="pb-2 font-medium text-right">Ações</th>
                 </tr>
@@ -113,7 +128,7 @@ function ClientesPage() {
                       {c.telefone ?? c.whatsapp ?? "—"}
                     </td>
                     <td className="text-muted-foreground py-3 pr-3">{c.email ?? "—"}</td>
-                    <td className="py-3 pr-3">—</td>
+                    <td className="py-3 pr-3">{c._count.eventos}</td>
                     <td className="text-muted-foreground py-3 pr-3">{formatDate(c.createdAt)}</td>
                     <td className="py-3 pr-3">
                       <StatusBadge status="Ativo" />
@@ -132,7 +147,12 @@ function ClientesPage() {
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
-                            <Link to="/admin/clientes/novo">Editar</Link>
+                            <Link to="/admin/clientes/$id" params={{ id: c.id }}>
+                              Editar
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => void remover(c.id, c.nome)}>
+                            Excluir
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <Link to="/admin/clientes/$id" params={{ id: c.id }}>

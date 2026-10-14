@@ -2,16 +2,18 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { pagination, serialize } from "@/lib/domain.server";
+import { Prisma } from "@/generated/prisma/client";
 import { hashPassword } from "@/lib/password.server";
 import { getPrisma } from "@/lib/prisma.server";
 import { requireAuth } from "@/lib/session.server";
 
 const novoUsuario = z.object({
-  nome: z.string().trim().min(2).max(160),
-  email: z.string().trim().email().toLowerCase(),
-  senha: z.string().min(12).max(200),
+  nome: z.string().trim().min(2, "Informe o nome do usuário.").max(160),
+  email: z.string().trim().email("E-mail inválido.").toLowerCase(),
+  senha: z.string().min(12, "A senha precisa ter pelo menos 12 caracteres.").max(200),
   role: z.enum(["ADMIN", "CLIENT"]),
-  clienteId: z.string().uuid().nullable().optional(),
+  ativo: z.boolean().optional(),
+  clienteId: z.string().uuid("Selecione um cliente válido.").nullable().optional(),
 });
 const id = z.object({ id: z.string().uuid() });
 
@@ -49,37 +51,52 @@ export const listarUsuarios = createServerFn({ method: "GET" })
   });
 
 export const criarUsuario = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => novoUsuario.parse(value))
+  .inputValidator((value: unknown) => {
+    const result = novoUsuario.safeParse(value);
+    if (!result.success) throw new Error(result.error.issues[0]?.message ?? "Dados inválidos.");
+    return result.data;
+  })
   .handler(async ({ data }) => {
     const auth = await requireAuth("ADMIN");
     if (data.role === "CLIENT" && !data.clienteId)
-      throw new Error("Usuario CLIENT deve estar vinculado a um cliente.");
-    return getPrisma().$transaction(async (tx) => {
-      if (data.clienteId) {
-        const cliente = await tx.cliente.findFirst({
-          where: { id: data.clienteId, empresaId: auth.empresaId, usuarioId: null },
+      throw new Error("Um usuário cliente precisa estar vinculado a um cliente.");
+    try {
+      return await getPrisma().$transaction(async (tx) => {
+        if (data.clienteId) {
+          const cliente = await tx.cliente.findFirst({
+            where: { id: data.clienteId, empresaId: auth.empresaId, usuarioId: null },
+          });
+          if (!cliente) throw new Error("Cliente inválido ou já vinculado a outro usuário.");
+        }
+        const usuario = await tx.usuario.create({
+          data: {
+            empresaId: auth.empresaId,
+            nome: data.nome,
+            email: data.email,
+            senhaHash: await hashPassword(data.senha),
+            role: data.role,
+            ativo: data.ativo ?? true,
+          },
         });
-        if (!cliente) throw new Error("Cliente invalido ou ja vinculado.");
-      }
-      const usuario = await tx.usuario.create({
-        data: {
-          empresaId: auth.empresaId,
-          nome: data.nome,
-          email: data.email,
-          senhaHash: await hashPassword(data.senha),
-          role: data.role,
-        },
+        if (data.clienteId)
+          await tx.cliente.update({
+            where: { id: data.clienteId },
+            data: { usuarioId: usuario.id },
+          });
+        return {
+          id: usuario.id,
+          nome: usuario.nome,
+          email: usuario.email,
+          role: usuario.role,
+          ativo: usuario.ativo,
+        };
       });
-      if (data.clienteId)
-        await tx.cliente.update({ where: { id: data.clienteId }, data: { usuarioId: usuario.id } });
-      return {
-        id: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
-        role: usuario.role,
-        ativo: usuario.ativo,
-      };
-    });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new Error("Já existe um usuário com este e-mail.");
+      }
+      throw error;
+    }
   });
 
 export const atualizarUsuario = createServerFn({ method: "POST" })
@@ -183,7 +200,7 @@ export const atualizarMeuPerfil = createServerFn({ method: "POST" })
     });
   });
 export type UsuarioStatus = "Ativo" | "Inativo";
-export type UsuarioPerfil = "Administrador";
+export type UsuarioPerfil = "Administrador" | "Cliente";
 
 export interface Usuario {
   id: string;
@@ -194,7 +211,10 @@ export interface Usuario {
   ultimoAcesso: string | null;
 }
 
-export type CreateUsuarioInput = Omit<Usuario, "id" | "ultimoAcesso"> & { senha: string };
+export type CreateUsuarioInput = Omit<Usuario, "id" | "ultimoAcesso"> & {
+  senha: string;
+  clienteId?: string | null;
+};
 
 export async function listUsuarios(): Promise<Usuario[]> {
   const result = await listarUsuarios({ data: { page: 1, pageSize: 100 } });
@@ -202,7 +222,7 @@ export async function listUsuarios(): Promise<Usuario[]> {
     id: entry.id,
     nome: entry.nome,
     email: entry.email,
-    perfil: "Administrador",
+    perfil: entry.role === "CLIENT" ? "Cliente" : "Administrador",
     status: entry.ativo ? "Ativo" : "Inativo",
     ultimoAcesso: entry.ultimoLogin ? new Date(entry.ultimoLogin).toISOString() : null,
   }));
@@ -214,7 +234,9 @@ export async function createUsuario(input: CreateUsuarioInput): Promise<Usuario>
       nome: input.nome,
       email: input.email,
       senha: input.senha,
-      role: "ADMIN",
+      role: input.perfil === "Cliente" ? "CLIENT" : "ADMIN",
+      ativo: input.status === "Ativo",
+      clienteId: input.perfil === "Cliente" ? (input.clienteId ?? null) : null,
     },
   });
   return { ...input, id: created.id, ultimoAcesso: null };
