@@ -31,7 +31,7 @@ export const Route = createFileRoute("/")({
 
 function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("marina@mesabuffet.com.br");
+  const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [verSenha, setVerSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);

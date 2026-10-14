@@ -6,6 +6,9 @@ import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
+  server: {
+    allowedHosts: ["comm-inquire-roof-karma.trycloudflare.com"],
+  },
   resolve: {
     dedupe: ["react", "react-dom", "@tanstack/react-router", "@tanstack/react-start"],
   },
