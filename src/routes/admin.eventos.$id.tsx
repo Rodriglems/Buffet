@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarPlus, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
+import { EventosTabs } from "@/components/layout/section-nav";
 import { PageHeader, Panel, StatCard } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ function DetalheEvento() {
           </>
         }
       />
+      <EventosTabs />
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard label="Contratado" value={formatBRL(valorContratado)} />
         <StatCard label="Recebido" value={formatBRL(recebido)} />
@@ -103,6 +105,34 @@ function DetalheEvento() {
           </div>
           <StatusBadge status={evento.status} />
         </div>
+      </Panel>
+      <Panel className="p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display font-semibold">Contato do evento</h2>
+            <p className="text-muted-foreground text-sm">Pessoa responsável por este evento</p>
+          </div>
+          <Button size="sm" variant="outline" asChild>
+            <Link to="/admin/clientes/$id" params={{ id: evento.cliente.id }}>
+              Abrir cadastro
+            </Link>
+          </Button>
+        </div>
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Nome", evento.cliente.nome],
+            ["E-mail", evento.cliente.email],
+            ["Telefone", evento.cliente.telefone],
+            ["WhatsApp", evento.cliente.whatsapp],
+          ].map(([rotulo, valor]) => (
+            <div key={rotulo}>
+              <dt className="text-muted-foreground text-[11px] uppercase">{rotulo}</dt>
+              <dd className="mt-1 text-sm font-medium">
+                {valor?.trim() ? valor : "Não informado"}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </Panel>
       <div className="grid gap-4 xl:grid-cols-2">
         <Panel className="p-5">

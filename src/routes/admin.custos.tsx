@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { FinanceiroTabs } from "@/components/layout/section-nav";
 import { PageHeader, Panel, PanelHeader } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { listarCustos } from "@/features/custos/server-functions";
@@ -44,6 +45,7 @@ function Custos() {
         subtitle={`${custos.length} lançamentos registrados`}
         actions={<Button disabled>Registrar custo</Button>}
       />
+      <FinanceiroTabs />
 
       <Panel className="p-5">
         <PanelHeader title="Total por evento" />

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
+import { FinanceiroTabs } from "@/components/layout/section-nav";
 import { PageHeader, Panel, PanelHeader, StatCard } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { listarCustos } from "@/features/custos/server-functions";
@@ -73,7 +74,8 @@ function Financeiro() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Financeiro" subtitle="Desempenho dos últimos 8 meses" />
+      <PageHeader title="Financeiro" subtitle="Visão geral, pagamentos e custos no mesmo lugar" />
+      <FinanceiroTabs />
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
         <StatCard label="Receita" value={formatBRLShort(receita)} badge="+11,2%" />

@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { EventosTabs } from "@/components/layout/section-nav";
 import { PageHeader, Panel, PanelHeader } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,6 +79,7 @@ function NovoEvento() {
         title="Novo evento"
         subtitle="Informe os dados do evento e os serviços previstos"
       />
+      <EventosTabs />
 
       <Panel className="p-5">
         <PanelHeader title="Informações do evento" />

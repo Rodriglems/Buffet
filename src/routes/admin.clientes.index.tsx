@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { MoreHorizontal, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
+import { EventosTabs } from "@/components/layout/section-nav";
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/states";
@@ -21,12 +22,12 @@ import { formatDate } from "@/lib/format";
 export const Route = createFileRoute("/admin/clientes/")({
   head: () => ({
     meta: [
-      { title: "Clientes — Mesa Buffet & Eventos" },
+      { title: "Contatos — Mesa Buffet & Eventos" },
       {
         name: "description",
-        content: "Cadastro e histórico de clientes do buffet, com eventos, orçamentos e contatos.",
+        content: "Contatos vinculados aos eventos do buffet, com telefone, e-mail e histórico.",
       },
-      { property: "og:title", content: "Clientes — Mesa Buffet & Eventos" },
+      { property: "og:title", content: "Contatos — Mesa Buffet & Eventos" },
       { property: "og:description", content: "Gerencie a base de clientes do seu buffet." },
     ],
   }),
@@ -60,17 +61,18 @@ function ClientesPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Clientes"
-        subtitle={`${clientes.length} clientes cadastrados`}
+        title="Contatos"
+        subtitle={`${clientes.length} contatos vinculados aos eventos`}
         actions={
           <Button asChild>
             <Link to="/admin/clientes/novo">
               <Plus className="size-4" />
-              Novo cliente
+              Novo contato
             </Link>
           </Button>
         }
       />
+      <EventosTabs />
 
       <Panel className="p-5">
         <div className="relative max-w-sm">
@@ -85,11 +87,11 @@ function ClientesPage() {
 
         {lista.length === 0 ? (
           <EmptyState
-            title="Nenhum cliente encontrado"
-            description="Ajuste a busca ou cadastre um novo cliente."
+            title="Nenhum contato encontrado"
+            description="Ajuste a busca ou cadastre um novo contato."
             action={
               <Button asChild size="sm">
-                <Link to="/admin/clientes/novo">Novo cliente</Link>
+                <Link to="/admin/clientes/novo">Novo contato</Link>
               </Button>
             }
           />
@@ -98,7 +100,7 @@ function ClientesPage() {
             <table className="w-full min-w-[860px] text-left text-sm">
               <thead>
                 <tr className="text-muted-foreground border-b border-border text-[11px] tracking-wide uppercase">
-                  <th className="pb-2 font-medium">Cliente</th>
+                  <th className="pb-2 font-medium">Contato</th>
                   <th className="pb-2 font-medium">CPF/CNPJ</th>
                   <th className="pb-2 font-medium">Telefone</th>
                   <th className="pb-2 font-medium">E-mail</th>

@@ -4,11 +4,9 @@ import {
   FileText,
   Home,
   LayoutDashboard,
-  Receipt,
   Settings,
   TrendingUp,
   User,
-  Users,
   Wallet,
   History,
   Bell,
@@ -38,7 +36,6 @@ export const adminNav: NavGroup[] = [
     items: [
       { label: "Dashboard", to: "/admin", icon: LayoutDashboard },
       { label: "Leads", to: "/admin/leads", icon: UserPlus },
-      { label: "Clientes", to: "/admin/clientes", icon: Users },
       { label: "Serviços", to: "/admin/servicos", icon: BriefcaseBusiness },
       { label: "Eventos", to: "/admin/eventos", icon: PartyPopper },
       { label: "Orçamentos", to: "/admin/orcamentos", icon: FileText },
@@ -47,11 +44,7 @@ export const adminNav: NavGroup[] = [
   },
   {
     label: "Financeiro",
-    items: [
-      { label: "Financeiro", to: "/admin/financeiro", icon: TrendingUp },
-      { label: "Pagamentos", to: "/admin/pagamentos", icon: Wallet },
-      { label: "Custos", to: "/admin/custos", icon: Receipt },
-    ],
+    items: [{ label: "Financeiro", to: "/admin/financeiro", icon: TrendingUp }],
   },
   {
     label: "Organização",

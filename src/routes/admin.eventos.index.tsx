@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarDays, List, Plus } from "lucide-react";
 
+import { EventosTabs } from "@/components/layout/section-nav";
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/states";
@@ -75,6 +76,7 @@ function EventosPage() {
           </Button>
         }
       />
+      <EventosTabs />
 
       <Panel className="p-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

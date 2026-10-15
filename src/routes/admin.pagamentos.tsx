@@ -3,6 +3,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { FinanceiroTabs } from "@/components/layout/section-nav";
 import { PageHeader, Panel, StatCard } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ function Pagamentos() {
           </Button>
         }
       />
+      <FinanceiroTabs />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label="Recebido" value={formatBRLShort(pago)} />

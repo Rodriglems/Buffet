@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-r
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { EventosTabs } from "@/components/layout/section-nav";
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -105,6 +106,7 @@ function DetalheCliente() {
           </>
         }
       />
+      <EventosTabs />
       <ClienteForm
         key={cliente.updatedAt}
         valores={valoresDoCliente(cliente)}
