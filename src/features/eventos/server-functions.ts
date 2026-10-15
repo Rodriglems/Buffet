@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { pagination, registrarAtividade, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
-import { requireAuth } from "@/lib/session.server";
+import { requireAuth, requirePermission } from "@/lib/session.server";
 
 const eventoBase = z.object({
   clienteId: z.string().uuid(),
@@ -97,7 +97,7 @@ export const obterEvento = createServerFn({ method: "GET" })
 export const criarEvento = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => evento.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("eventos");
     const cliente = await getPrisma().cliente.findFirst({
       where: { id: data.clienteId, empresaId: auth.empresaId },
     });
@@ -117,7 +117,7 @@ export const criarEvento = createServerFn({ method: "POST" })
 export const atualizarEvento = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.extend({ dados: eventoBase.partial() }).parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("eventos");
     const found = await getPrisma().evento.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
     });
@@ -136,7 +136,7 @@ export const atualizarEvento = createServerFn({ method: "POST" })
 export const excluirEvento = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("eventos");
     const found = await getPrisma().evento.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
       include: { _count: { select: { orcamentos: true, contratos: true, custos: true } } },

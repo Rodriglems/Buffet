@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { pagination, registrarAtividade, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
-import { requireAuth } from "@/lib/session.server";
+import { requirePermission } from "@/lib/session.server";
 
 const status = z.enum([
   "NOVO",
@@ -46,7 +46,7 @@ export const listarLeads = createServerFn({ method: "GET" })
       .parse(value ?? {}),
   )
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("leads");
     const where = { empresaId: auth.empresaId, ...(data.status ? { status: data.status } : {}) };
     const [items, total] = await getPrisma().$transaction([
       getPrisma().lead.findMany({
@@ -62,7 +62,7 @@ export const listarLeads = createServerFn({ method: "GET" })
 export const criarLead = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => leadSchema.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("leads");
     const lead = await getPrisma().lead.create({ data: { ...data, empresaId: auth.empresaId } });
     return serialize(lead);
   });
@@ -70,7 +70,7 @@ export const criarLead = createServerFn({ method: "POST" })
 export const atualizarLead = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.extend({ dados: leadSchema.partial() }).parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("leads");
     const result = await getPrisma().lead.updateMany({
       where: { id: data.id, empresaId: auth.empresaId },
       data: data.dados,
@@ -82,7 +82,7 @@ export const atualizarLead = createServerFn({ method: "POST" })
 export const excluirLead = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("leads");
     const lead = await getPrisma().lead.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
     });
@@ -106,7 +106,7 @@ export const converterLead = createServerFn({ method: "POST" })
       .parse(value),
   )
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("leads");
     return getPrisma().$transaction(async (tx) => {
       const lead = await tx.lead.findFirst({ where: { id: data.id, empresaId: auth.empresaId } });
       if (!lead || lead.status === "CONVERTIDO") throw new Error("Lead invalido para conversao.");

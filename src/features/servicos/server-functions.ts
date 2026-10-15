@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { pagination, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
-import { requireAuth } from "@/lib/session.server";
+import { requirePermission } from "@/lib/session.server";
 
 const servico = z.object({
   nome: z.string().trim().min(2).max(160),
@@ -25,7 +25,7 @@ export const listarServicos = createServerFn({ method: "GET" })
       .parse(value ?? {}),
   )
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("servicos");
     const where = { empresaId: auth.empresaId, ...(data.apenasAtivos ? { ativo: true } : {}) };
     const [items, total] = await getPrisma().$transaction([
       getPrisma().servico.findMany({
@@ -41,7 +41,7 @@ export const listarServicos = createServerFn({ method: "GET" })
 export const criarServico = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => servico.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("servicos");
     return serialize(
       await getPrisma().servico.create({ data: { ...data, empresaId: auth.empresaId } }),
     );
@@ -50,7 +50,7 @@ export const criarServico = createServerFn({ method: "POST" })
 export const atualizarServico = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.extend({ dados: servico.partial() }).parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("servicos");
     const found = await getPrisma().servico.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
     });
@@ -63,7 +63,7 @@ export const atualizarServico = createServerFn({ method: "POST" })
 export const excluirServico = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("servicos");
     const found = await getPrisma().servico.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
       include: { _count: { select: { orcamentoItens: true } } },

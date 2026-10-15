@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { notificar, pagination, registrarAtividade, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
-import { requireAuth } from "@/lib/session.server";
+import { requireAuth, requirePermission } from "@/lib/session.server";
 
 const pagamento = z.object({
   contratoId: z.string().uuid(),
@@ -50,7 +50,7 @@ export const listarPagamentos = createServerFn({ method: "GET" })
 export const criarPagamento = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => pagamento.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("pagamentos");
     const contrato = await getPrisma().contrato.findFirst({
       where: { id: data.contratoId, empresaId: auth.empresaId },
     });
@@ -67,7 +67,7 @@ export const atualizarPagamento = createServerFn({ method: "POST" })
     id.extend({ dados: pagamento.omit({ contratoId: true }).partial() }).parse(value),
   )
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("pagamentos");
     const found = await getPrisma().pagamento.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
     });
@@ -86,7 +86,7 @@ export const registrarPagamento = createServerFn({ method: "POST" })
       .parse(value),
   )
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("pagamentos");
     return getPrisma().$transaction(async (tx) => {
       const found = await tx.pagamento.findFirst({
         where: { id: data.id, empresaId: auth.empresaId },
@@ -121,7 +121,7 @@ export const registrarPagamento = createServerFn({ method: "POST" })
 export const excluirPagamento = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("pagamentos");
     const found = await getPrisma().pagamento.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
     });
@@ -132,7 +132,7 @@ export const excluirPagamento = createServerFn({ method: "POST" })
   });
 
 export const atualizarPagamentosAtrasados = createServerFn({ method: "POST" }).handler(async () => {
-  const auth = await requireAuth("ADMIN");
+  const auth = await requirePermission("pagamentos");
   const result = await getPrisma().pagamento.updateMany({
     where: { empresaId: auth.empresaId, status: "PENDENTE", dataVencimento: { lt: new Date() } },
     data: { status: "ATRASADO" },

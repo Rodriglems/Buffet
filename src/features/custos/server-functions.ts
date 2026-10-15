@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { pagination, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
-import { requireAuth } from "@/lib/session.server";
+import { requireAnyPermission, requirePermission } from "@/lib/session.server";
 
 const custo = z.object({
   eventoId: z.string().uuid(),
@@ -27,7 +27,7 @@ export const listarCustos = createServerFn({ method: "GET" })
       .parse(value ?? {}),
   )
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requireAnyPermission(["custos", "financeiro"]);
     const where = {
       empresaId: auth.empresaId,
       ...(data.eventoId ? { eventoId: data.eventoId } : {}),
@@ -48,7 +48,7 @@ export const listarCustos = createServerFn({ method: "GET" })
 export const criarCusto = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => custo.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("custos");
     const evento = await getPrisma().evento.findFirst({
       where: { id: data.eventoId, empresaId: auth.empresaId },
     });
@@ -63,7 +63,7 @@ export const criarCusto = createServerFn({ method: "POST" })
 export const atualizarCusto = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.extend({ dados: custo.partial() }).parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("custos");
     const found = await getPrisma().custo.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
     });
@@ -78,7 +78,7 @@ export const atualizarCusto = createServerFn({ method: "POST" })
 export const excluirCusto = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("custos");
     const result = await getPrisma().custo.deleteMany({
       where: { id: data.id, empresaId: auth.empresaId },
     });

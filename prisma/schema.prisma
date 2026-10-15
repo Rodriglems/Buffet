@@ -146,6 +146,7 @@ model Usuario {
   email        String
   senhaHash    String        @map("senha_hash")
   role         RoleUsuario
+  permissoes   Json          @default("{}") @db.JsonB
   ativo        Boolean       @default(true)
   ultimoLogin  DateTime?     @map("ultimo_login") @db.Timestamptz(6)
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)

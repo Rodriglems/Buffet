@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
 
+import { hasPermission, parsePermissoes, type PermissionKey, type Permissoes } from "@/lib/permissions";
 import { corValida, type CorSistema } from "@/lib/theme-accent";
 import { getPrisma } from "@/lib/prisma.server";
 
@@ -19,6 +20,7 @@ export type AuthContext = {
   nome: string;
   email: string;
   role: "ADMIN" | "CLIENT";
+  permissoes: Permissoes;
   corTema: CorSistema;
 };
 
@@ -96,6 +98,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
       nome: true,
       email: true,
       role: true,
+      permissoes: true,
       empresa: { select: { corTema: true } },
       cliente: { select: { id: true } },
     },
@@ -109,6 +112,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     nome: usuario.nome,
     email: usuario.email,
     role: usuario.role,
+    permissoes: parsePermissoes(usuario.permissoes),
     corTema: corValida(usuario.empresa.corTema),
   };
 }
@@ -117,5 +121,25 @@ export async function requireAuth(role?: AuthContext["role"]): Promise<AuthConte
   const auth = await getAuthContext();
   if (!auth) throw new Error("UNAUTHENTICATED");
   if (role && auth.role !== role) throw new Error("FORBIDDEN");
+  return auth;
+}
+
+export function assertAdminPermission(auth: AuthContext, key: PermissionKey) {
+  if (auth.role === "ADMIN" && !hasPermission(auth.permissoes, key)) {
+    throw new Error("Você não tem permissão para esta área.");
+  }
+}
+
+export async function requirePermission(key: PermissionKey): Promise<AuthContext> {
+  const auth = await requireAuth("ADMIN");
+  assertAdminPermission(auth, key);
+  return auth;
+}
+
+export async function requireAnyPermission(keys: PermissionKey[]): Promise<AuthContext> {
+  const auth = await requireAuth("ADMIN");
+  if (!keys.some((key) => hasPermission(auth.permissoes, key))) {
+    throw new Error("Você não tem permissão para esta área.");
+  }
   return auth;
 }

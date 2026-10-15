@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
-import { requireAuth } from "@/lib/session.server";
+import { requireAnyPermission, requirePermission } from "@/lib/session.server";
 import { COR_IDS } from "@/lib/theme-accent";
 
 const empresa = z.object({
@@ -41,7 +41,7 @@ const empresa = z.object({
 });
 
 export const obterEmpresa = createServerFn({ method: "GET" }).handler(async () => {
-  const auth = await requireAuth("ADMIN");
+  const auth = await requireAnyPermission(["configuracoes", "orcamentos"]);
   const result = await getPrisma().empresa.findUnique({ where: { id: auth.empresaId } });
   if (!result) throw new Error("Empresa nao encontrada.");
   return serialize(result);
@@ -50,6 +50,6 @@ export const obterEmpresa = createServerFn({ method: "GET" }).handler(async () =
 export const atualizarEmpresa = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => empresa.partial().parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("configuracoes");
     return serialize(await getPrisma().empresa.update({ where: { id: auth.empresaId }, data }));
   });

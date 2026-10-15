@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { pagination, registrarAtividade, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
-import { requireAuth } from "@/lib/session.server";
+import { requireAuth, requirePermission } from "@/lib/session.server";
 
 export const listarNotificacoes = createServerFn({ method: "GET" })
   .inputValidator((value: unknown) =>
@@ -52,7 +52,7 @@ export const marcarTodasLidas = createServerFn({ method: "POST" }).handler(async
 });
 
 export const gerarLembretesOperacionais = createServerFn({ method: "POST" }).handler(async () => {
-  const auth = await requireAuth("ADMIN");
+  const auth = await requirePermission("notificacoes");
   const inicio = new Date();
   inicio.setHours(0, 0, 0, 0);
   const limite = new Date(inicio);

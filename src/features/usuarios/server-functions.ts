@@ -4,8 +4,14 @@ import { z } from "zod";
 import { pagination, serialize } from "@/lib/domain.server";
 import { Prisma } from "@/generated/prisma/client";
 import { hashPassword } from "@/lib/password.server";
+import {
+  PERMISSION_KEYS,
+  hasPermission,
+  parsePermissoes,
+  type Permissoes,
+} from "@/lib/permissions";
 import { getPrisma } from "@/lib/prisma.server";
-import { requireAuth } from "@/lib/session.server";
+import { requireAnyPermission, requireAuth, requirePermission } from "@/lib/session.server";
 
 const novoUsuario = z.object({
   nome: z.string().trim().min(2, "Informe o nome do usuário.").max(160),
@@ -27,7 +33,7 @@ export const listarUsuarios = createServerFn({ method: "GET" })
       .parse(value ?? {}),
   )
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requireAnyPermission(["usuarios", "configuracoes"]);
     const where = { empresaId: auth.empresaId };
     const [items, total] = await getPrisma().$transaction([
       getPrisma().usuario.findMany({
@@ -39,6 +45,7 @@ export const listarUsuarios = createServerFn({ method: "GET" })
           email: true,
           role: true,
           ativo: true,
+          permissoes: true,
           ultimoLogin: true,
           createdAt: true,
           cliente: { select: { id: true, nome: true } },
@@ -57,7 +64,7 @@ export const criarUsuario = createServerFn({ method: "POST" })
     return result.data;
   })
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("usuarios");
     if (data.role === "CLIENT" && !data.clienteId)
       throw new Error("Um usuário cliente precisa estar vinculado a um cliente.");
     try {
@@ -112,7 +119,7 @@ export const atualizarUsuario = createServerFn({ method: "POST" })
       .parse(value),
   )
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("usuarios");
     const found = await getPrisma().usuario.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
     });
@@ -132,7 +139,7 @@ export const atualizarUsuario = createServerFn({ method: "POST" })
 export const excluirUsuario = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("usuarios");
     if (data.id === auth.usuarioId) throw new Error("Voce nao pode excluir seu proprio usuario.");
     const found = await getPrisma().usuario.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
@@ -140,6 +147,42 @@ export const excluirUsuario = createServerFn({ method: "POST" })
     if (!found) throw new Error("Usuario nao encontrado.");
     await getPrisma().usuario.update({ where: { id: found.id }, data: { ativo: false } });
     return { ok: true, inativado: true };
+  });
+
+const permissoesInput = z.object(
+  Object.fromEntries(PERMISSION_KEYS.map((chave) => [chave, z.boolean()])) as Record<
+    (typeof PERMISSION_KEYS)[number],
+    z.ZodBoolean
+  >,
+);
+
+export const atualizarPermissoes = createServerFn({ method: "POST" })
+  .inputValidator((value: unknown) =>
+    z.object({ id: z.string().uuid(), permissoes: permissoesInput }).parse(value),
+  )
+  .handler(async ({ data }) => {
+    const auth = await requireAuth("ADMIN");
+    if (
+      !hasPermission(auth.permissoes, "usuarios") &&
+      !hasPermission(auth.permissoes, "configuracoes")
+    ) {
+      throw new Error("Você não pode alterar permissões.");
+    }
+    const found = await getPrisma().usuario.findFirst({
+      where: { id: data.id, empresaId: auth.empresaId },
+    });
+    if (!found) throw new Error("Usuário não encontrado.");
+    if (found.role !== "ADMIN") throw new Error("O perfil Cliente usa apenas o portal.");
+    const permissoes: Permissoes = parsePermissoes(data.permissoes);
+    if (found.id === auth.usuarioId) {
+      permissoes.usuarios = true;
+      permissoes.configuracoes = true;
+    }
+    await getPrisma().usuario.update({
+      where: { id: found.id },
+      data: { permissoes },
+    });
+    return { ok: true };
   });
 
 export const obterMeuPerfil = createServerFn({ method: "GET" }).handler(async () => {
@@ -209,9 +252,10 @@ export interface Usuario {
   perfil: UsuarioPerfil;
   status: UsuarioStatus;
   ultimoAcesso: string | null;
+  permissoes: Permissoes;
 }
 
-export type CreateUsuarioInput = Omit<Usuario, "id" | "ultimoAcesso"> & {
+export type CreateUsuarioInput = Omit<Usuario, "id" | "ultimoAcesso" | "permissoes"> & {
   senha: string;
   clienteId?: string | null;
 };
@@ -225,6 +269,7 @@ export async function listUsuarios(): Promise<Usuario[]> {
     perfil: entry.role === "CLIENT" ? "Cliente" : "Administrador",
     status: entry.ativo ? "Ativo" : "Inativo",
     ultimoAcesso: entry.ultimoLogin ? new Date(entry.ultimoLogin).toISOString() : null,
+    permissoes: parsePermissoes(entry.permissoes),
   }));
 }
 
@@ -239,5 +284,5 @@ export async function createUsuario(input: CreateUsuarioInput): Promise<Usuario>
       clienteId: input.perfil === "Cliente" ? (input.clienteId ?? null) : null,
     },
   });
-  return { ...input, id: created.id, ultimoAcesso: null };
+  return { ...input, id: created.id, ultimoAcesso: null, permissoes: parsePermissoes(null) };
 }

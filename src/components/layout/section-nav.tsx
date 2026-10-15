@@ -1,5 +1,6 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouteContext, useRouterState } from "@tanstack/react-router";
 
+import { hasPermission } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 type Destino =
@@ -11,6 +12,7 @@ type Destino =
 
 function SectionNav({ items }: { items: { label: string; to: Destino }[] }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (items.length < 2) return null;
 
   return (
     <div className="flex flex-wrap gap-1">
@@ -36,24 +38,32 @@ function SectionNav({ items }: { items: { label: string; to: Destino }[] }) {
 }
 
 export function EventosTabs() {
-  return (
-    <SectionNav
-      items={[
-        { label: "Eventos", to: "/admin/eventos" },
-        { label: "Contatos", to: "/admin/clientes" },
-      ]}
-    />
-  );
+  const { usuario } = useRouteContext({ from: "/admin" });
+  const items: { label: string; to: Destino }[] = [];
+  if (hasPermission(usuario.permissoes, "eventos")) {
+    items.push({ label: "Eventos", to: "/admin/eventos" });
+  }
+  if (hasPermission(usuario.permissoes, "contatos")) {
+    items.push({ label: "Contatos", to: "/admin/clientes" });
+  }
+  return <SectionNav items={items} />;
 }
 
+const abasFinanceiro: {
+  label: string;
+  to: Destino;
+  permission: "financeiro" | "pagamentos" | "custos";
+}[] = [
+  { label: "Visão geral", to: "/admin/financeiro", permission: "financeiro" },
+  { label: "Pagamentos", to: "/admin/pagamentos", permission: "pagamentos" },
+  { label: "Custos", to: "/admin/custos", permission: "custos" },
+];
+
 export function FinanceiroTabs() {
+  const { usuario } = useRouteContext({ from: "/admin" });
   return (
     <SectionNav
-      items={[
-        { label: "Visão geral", to: "/admin/financeiro" },
-        { label: "Pagamentos", to: "/admin/pagamentos" },
-        { label: "Custos", to: "/admin/custos" },
-      ]}
+      items={abasFinanceiro.filter((aba) => hasPermission(usuario.permissoes, aba.permission))}
     />
   );
 }

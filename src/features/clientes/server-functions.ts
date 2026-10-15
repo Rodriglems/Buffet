@@ -5,7 +5,12 @@ import { firstZodError } from "@/features/shared/validation/errors";
 import { pagination, registrarAtividade, serialize } from "@/lib/domain.server";
 import { Prisma } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma.server";
-import { requireAuth } from "@/lib/session.server";
+import {
+  assertAdminPermission,
+  requireAnyPermission,
+  requireAuth,
+  requirePermission,
+} from "@/lib/session.server";
 
 const vazioParaNulo = (value: unknown) => {
   if (value == null) return null;
@@ -131,7 +136,7 @@ const listSchema = z.object({
 export const listarClientes = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => listSchema.parse(input ?? {}))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requireAnyPermission(["contatos", "eventos", "usuarios"]);
     const where = {
       empresaId: auth.empresaId,
       ...(data.busca
@@ -159,6 +164,7 @@ export const obterCliente = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => idSchema.parse(input))
   .handler(async ({ data }) => {
     const auth = await requireAuth();
+    assertAdminPermission(auth, "contatos");
     const cliente = await getPrisma().cliente.findFirst({
       where: {
         id: data.id,
@@ -174,7 +180,7 @@ export const obterCliente = createServerFn({ method: "GET" })
 export const criarCliente = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => lerCliente(input))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("contatos");
     try {
       return await getPrisma().$transaction(async (tx) => {
         const { usuarioId, ...cadastro } = data;
@@ -207,7 +213,7 @@ export const atualizarCliente = createServerFn({ method: "POST" })
     return { id: bruto.data.id, dados: lerCliente(bruto.data.dados) };
   })
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("contatos");
     const existing = await getPrisma().cliente.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
     });
@@ -224,7 +230,7 @@ export const atualizarCliente = createServerFn({ method: "POST" })
 export const excluirCliente = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => idSchema.parse(input))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("contatos");
     const existing = await getPrisma().cliente.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
       include: { _count: { select: { eventos: true, documentos: true } } },

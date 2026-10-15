@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { notificar, pagination, registrarAtividade, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
-import { requireAuth } from "@/lib/session.server";
+import { requireAuth, requirePermission } from "@/lib/session.server";
 
 const id = z.object({ id: z.string().uuid() });
 
@@ -69,7 +69,7 @@ export const atualizarConteudoContrato = createServerFn({ method: "POST" })
       .parse(value),
   )
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("contratos");
     const found = await getPrisma().contrato.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
     });
@@ -86,7 +86,7 @@ export const atualizarConteudoContrato = createServerFn({ method: "POST" })
 export const enviarContrato = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("contratos");
     return getPrisma().$transaction(async (tx) => {
       const found = await tx.contrato.findFirst({
         where: { id: data.id, empresaId: auth.empresaId },
@@ -168,7 +168,7 @@ export const assinarContrato = createServerFn({ method: "POST" })
 export const cancelarContrato = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("contratos");
     const found = await getPrisma().contrato.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
     });

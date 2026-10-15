@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { pagination, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
-import { requireAuth } from "@/lib/session.server";
+import { assertAdminPermission, requireAuth, requirePermission } from "@/lib/session.server";
 
 const documento = z.object({
   usuarioId: z.string().uuid().nullable().optional(),
@@ -28,6 +28,7 @@ export const listarDocumentos = createServerFn({ method: "GET" })
   )
   .handler(async ({ data }) => {
     const auth = await requireAuth();
+    assertAdminPermission(auth, "documentos");
     const where = {
       empresaId: auth.empresaId,
       ...(auth.role === "CLIENT"
@@ -55,7 +56,7 @@ export const listarDocumentos = createServerFn({ method: "GET" })
 export const criarDocumento = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => documento.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("documentos");
     const checks = await Promise.all([
       data.usuarioId
         ? getPrisma().usuario.count({ where: { id: data.usuarioId, empresaId: auth.empresaId } })
@@ -86,7 +87,7 @@ export const atualizarDocumento = createServerFn({ method: "POST" })
       .parse(value),
   )
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("documentos");
     const found = await getPrisma().documento.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
     });
@@ -99,7 +100,7 @@ export const atualizarDocumento = createServerFn({ method: "POST" })
 export const excluirDocumento = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("documentos");
     const result = await getPrisma().documento.deleteMany({
       where: { id: data.id, empresaId: auth.empresaId },
     });

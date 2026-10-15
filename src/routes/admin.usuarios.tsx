@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouteContext } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -27,10 +27,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { listarClientes } from "@/features/clientes/server-functions";
+import { PermissoesDialog } from "@/features/usuarios/permissoes-dialog";
 import {
   createUsuario,
   listUsuarios,
   type CreateUsuarioInput,
+  type Usuario,
   type UsuarioPerfil,
   type UsuarioStatus,
 } from "@/features/usuarios/server-functions";
@@ -51,10 +53,12 @@ const initialForm: CreateUsuarioInput = {
 };
 
 function UsuariosPage() {
+  const { usuario: atual } = useRouteContext({ from: "/admin" });
   const queryClient = useQueryClient();
   const carregarClientes = useServerFn(listarClientes);
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState(false);
+  const [permissoesDe, setPermissoesDe] = useState<Usuario | null>(null);
   const [form, setForm] = useState<CreateUsuarioInput>(initialForm);
   const query = useQuery({ queryKey: ["usuarios"], queryFn: listUsuarios });
   const clientes = useQuery({
@@ -130,6 +134,7 @@ function UsuariosPage() {
                   <th className="pb-2 font-medium">Perfil</th>
                   <th className="pb-2 font-medium">Último acesso</th>
                   <th className="pb-2 font-medium">Status</th>
+                  <th className="pb-2 font-medium text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -152,6 +157,11 @@ function UsuariosPage() {
                     </td>
                     <td className="py-3">
                       <StatusBadge status={usuario.status} />
+                    </td>
+                    <td className="py-3 text-right">
+                      <Button size="sm" variant="outline" onClick={() => setPermissoesDe(usuario)}>
+                        Permissões
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -270,6 +280,21 @@ function UsuariosPage() {
           </form>
         </DialogContent>
       </Dialog>
+      {permissoesDe ? (
+        <PermissoesDialog
+          aberto
+          onOpenChange={(next) => {
+            if (!next) setPermissoesDe(null);
+          }}
+          proprio={permissoesDe.id === atual.usuarioId}
+          usuario={{
+            id: permissoesDe.id,
+            nome: permissoesDe.nome,
+            role: permissoesDe.perfil === "Cliente" ? "CLIENT" : "ADMIN",
+            permissoes: permissoesDe.permissoes,
+          }}
+        />
+      ) : null}
     </div>
   );
 }

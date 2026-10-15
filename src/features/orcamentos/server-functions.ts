@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { notificar, pagination, registrarAtividade, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
-import { requireAuth } from "@/lib/session.server";
+import { requireAuth, requirePermission } from "@/lib/session.server";
 
 const item = z
   .object({
@@ -87,7 +87,7 @@ export const obterOrcamento = createServerFn({ method: "GET" })
 export const criarOrcamento = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => orcamento.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("orcamentos");
     return getPrisma().$transaction(async (tx) => {
       const evento = await tx.evento.findFirst({
         where: { id: data.eventoId, empresaId: auth.empresaId },
@@ -148,7 +148,7 @@ export const criarOrcamento = createServerFn({ method: "POST" })
 export const excluirOrcamento = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("orcamentos");
     const found = await getPrisma().orcamento.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
       include: { _count: { select: { contratos: true } } },
@@ -163,7 +163,7 @@ export const excluirOrcamento = createServerFn({ method: "POST" })
 export const enviarOrcamento = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("orcamentos");
     return getPrisma().$transaction(async (tx) => {
       const found = await tx.orcamento.findFirst({
         where: { id: data.id, empresaId: auth.empresaId },
@@ -192,7 +192,7 @@ export const enviarOrcamento = createServerFn({ method: "POST" })
 export const criarVersaoOrcamento = createServerFn({ method: "POST" })
   .inputValidator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
-    const auth = await requireAuth("ADMIN");
+    const auth = await requirePermission("orcamentos");
     return getPrisma().$transaction(async (tx) => {
       const anterior = await tx.orcamento.findFirst({
         where: { id: data.id, empresaId: auth.empresaId },

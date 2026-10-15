@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouteContext, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { atualizarEmpresa, obterEmpresa } from "@/features/empresa/server-functions";
+import { PermissoesDialog } from "@/features/usuarios/permissoes-dialog";
 import { listarUsuarios } from "@/features/usuarios/server-functions";
 import { pageMeta } from "@/lib/meta";
 import { aplicarCor, CORES_SISTEMA, corValida, type CorSistema } from "@/lib/theme-accent";
@@ -38,9 +39,11 @@ function Campo({ label, name, value }: { label: string; name: string; value: str
 
 function Configuracoes() {
   const { empresa, usuarios } = Route.useLoaderData();
+  const { usuario: atual } = useRouteContext({ from: "/admin" });
   const atualizar = useServerFn(atualizarEmpresa);
   const router = useRouter();
   const [cor, setCor] = useState<CorSistema>(corValida(empresa.corTema));
+  const [permissoesDe, setPermissoesDe] = useState<(typeof usuarios)[number] | null>(null);
   const salvarPreferencia = () => toast.success("Preferência atualizada.");
 
   async function escolherCor(id: CorSistema) {
@@ -118,14 +121,15 @@ function Configuracoes() {
             />
             <ul className="mt-4 divide-y divide-border">
               {usuarios.map((u) => (
-                <li key={u.nome} className="flex items-center justify-between py-3">
+                <li key={u.id} className="flex items-center justify-between py-3">
                   <div>
                     <p className="text-sm font-medium">{u.nome}</p>
                     <p className="text-muted-foreground text-xs">
-                      {u.role} · {u.ativo ? "Ativo" : "Inativo"}
+                      {u.role === "CLIENT" ? "Cliente" : "Administrador"} ·{" "}
+                      {u.ativo ? "Ativo" : "Inativo"}
                     </p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => toast("Permissões em breve.")}>
+                  <Button size="sm" variant="outline" onClick={() => setPermissoesDe(u)}>
                     Permissões
                   </Button>
                 </li>
@@ -178,6 +182,16 @@ function Configuracoes() {
           </Panel>
         </TabsContent>
       </Tabs>
+      {permissoesDe ? (
+        <PermissoesDialog
+          aberto
+          onOpenChange={(aberto) => {
+            if (!aberto) setPermissoesDe(null);
+          }}
+          proprio={permissoesDe.id === atual.usuarioId}
+          usuario={permissoesDe}
+        />
+      ) : null}
     </div>
   );
 }

@@ -22,7 +22,7 @@ import { logout } from "@/features/auth/server-functions";
 import { listarNotificacoes } from "@/features/notificacoes/server-functions";
 import { aplicarCor } from "@/lib/theme-accent";
 import { cn } from "@/lib/utils";
-import type { NavGroup } from "./nav-config";
+import { rotaAtiva, type NavGroup } from "./nav-config";
 
 interface ShellProps {
   nav: NavGroup[];
@@ -42,10 +42,7 @@ function NavLinks({ nav, onNavigate }: { nav: NavGroup[]; onNavigate?: () => voi
             {group.label}
           </p>
           {group.items.map((item) => {
-            const active =
-              item.to === "/admin" || item.to === "/cliente"
-                ? pathname === item.to
-                : pathname.startsWith(item.to);
+            const active = rotaAtiva(item, pathname);
             return (
               <Link
                 key={item.to}
@@ -113,10 +110,7 @@ function IconRail({ nav }: { nav: NavGroup[] }) {
     <TooltipProvider delayDuration={100}>
       <nav className="mt-8 flex flex-col items-center gap-1.5 overflow-y-auto">
         {itens.map((item) => {
-          const active =
-            item.to === "/admin" || item.to === "/cliente"
-              ? pathname === item.to
-              : pathname.startsWith(item.to);
+          const active = rotaAtiva(item, pathname);
           return (
             <RailLink
               key={item.to}
@@ -204,6 +198,10 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
     if (cor) aplicarCor(cor);
   }, [cor]);
 
+  const podeConfigurar =
+    area === "cliente" ||
+    nav.some((group) => group.items.some((item) => item.permission === "configuracoes"));
+
   useEffect(() => {
     void carregarNotificacoes({ data: { page: 1, pageSize: 1, apenasNaoLidas: true } })
       .then((resultado) => setNaoLidas(resultado.naoLidas))
@@ -250,11 +248,13 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
                   </TooltipTrigger>
                   <TooltipContent side="right">Expandir menu</TooltipContent>
                 </Tooltip>
-                <RailLink
-                  to={area === "admin" ? "/admin/configuracoes" : "/cliente/perfil"}
-                  label="Configurações"
-                  icon={Settings}
-                />
+                {podeConfigurar ? (
+                  <RailLink
+                    to={area === "admin" ? "/admin/configuracoes" : "/cliente/perfil"}
+                    label="Configurações"
+                    icon={Settings}
+                  />
+                ) : null}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -359,12 +359,16 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
                   <DropdownMenuLabel>{usuario.nome}</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link to={area === "admin" ? "/admin/configuracoes" : "/cliente/perfil"}>
-                      Meu perfil
-                    </Link>
-                  </DropdownMenuItem>
+                  {podeConfigurar ? (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link to={area === "admin" ? "/admin/configuracoes" : "/cliente/perfil"}>
+                          Meu perfil
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  ) : null}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <button type="button" className="w-full" onClick={() => void sair()}>
