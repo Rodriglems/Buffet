@@ -20,6 +20,7 @@ import {
 import { AmbientLight } from "@/components/ambient-light";
 import { logout } from "@/features/auth/server-functions";
 import { listarNotificacoes } from "@/features/notificacoes/server-functions";
+import { aplicarCor } from "@/lib/theme-accent";
 import { cn } from "@/lib/utils";
 import type { NavGroup } from "./nav-config";
 
@@ -27,6 +28,7 @@ interface ShellProps {
   nav: NavGroup[];
   area: "admin" | "cliente";
   usuario: { nome: string; cargo: string; iniciais: string };
+  cor?: string;
 }
 
 function NavLinks({ nav, onNavigate }: { nav: NavGroup[]; onNavigate?: () => void }) {
@@ -190,13 +192,17 @@ function Breadcrumbs() {
   );
 }
 
-export function AppShell({ nav, area, usuario }: ShellProps) {
+export function AppShell({ nav, area, usuario, cor }: ShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
   const [naoLidas, setNaoLidas] = useState(0);
   const navigate = useNavigate();
   const sairNoServidor = useServerFn(logout);
   const carregarNotificacoes = useServerFn(listarNotificacoes);
+
+  useEffect(() => {
+    if (cor) aplicarCor(cor);
+  }, [cor]);
 
   useEffect(() => {
     void carregarNotificacoes({ data: { page: 1, pageSize: 1, apenasNaoLidas: true } })

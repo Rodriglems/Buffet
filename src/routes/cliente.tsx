@@ -28,6 +28,7 @@ function ClienteLayout() {
     <AppShell
       nav={clienteNav}
       area="cliente"
+      cor={usuario.corTema}
       usuario={{ nome: usuario.nome, cargo: "Cliente", iniciais }}
     />
   );

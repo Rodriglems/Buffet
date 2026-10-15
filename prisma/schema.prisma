@@ -120,6 +120,7 @@ model Empresa {
   numero       String?
   complemento  String?
   logoUrl      String?  @map("logo_url")
+  corTema      String   @default("grafite") @map("cor_tema")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 

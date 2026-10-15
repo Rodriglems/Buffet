@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
 
+import { corValida, type CorSistema } from "@/lib/theme-accent";
 import { getPrisma } from "@/lib/prisma.server";
 
 const COOKIE_NAME = "buffet_session";
@@ -18,6 +19,7 @@ export type AuthContext = {
   nome: string;
   email: string;
   role: "ADMIN" | "CLIENT";
+  corTema: CorSistema;
 };
 
 function getSecret(): string {
@@ -94,6 +96,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
       nome: true,
       email: true,
       role: true,
+      empresa: { select: { corTema: true } },
       cliente: { select: { id: true } },
     },
   });
@@ -106,6 +109,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     nome: usuario.nome,
     email: usuario.email,
     role: usuario.role,
+    corTema: corValida(usuario.empresa.corTema),
   };
 }
 

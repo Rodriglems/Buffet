@@ -107,6 +107,12 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var a=localStorage.getItem('mesa-accent');if(a&&a!=='grafite')document.documentElement.setAttribute('data-accent',a)}catch(e){}",
+          }}
+        />
       </head>
       <body>
         {children}

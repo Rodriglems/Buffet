@@ -4,6 +4,7 @@ import { z } from "zod";
 import { serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
 import { requireAuth } from "@/lib/session.server";
+import { COR_IDS } from "@/lib/theme-accent";
 
 const empresa = z.object({
   razaoSocial: z.string().trim().min(2).max(200),
@@ -36,6 +37,7 @@ const empresa = z.object({
   numero: z.string().trim().max(30).nullable().optional(),
   complemento: z.string().trim().max(120).nullable().optional(),
   logoUrl: z.string().url().nullable().optional(),
+  corTema: z.enum(COR_IDS).optional(),
 });
 
 export const obterEmpresa = createServerFn({ method: "GET" }).handler(async () => {

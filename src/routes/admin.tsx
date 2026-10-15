@@ -27,6 +27,7 @@ function AdminLayout() {
     <AppShell
       nav={adminNav}
       area="admin"
+      cor={usuario.corTema}
       usuario={{
         nome: usuario.nome,
         cargo: "Administrador",

@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { atualizarEmpresa, obterEmpresa } from "@/features/empresa/server-functions";
 import { listarUsuarios } from "@/features/usuarios/server-functions";
 import { pageMeta } from "@/lib/meta";
+import { aplicarCor, CORES_SISTEMA, corValida, type CorSistema } from "@/lib/theme-accent";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/configuracoes")({
   head: () => pageMeta("Configurações", "Dados da empresa, usuários e preferências do sistema."),
@@ -38,7 +40,23 @@ function Configuracoes() {
   const { empresa, usuarios } = Route.useLoaderData();
   const atualizar = useServerFn(atualizarEmpresa);
   const router = useRouter();
+  const [cor, setCor] = useState<CorSistema>(corValida(empresa.corTema));
   const salvarPreferencia = () => toast.success("Preferência atualizada.");
+
+  async function escolherCor(id: CorSistema) {
+    const anterior = cor;
+    setCor(id);
+    aplicarCor(id);
+    try {
+      await atualizar({ data: { corTema: id } });
+      toast.success("Cor do sistema atualizada.");
+      await router.invalidate();
+    } catch (error) {
+      setCor(anterior);
+      aplicarCor(anterior);
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar a cor.");
+    }
+  }
   async function salvar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -115,7 +133,33 @@ function Configuracoes() {
             </ul>
           </Panel>
         </TabsContent>
-        <TabsContent value="preferencias" className="mt-4">
+        <TabsContent value="preferencias" className="mt-4 flex flex-col gap-4">
+          <Panel className="p-5">
+            <PanelHeader
+              title="Cor do sistema"
+              subtitle="A cor vale para toda a equipe e também no portal do cliente"
+            />
+            <div className="mt-4 flex flex-wrap gap-3">
+              {CORES_SISTEMA.map((opcao) => (
+                <button
+                  key={opcao.id}
+                  type="button"
+                  aria-pressed={cor === opcao.id}
+                  onClick={() => void escolherCor(opcao.id)}
+                  className={cn(
+                    "flex items-center gap-2 rounded-xl px-3 py-2 text-sm ring-1 ring-black/5",
+                    cor === opcao.id ? "bg-primary/10 ring-primary" : "bg-surface",
+                  )}
+                >
+                  <span
+                    className="size-5 rounded-full ring-1 ring-black/10"
+                    style={{ background: opcao.swatch }}
+                  />
+                  {opcao.label}
+                </button>
+              ))}
+            </div>
+          </Panel>
           <Panel className="p-5">
             <PanelHeader title="Notificações" />
             <div className="mt-4 flex flex-col gap-4">
