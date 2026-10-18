@@ -21,7 +21,7 @@ export type Permissoes = Record<PermissionKey, boolean>;
 
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   leads: "Leads",
-  contatos: "Contatos",
+  contatos: "Clientes",
   servicos: "Serviços",
   eventos: "Eventos",
   orcamentos: "Orçamentos",

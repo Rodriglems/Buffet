@@ -21,17 +21,22 @@ describe("menu com permissões", () => {
     ).toBeUndefined();
   });
 
-  it("mantém o menu de eventos ativo na aba de contatos", () => {
+  it("mantém clientes e eventos como itens independentes", () => {
     const eventos = item({}, "/admin/eventos");
+    const clientes = item({}, "/admin/clientes");
     expect(eventos?.to).toBe("/admin/eventos");
-    expect(rotaAtiva(eventos!, "/admin/clientes/novo")).toBe(true);
+    expect(clientes?.label).toBe("Clientes");
+    expect(clientes?.to).toBe("/admin/clientes");
+    expect(rotaAtiva(eventos!, "/admin/clientes/novo")).toBe(false);
+    expect(rotaAtiva(clientes!, "/admin/clientes/novo")).toBe(true);
     expect(rotaAtiva(eventos!, "/admin/orcamentos")).toBe(false);
   });
 
-  it("troca o menu para contatos quando eventos está desligado", () => {
-    const contatos = item({ eventos: false, contatos: true }, "/admin/clientes");
-    expect(contatos?.label).toBe("Contatos");
-    expect(contatos?.to).toBe("/admin/clientes");
+  it("mantém clientes no menu quando eventos está desligado", () => {
+    const clientes = item({ eventos: false, contatos: true }, "/admin/clientes");
+    expect(clientes?.label).toBe("Clientes");
+    expect(clientes?.to).toBe("/admin/clientes");
+    expect(item({ eventos: false, contatos: true }, "/admin/eventos")).toBeUndefined();
   });
 
   it("esconde o item quando a permissão da área está desligada", () => {

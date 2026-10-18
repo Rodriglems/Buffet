@@ -70,7 +70,13 @@ export const listarEventos = createServerFn({ method: "GET" })
       getPrisma().evento.findMany({
         where,
         ...pagination(data.page, data.pageSize),
-        include: { cliente: { select: { nome: true } } },
+        include: {
+          cliente: { select: { nome: true } },
+          contratos: {
+            select: { id: true, numero: true, status: true, valorTotal: true },
+            orderBy: { createdAt: "desc" },
+          },
+        },
         orderBy: { dataEvento: "asc" },
       }),
       getPrisma().evento.count({ where }),

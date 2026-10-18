@@ -2,7 +2,6 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarDays, List, Plus } from "lucide-react";
 
-import { EventosTabs } from "@/components/layout/section-nav";
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/states";
@@ -17,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { listarEventos } from "@/features/eventos/server-functions";
-import { formatDate } from "@/lib/format";
+import { formatBRL, formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/eventos/")({
   head: () => ({
@@ -76,8 +75,6 @@ function EventosPage() {
           </Button>
         }
       />
-      <EventosTabs />
-
       <Panel className="p-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Input
@@ -135,7 +132,7 @@ function EventosPage() {
               />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[840px] text-left text-sm">
+                <table className="w-full min-w-[960px] text-left text-sm">
                   <thead>
                     <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                       <th className="pb-2 font-medium">Evento</th>
@@ -143,6 +140,7 @@ function EventosPage() {
                       <th className="pb-2 font-medium">Data</th>
                       <th className="pb-2 font-medium">Local</th>
                       <th className="pb-2 font-medium">Convidados</th>
+                      <th className="pb-2 font-medium">Contrato</th>
                       <th className="pb-2 font-medium">Valor</th>
                       <th className="pb-2 font-medium">Status</th>
                     </tr>
@@ -166,7 +164,34 @@ function EventosPage() {
                         </td>
                         <td className="text-muted-foreground py-3 pr-3">{e.localNome ?? "—"}</td>
                         <td className="py-3 pr-3">{e.quantidadeConvidados}</td>
-                        <td className="py-3 pr-3 font-medium">—</td>
+                        <td className="py-3 pr-3">
+                          {e.contratos.length ? (
+                            <div className="flex flex-col items-start gap-1">
+                              {e.contratos.map((contrato) => (
+                                <Link
+                                  key={contrato.id}
+                                  to="/admin/contratos/$id"
+                                  params={{ id: contrato.id }}
+                                  className="font-medium hover:underline"
+                                >
+                                  #{contrato.numero.toString()} · {contrato.status}
+                                </Link>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 pr-3 font-medium">
+                          {e.contratos.length
+                            ? formatBRL(
+                                e.contratos.reduce(
+                                  (total, contrato) => total + Number(contrato.valorTotal),
+                                  0,
+                                ),
+                              )
+                            : "—"}
+                        </td>
                         <td className="py-3">
                           <StatusBadge status={e.status} />
                         </td>

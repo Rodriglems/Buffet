@@ -3,12 +3,7 @@ import { Link, useRouteContext, useRouterState } from "@tanstack/react-router";
 import { hasPermission } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
-type Destino =
-  | "/admin/eventos"
-  | "/admin/clientes"
-  | "/admin/financeiro"
-  | "/admin/pagamentos"
-  | "/admin/custos";
+type Destino = "/admin/financeiro" | "/admin/pagamentos" | "/admin/custos";
 
 function SectionNav({ items }: { items: { label: string; to: Destino }[] }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -35,18 +30,6 @@ function SectionNav({ items }: { items: { label: string; to: Destino }[] }) {
       })}
     </div>
   );
-}
-
-export function EventosTabs() {
-  const { usuario } = useRouteContext({ from: "/admin" });
-  const items: { label: string; to: Destino }[] = [];
-  if (hasPermission(usuario.permissoes, "eventos")) {
-    items.push({ label: "Eventos", to: "/admin/eventos" });
-  }
-  if (hasPermission(usuario.permissoes, "contatos")) {
-    items.push({ label: "Contatos", to: "/admin/clientes" });
-  }
-  return <SectionNav items={items} />;
 }
 
 const abasFinanceiro: {

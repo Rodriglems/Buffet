@@ -55,6 +55,7 @@ export const adminNav: NavGroup[] = [
     items: [
       { label: "Dashboard", to: "/admin", icon: LayoutDashboard },
       { label: "Leads", to: "/admin/leads", icon: UserPlus, permission: "leads" },
+      { label: "Clientes", to: "/admin/clientes", icon: Users, permission: "contatos" },
       { label: "Serviços", to: "/admin/servicos", icon: BriefcaseBusiness, permission: "servicos" },
       { label: "Eventos", to: "/admin/eventos", icon: PartyPopper, permission: "eventos" },
       { label: "Orçamentos", to: "/admin/orcamentos", icon: FileText, permission: "orcamentos" },
@@ -90,25 +91,6 @@ export function visibleAdminNav(permissoes: unknown): NavGroup[] {
     .map((group) => ({
       ...group,
       items: group.items.flatMap((item): NavItem[] => {
-        if (item.to === "/admin/eventos") {
-          const prefixes = [
-            hasPermission(permissoes, "eventos") ? "/admin/eventos" : null,
-            hasPermission(permissoes, "contatos") ? "/admin/clientes" : null,
-          ].filter((prefix): prefix is string => Boolean(prefix));
-          const destino = prefixes[0];
-          if (!destino) return [];
-          const soContatos = prefixes.length === 1 && destino === "/admin/clientes";
-          return [
-            {
-              ...item,
-              label: soContatos ? "Contatos" : "Eventos",
-              to: destino,
-              icon: soContatos ? Users : item.icon,
-              permission: soContatos ? ("contatos" as const) : ("eventos" as const),
-              activePrefixes: prefixes,
-            },
-          ];
-        }
         if (item.to === "/admin/financeiro") {
           const abas = abasFinanceiro.filter((aba) => hasPermission(permissoes, aba.permission));
           const primeira = abas[0];

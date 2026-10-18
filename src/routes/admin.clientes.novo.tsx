@@ -3,7 +3,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { EventosTabs } from "@/components/layout/section-nav";
 import { PageHeader } from "@/components/panel";
 import { ClienteForm } from "@/features/clientes/cliente-form";
 import { criarCliente } from "@/features/clientes/server-functions";
@@ -34,11 +33,7 @@ function NovoCliente() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        title="Novo contato"
-        subtitle="Preencha os dados para vincular a pessoa aos eventos"
-      />
-      <EventosTabs />
+      <PageHeader title="Novo cliente" subtitle="Preencha os dados do cliente" />
       <ClienteForm
         salvando={salvando}
         textoSalvar="Salvar cliente"

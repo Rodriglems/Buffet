@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarPlus, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
-import { EventosTabs } from "@/components/layout/section-nav";
 import { PageHeader, Panel, StatCard } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -88,7 +87,6 @@ function DetalheEvento() {
           </>
         }
       />
-      <EventosTabs />
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard label="Contratado" value={formatBRL(valorContratado)} />
         <StatCard label="Recebido" value={formatBRL(recebido)} />
@@ -109,7 +107,7 @@ function DetalheEvento() {
       <Panel className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-display font-semibold">Contato do evento</h2>
+            <h2 className="font-display font-semibold">Cliente do evento</h2>
             <p className="text-muted-foreground text-sm">Pessoa responsável por este evento</p>
           </div>
           <Button size="sm" variant="outline" asChild>
