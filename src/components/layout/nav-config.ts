@@ -59,7 +59,6 @@ export const adminNav: NavGroup[] = [
       { label: "Serviços", to: "/admin/servicos", icon: BriefcaseBusiness, permission: "servicos" },
       { label: "Eventos", to: "/admin/eventos", icon: PartyPopper, permission: "eventos" },
       { label: "Orçamentos", to: "/admin/orcamentos", icon: FileText, permission: "orcamentos" },
-      { label: "Contratos", to: "/admin/contratos", icon: FileSignature, permission: "contratos" },
     ],
   },
   {
