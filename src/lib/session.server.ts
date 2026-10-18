@@ -1,7 +1,12 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
 
-import { hasPermission, parsePermissoes, type PermissionKey, type Permissoes } from "@/lib/permissions";
+import {
+  hasPermission,
+  parsePermissoes,
+  type PermissionKey,
+  type Permissoes,
+} from "@/lib/permissions";
 import { corValida, type CorSistema } from "@/lib/theme-accent";
 import { getPrisma } from "@/lib/prisma.server";
 
@@ -10,6 +15,7 @@ const SESSION_SECONDS = 60 * 60 * 12;
 
 type SessionPayload = {
   userId: string;
+  sessionVersion: number;
   expiresAt: number;
 };
 
@@ -57,6 +63,7 @@ function parse(token: string | undefined): SessionPayload | null {
     const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as SessionPayload;
     if (
       !payload.userId ||
+      !Number.isInteger(payload.sessionVersion) ||
       !Number.isInteger(payload.expiresAt) ||
       payload.expiresAt <= Date.now()
     ) {
@@ -68,10 +75,14 @@ function parse(token: string | undefined): SessionPayload | null {
   }
 }
 
-export function issueSession(usuarioId: string): void {
+export function issueSession(usuarioId: string, sessionVersion: number): void {
   setCookie(
     COOKIE_NAME,
-    serialize({ userId: usuarioId, expiresAt: Date.now() + SESSION_SECONDS * 1000 }),
+    serialize({
+      userId: usuarioId,
+      sessionVersion,
+      expiresAt: Date.now() + SESSION_SECONDS * 1000,
+    }),
     {
       httpOnly: true,
       sameSite: "lax",
@@ -98,12 +109,13 @@ export async function getAuthContext(): Promise<AuthContext | null> {
       nome: true,
       email: true,
       role: true,
+      sessaoVersao: true,
       permissoes: true,
       empresa: { select: { corTema: true } },
       cliente: { select: { id: true } },
     },
   });
-  if (!usuario) return null;
+  if (!usuario || usuario.sessaoVersao !== payload.sessionVersion) return null;
 
   return {
     usuarioId: usuario.id,

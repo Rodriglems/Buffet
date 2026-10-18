@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   AlertCircle,
@@ -180,9 +180,7 @@ function Login() {
 
           <div className="panel p-7 shadow-xl shadow-black/[0.04] sm:p-8">
             <header>
-              <h1 className="font-display text-2xl font-semibold tracking-tight">
-                Bem-vindo
-              </h1>
+              <h1 className="font-display text-2xl font-semibold tracking-tight">Bem-vindo</h1>
               <p className="text-muted-foreground mt-1.5 text-sm">
                 Entre com sua conta para acessar o painel.
               </p>
@@ -244,12 +242,13 @@ function Login() {
                     {verSenha ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   </button>
                 </div>
-                <button
-                  type="button"
+                <Link
+                  to="/recuperar-senha"
+                  search={{ email: email.trim() }}
                   className="text-muted-foreground hover:text-foreground self-end text-xs font-medium transition-colors hover:underline"
                 >
                   Esqueci minha senha
-                </button>
+                </Link>
               </div>
 
               <label className="flex cursor-pointer items-center gap-2.5 text-[13px]">

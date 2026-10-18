@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ClienteRouteImport } from './routes/cliente'
+import { Route as RecuperarSenhaRouteImport } from './routes/recuperar-senha'
+import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAgendaRouteImport } from './routes/admin.agenda'
 import { Route as AdminAtividadesRouteImport } from './routes/admin.atividades'
@@ -56,6 +58,16 @@ const AdminRoute = AdminRouteImport.update({
 const ClienteRoute = ClienteRouteImport.update({
   id: '/cliente',
   path: '/cliente',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecuperarSenhaRoute = RecuperarSenhaRouteImport.update({
+  id: '/recuperar-senha',
+  path: '/recuperar-senha',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
+  id: '/redefinir-senha',
+  path: '/redefinir-senha',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -213,6 +225,8 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/cliente': typeof ClienteRouteWithChildren
+  '/recuperar-senha': typeof RecuperarSenhaRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/admin/agenda': typeof AdminAgendaRoute
   '/admin/atividades': typeof AdminAtividadesRoute
   '/admin/configuracoes': typeof AdminConfiguracoesRoute
@@ -246,6 +260,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/recuperar-senha': typeof RecuperarSenhaRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/admin/agenda': typeof AdminAgendaRoute
   '/admin/atividades': typeof AdminAtividadesRoute
   '/admin/configuracoes': typeof AdminConfiguracoesRoute
@@ -282,6 +298,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/cliente': typeof ClienteRouteWithChildren
+  '/recuperar-senha': typeof RecuperarSenhaRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/admin/agenda': typeof AdminAgendaRoute
   '/admin/atividades': typeof AdminAtividadesRoute
   '/admin/configuracoes': typeof AdminConfiguracoesRoute
@@ -319,6 +337,8 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/cliente'
+    | '/recuperar-senha'
+    | '/redefinir-senha'
     | '/admin/agenda'
     | '/admin/atividades'
     | '/admin/configuracoes'
@@ -352,6 +372,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/recuperar-senha'
+    | '/redefinir-senha'
     | '/admin/agenda'
     | '/admin/atividades'
     | '/admin/configuracoes'
@@ -387,6 +409,8 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/cliente'
+    | '/recuperar-senha'
+    | '/redefinir-senha'
     | '/admin/agenda'
     | '/admin/atividades'
     | '/admin/configuracoes'
@@ -423,6 +447,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   ClienteRoute: typeof ClienteRouteWithChildren
+  RecuperarSenhaRoute: typeof RecuperarSenhaRoute
+  RedefinirSenhaRoute: typeof RedefinirSenhaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -446,6 +472,20 @@ declare module '@tanstack/react-router' {
       path: '/cliente'
       fullPath: '/cliente'
       preLoaderRoute: typeof ClienteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recuperar-senha': {
+      id: '/recuperar-senha'
+      path: '/recuperar-senha'
+      fullPath: '/recuperar-senha'
+      preLoaderRoute: typeof RecuperarSenhaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/redefinir-senha': {
+      id: '/redefinir-senha'
+      path: '/redefinir-senha'
+      fullPath: '/redefinir-senha'
+      preLoaderRoute: typeof RedefinirSenhaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -742,6 +782,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   ClienteRoute: ClienteRouteWithChildren,
+  RecuperarSenhaRoute: RecuperarSenhaRoute,
+  RedefinirSenhaRoute: RedefinirSenhaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

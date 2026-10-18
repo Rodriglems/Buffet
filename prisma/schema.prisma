@@ -109,7 +109,7 @@ model Empresa {
   razaoSocial  String   @map("razao_social")
   nomeFantasia String   @map("nome_fantasia")
   cnpj         String   @unique @db.VarChar(14)
-  email        String        @unique
+  email        String   @unique
   telefone     String?  @db.VarChar(20)
   whatsapp     String?  @db.VarChar(20)
   cep          String?  @db.VarChar(8)
@@ -140,28 +140,44 @@ model Empresa {
 }
 
 model Usuario {
-  id           String        @id @default(uuid()) @db.Uuid
-  empresaId    String        @map("empresa_id") @db.Uuid
-  nome         String
-  email        String
-  senhaHash    String        @map("senha_hash")
-  role         RoleUsuario
-  permissoes   Json          @default("{}") @db.JsonB
-  ativo        Boolean       @default(true)
-  ultimoLogin  DateTime?     @map("ultimo_login") @db.Timestamptz(6)
-  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  empresa      Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  cliente      Cliente?
-  assinaturas  Assinatura[]
-  atividades   Atividade[]
-  notificacoes Notificacao[]
-  documentos   Documento[]
+  id                     String                  @id @default(uuid()) @db.Uuid
+  empresaId              String                  @map("empresa_id") @db.Uuid
+  nome                   String
+  email                  String
+  senhaHash              String                  @map("senha_hash")
+  role                   RoleUsuario
+  permissoes             Json                    @default("{}") @db.JsonB
+  sessaoVersao           Int                     @default(0) @map("sessao_versao")
+  ativo                  Boolean                 @default(true)
+  ultimoLogin            DateTime?               @map("ultimo_login") @db.Timestamptz(6)
+  createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa                Empresa                 @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  cliente                Cliente?
+  assinaturas            Assinatura[]
+  atividades             Atividade[]
+  notificacoes           Notificacao[]
+  documentos             Documento[]
+  tokensRecuperacaoSenha TokenRecuperacaoSenha[]
 
   @@unique([empresaId, email])
   @@unique([empresaId, id])
   @@index([empresaId, ativo])
   @@map("usuarios")
+}
+
+model TokenRecuperacaoSenha {
+  id        String    @id @default(uuid()) @db.Uuid
+  usuarioId String    @map("usuario_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.Char(64)
+  expiraEm  DateTime  @map("expira_em") @db.Timestamptz(6)
+  usadoEm   DateTime? @map("usado_em") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  usuario   Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, createdAt(sort: Desc)])
+  @@index([expiraEm])
+  @@map("tokens_recuperacao_senha")
 }
 
 model Cliente {
