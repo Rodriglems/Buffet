@@ -8,12 +8,12 @@ import { formatBRL, formatDate } from "@/lib/format";
 export const Route = createFileRoute("/admin/contratos/")({
   head: () => ({
     meta: [
-      { title: "Contratos — Mesa Buffet & Eventos" },
+      { title: "Contratos — Mesly Buffet & Eventos" },
       {
         name: "description",
         content: "Contratos digitais do buffet: emissão, envio e assinatura.",
       },
-      { property: "og:title", content: "Contratos — Mesa Buffet & Eventos" },
+      { property: "og:title", content: "Contratos — Mesly Buffet & Eventos" },
       { property: "og:description", content: "Gestão de contratos e assinaturas." },
     ],
   }),

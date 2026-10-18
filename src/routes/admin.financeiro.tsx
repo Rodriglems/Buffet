@@ -12,12 +12,12 @@ import { formatBRL, formatBRLShort, formatDate, formatPercent } from "@/lib/form
 export const Route = createFileRoute("/admin/financeiro")({
   head: () => ({
     meta: [
-      { title: "Financeiro — Mesa Buffet & Eventos" },
+      { title: "Financeiro — Mesly Buffet & Eventos" },
       {
         name: "description",
         content: "Receita, custos, lucro, margem e contas a receber do buffet.",
       },
-      { property: "og:title", content: "Financeiro — Mesa Buffet & Eventos" },
+      { property: "og:title", content: "Financeiro — Mesly Buffet & Eventos" },
       { property: "og:description", content: "Painel financeiro completo do buffet." },
     ],
   }),

@@ -22,12 +22,12 @@ import { criarEvento } from "@/features/eventos/server-functions";
 export const Route = createFileRoute("/admin/eventos/novo")({
   head: () => ({
     meta: [
-      { title: "Novo evento — Mesa Buffet & Eventos" },
+      { title: "Novo evento — Mesly Buffet & Eventos" },
       {
         name: "description",
         content: "Cadastre um evento com data, local, convidados, cliente e serviços contratados.",
       },
-      { property: "og:title", content: "Novo evento — Mesa Buffet & Eventos" },
+      { property: "og:title", content: "Novo evento — Mesly Buffet & Eventos" },
       { property: "og:description", content: "Formulário de cadastro de eventos do buffet." },
     ],
   }),

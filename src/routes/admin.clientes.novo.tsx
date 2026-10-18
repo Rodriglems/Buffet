@@ -11,12 +11,12 @@ import { criarCliente } from "@/features/clientes/server-functions";
 export const Route = createFileRoute("/admin/clientes/novo")({
   head: () => ({
     meta: [
-      { title: "Novo cliente — Mesa Buffet & Eventos" },
+      { title: "Novo cliente — Mesly Buffet & Eventos" },
       {
         name: "description",
         content: "Cadastre um novo cliente com dados pessoais, endereço e informações comerciais.",
       },
-      { property: "og:title", content: "Novo cliente — Mesa Buffet & Eventos" },
+      { property: "og:title", content: "Novo cliente — Mesly Buffet & Eventos" },
       { property: "og:description", content: "Formulário de cadastro de clientes do buffet." },
     ],
   }),

@@ -25,10 +25,10 @@ try {
   await prisma.$transaction(async (tx) => {
     const empresa = await tx.empresa.upsert({
       where: { cnpj: "00000000000000" },
-      update: {},
+      update: { nomeFantasia: "Mesly Buffet & Eventos" },
       create: {
         razaoSocial: "Buffet Demonstracao LTDA",
-        nomeFantasia: "Mesa Buffet & Eventos",
+        nomeFantasia: "Mesly Buffet & Eventos",
         cnpj: "00000000000000",
         email,
       },

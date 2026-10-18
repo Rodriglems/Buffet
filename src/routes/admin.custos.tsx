@@ -9,12 +9,12 @@ import { formatBRL, formatDate } from "@/lib/format";
 export const Route = createFileRoute("/admin/custos")({
   head: () => ({
     meta: [
-      { title: "Custos — Mesa Buffet & Eventos" },
+      { title: "Custos — Mesly Buffet & Eventos" },
       {
         name: "description",
         content: "Lançamento e acompanhamento de custos por evento e categoria.",
       },
-      { property: "og:title", content: "Custos — Mesa Buffet & Eventos" },
+      { property: "og:title", content: "Custos — Mesly Buffet & Eventos" },
       { property: "og:description", content: "Custos de alimentos, bebidas, equipe e estrutura." },
     ],
   }),

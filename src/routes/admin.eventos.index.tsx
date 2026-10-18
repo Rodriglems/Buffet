@@ -22,13 +22,13 @@ import { formatDate } from "@/lib/format";
 export const Route = createFileRoute("/admin/eventos/")({
   head: () => ({
     meta: [
-      { title: "Eventos — Mesa Buffet & Eventos" },
+      { title: "Eventos — Mesly Buffet & Eventos" },
       {
         name: "description",
         content:
           "Gerencie todos os eventos do buffet em lista ou calendário, com filtros e status.",
       },
-      { property: "og:title", content: "Eventos — Mesa Buffet & Eventos" },
+      { property: "og:title", content: "Eventos — Mesly Buffet & Eventos" },
       { property: "og:description", content: "Lista e calendário de eventos do buffet." },
     ],
   }),

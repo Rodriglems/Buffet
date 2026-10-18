@@ -20,12 +20,12 @@ import { formatBRL, formatBRLShort, formatDate } from "@/lib/format";
 export const Route = createFileRoute("/admin/pagamentos")({
   head: () => ({
     meta: [
-      { title: "Pagamentos — Mesa Buffet & Eventos" },
+      { title: "Pagamentos — Mesly Buffet & Eventos" },
       {
         name: "description",
         content: "Controle de parcelas, vencimentos e recebimentos dos eventos.",
       },
-      { property: "og:title", content: "Pagamentos — Mesa Buffet & Eventos" },
+      { property: "og:title", content: "Pagamentos — Mesly Buffet & Eventos" },
       { property: "og:description", content: "Parcelas, vencimentos e status de recebimento." },
     ],
   }),

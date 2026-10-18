@@ -133,7 +133,7 @@ function Brand() {
         <span className="font-display text-sm font-semibold">M</span>
       </div>
       <div className="leading-tight">
-        <p className="font-display text-sm font-semibold">Mesa</p>
+        <p className="font-display text-sm font-semibold">Mesly</p>
         <p className="text-muted-foreground text-[11px]">Buffet &amp; Eventos</p>
       </div>
     </div>
@@ -314,7 +314,7 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
 
             <div className="hidden leading-tight md:block">
               <p className="font-display text-base font-semibold">{saudacao()}</p>
-              <p className="text-muted-foreground text-xs">Mesa · Buffet &amp; Eventos</p>
+              <p className="text-muted-foreground text-xs">Mesly · Buffet &amp; Eventos</p>
             </div>
 
             <div className="relative mx-auto hidden w-full max-w-md sm:block">

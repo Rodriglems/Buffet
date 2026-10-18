@@ -23,13 +23,13 @@ import { formatBRL } from "@/lib/format";
 export const Route = createFileRoute("/admin/orcamentos/novo")({
   head: () => ({
     meta: [
-      { title: "Criar orçamento — Mesa Buffet & Eventos" },
+      { title: "Criar orçamento — Mesly Buffet & Eventos" },
       {
         name: "description",
         content:
           "Monte a proposta comercial com itens, quantidades, descontos e condições de pagamento.",
       },
-      { property: "og:title", content: "Criar orçamento — Mesa Buffet & Eventos" },
+      { property: "og:title", content: "Criar orçamento — Mesly Buffet & Eventos" },
       { property: "og:description", content: "Editor de propostas comerciais do buffet." },
     ],
   }),
