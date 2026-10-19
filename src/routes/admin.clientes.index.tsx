@@ -142,21 +142,11 @@ function ClientesPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem asChild>
                             <Link to="/admin/clientes/$id" params={{ id: c.id }}>
-                              Visualizar
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link to="/admin/clientes/$id" params={{ id: c.id }}>
                               Editar
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => void remover(c.id, c.nome)}>
                             Excluir
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link to="/admin/clientes/$id" params={{ id: c.id }}>
-                              Histórico
-                            </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <Link to="/admin/eventos/novo">Criar evento</Link>
