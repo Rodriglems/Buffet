@@ -68,7 +68,7 @@ function NavLinks({ nav, onNavigate }: { nav: NavGroup[]; onNavigate?: () => voi
 
 function saudacao() {
   const h = new Date().getHours();
-  return h < 12 ? "Bom dia!" : h < 18 ? "Boa tarde!" : "Boa noite!";
+  return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
 }
 
 function RailLink({
@@ -313,8 +313,10 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
             </Sheet>
 
             <div className="hidden leading-tight md:block">
-              <p className="font-display text-base font-semibold">{saudacao()}</p>
-              <p className="text-muted-foreground text-xs">Mesly · Buffet &amp; Eventos</p>
+              <p className="font-display text-base font-semibold">
+                {saudacao()}, {usuario.nome.split(" ")[0] || "Usuário"}.
+              </p>
+              <p className="text-muted-foreground text-xs">Buffet &amp; Eventos</p>
             </div>
 
             <div className="relative mx-auto hidden w-full max-w-md sm:block">

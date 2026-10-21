@@ -105,24 +105,25 @@ enum TipoDocumento {
 }
 
 model Empresa {
-  id           String   @id @default(uuid()) @db.Uuid
-  razaoSocial  String   @map("razao_social")
-  nomeFantasia String   @map("nome_fantasia")
-  cnpj         String   @unique @db.VarChar(14)
-  email        String   @unique
-  telefone     String?  @db.VarChar(20)
-  whatsapp     String?  @db.VarChar(20)
-  cep          String?  @db.VarChar(8)
-  estado       String?  @db.Char(2)
-  cidade       String?
-  bairro       String?
-  logradouro   String?
-  numero       String?
-  complemento  String?
-  logoUrl      String?  @map("logo_url")
-  corTema      String   @default("grafite") @map("cor_tema")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String   @id @default(uuid()) @db.Uuid
+  linkOrcamentoToken String   @unique @default(uuid()) @map("link_orcamento_token") @db.Uuid
+  razaoSocial        String   @map("razao_social")
+  nomeFantasia       String   @map("nome_fantasia")
+  cnpj               String   @unique @db.VarChar(14)
+  email              String   @unique
+  telefone           String?  @db.VarChar(20)
+  whatsapp           String?  @db.VarChar(20)
+  cep                String?  @db.VarChar(8)
+  estado             String?  @db.Char(2)
+  cidade             String?
+  bairro             String?
+  logradouro         String?
+  numero             String?
+  complemento        String?
+  logoUrl            String?  @map("logo_url")
+  corTema            String   @default("grafite") @map("cor_tema")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   usuarios   Usuario[]
   clientes   Cliente[]

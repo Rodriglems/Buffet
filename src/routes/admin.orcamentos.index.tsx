@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { Copy, ExternalLink, Plus } from "lucide-react";
+import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
@@ -15,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { listarOrcamentos } from "@/features/orcamentos/server-functions";
+import { obterLinkFormularioOrcamento } from "@/features/orcamentos/solicitacao-publica";
 import { formatBRL, formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/orcamentos/")({
@@ -30,14 +32,21 @@ export const Route = createFileRoute("/admin/orcamentos/")({
       { property: "og:description", content: "Gestão de propostas e negociações do buffet." },
     ],
   }),
-  loader: () => listarOrcamentos({ data: { page: 1, pageSize: 100 } }),
+  loader: async () => {
+    const [orcamentos, formulario] = await Promise.all([
+      listarOrcamentos({ data: { page: 1, pageSize: 100 } }),
+      obterLinkFormularioOrcamento(),
+    ]);
+    return { orcamentos, formulario };
+  },
   component: OrcamentosPage,
 });
 
 const TODOS = "todos";
 
 function OrcamentosPage() {
-  const { items: orcamentos } = Route.useLoaderData();
+  const { orcamentos: resultado, formulario } = Route.useLoaderData();
+  const orcamentos = resultado.items;
   const [busca, setBusca] = useState("");
   const [status, setStatus] = useState(TODOS);
 
@@ -55,12 +64,31 @@ function OrcamentosPage() {
         title="Orçamentos"
         subtitle={`${orcamentos.length} propostas registradas`}
         actions={
-          <Button asChild>
-            <Link to="/admin/orcamentos/novo">
-              <Plus className="size-4" />
-              Novo orçamento
-            </Link>
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const link = `${window.location.origin}/solicitar-orcamento/${formulario.token}`;
+                void navigator.clipboard.writeText(link).then(
+                  () => toast.success("Link copiado. Envie-o ao cliente para preencher os dados."),
+                  () => toast.error("Não foi possível copiar o link."),
+                );
+              }}
+            >
+              <Copy className="size-4" /> Link para o cliente
+            </Button>
+            <Button variant="outline" asChild>
+              <a href={`/solicitar-orcamento/${formulario.token}`} target="_blank" rel="noreferrer">
+                <ExternalLink className="size-4" /> Abrir formulário
+              </a>
+            </Button>
+            <Button asChild>
+              <Link to="/admin/orcamentos/novo">
+                <Plus className="size-4" />
+                Novo orçamento
+              </Link>
+            </Button>
+          </>
         }
       />
 

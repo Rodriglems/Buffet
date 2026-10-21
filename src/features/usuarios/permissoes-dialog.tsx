@@ -24,12 +24,12 @@ import {
 const grupos: { titulo: string; chaves: PermissionKey[] }[] = [
   {
     titulo: "Eventos e comercial",
-    chaves: ["leads", "contatos", "eventos", "orcamentos", "contratos", "servicos"],
+    chaves: ["contatos", "eventos", "orcamentos", "contratos", "servicos"],
   },
   { titulo: "Financeiro", chaves: ["financeiro", "pagamentos", "custos"] },
   {
     titulo: "Organização",
-    chaves: ["agenda", "atividades", "notificacoes", "documentos", "usuarios", "configuracoes"],
+    chaves: ["agenda", "atividades", "notificacoes", "usuarios", "configuracoes"],
   },
 ];
 

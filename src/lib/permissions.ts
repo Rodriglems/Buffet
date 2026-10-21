@@ -1,5 +1,4 @@
 export const PERMISSION_KEYS = [
-  "leads",
   "contatos",
   "servicos",
   "eventos",
@@ -20,7 +19,6 @@ export type PermissionKey = (typeof PERMISSION_KEYS)[number];
 export type Permissoes = Record<PermissionKey, boolean>;
 
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
-  leads: "Leads",
   contatos: "Clientes",
   servicos: "Serviços",
   eventos: "Eventos",
@@ -38,7 +36,6 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
 };
 
 const PATH_PERMISSIONS: { prefix: string; key: PermissionKey }[] = [
-  { prefix: "/admin/leads", key: "leads" },
   { prefix: "/admin/clientes", key: "contatos" },
   { prefix: "/admin/servicos", key: "servicos" },
   { prefix: "/admin/eventos", key: "eventos" },

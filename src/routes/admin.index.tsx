@@ -10,7 +10,6 @@ import {
   CreditCard,
   FileText,
   Gem,
-  MapPin,
   MessageSquare,
   PenLine,
   Plus,
@@ -35,7 +34,7 @@ export const Route = createFileRoute("/admin/")({
   head: () =>
     pageMeta(
       "Seu dia",
-      "Pendências, próximos eventos, agenda da semana e resumo financeiro do buffet.",
+      "Pendências, próximos eventos, agenda do dia e resumo financeiro do buffet.",
     ),
   loader: async () => {
     const fim = new Date();
@@ -150,6 +149,7 @@ function Dashboard() {
     month: "long",
     year: "numeric",
   });
+  const chaveHoje = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
 
   const futuros = eventos
     .filter((e) => e.status !== "Finalizado" && e.status !== "Cancelado")
@@ -186,9 +186,29 @@ function Dashboard() {
   const resultado = ultimo.receita - ultimo.custos;
 
   const agenda = [
-    { icon: CalendarDays, quando: "05 out · 14h", oque: "Degustação — Casamento Duarte" },
-    { icon: MapPin, quando: "08 out · 10h", oque: "Visita técnica — Casamento Ferreira" },
-    { icon: Users, quando: "09 out · 16h", oque: "Confirmar equipe" },
+    ...eventos
+      .filter((evento) => evento.data === chaveHoje)
+      .map((evento) => ({
+        id: `evento-${evento.id}`,
+        icon: CalendarDays,
+        quando: evento.horaInicio
+          ? new Date(evento.horaInicio).toLocaleTimeString("pt-BR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "Horário a definir",
+        oque: `${evento.nome} · ${evento.local}`,
+        href: `/admin/eventos/${evento.id}`,
+      })),
+    ...parcelas
+      .filter((parcela) => parcela.vencimento === chaveHoje && parcela.status !== "Pago")
+      .map((parcela) => ({
+        id: `pagamento-${parcela.id}`,
+        icon: CreditCard,
+        quando: "Vence hoje",
+        oque: `${nomeCliente(parcela.clienteId)} · ${formatBRLShort(parcela.valor)}`,
+        href: "/admin/pagamentos",
+      })),
   ];
 
   const contar = (st: string[]) => orcamentos.filter((o) => st.includes(o.status)).length;
@@ -210,13 +230,13 @@ function Dashboard() {
           </div>
           <div className="flex gap-2">
             <Button asChild className="h-11 rounded-xl px-5">
-              <Link to="/admin/clientes/novo">
-                <Plus className="size-4" /> Novo atendimento
+              <Link to="/admin/orcamentos/novo">
+                <Plus className="size-4" /> Novo orçamento
               </Link>
             </Button>
             <Button asChild variant="outline" className="bg-surface h-11 rounded-xl px-5">
-              <Link to="/admin/orcamentos/novo">
-                <FileText className="size-4" /> Criar proposta
+              <Link to="/admin/eventos/novo">
+                <CalendarDays className="size-4" /> Novo evento
               </Link>
             </Button>
           </div>
@@ -310,7 +330,7 @@ function Dashboard() {
           <div className="flex items-center justify-between">
             <h2 className="font-display text-base font-semibold">Resumo financeiro</h2>
             <span className="bg-surface rounded-lg px-3 py-1.5 text-xs ring-1 ring-black/5">
-              Outubro de 2026
+              {hoje.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
             </span>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -409,18 +429,32 @@ function Dashboard() {
         )}
 
         <Panel className="p-5">
-          <h2 className="font-display text-base font-semibold">Agenda da semana</h2>
-          <ul className="mt-3 divide-y divide-border">
-            {agenda.map((a) => (
-              <li key={a.quando} className="flex items-center gap-3 py-3">
-                <IconBox icon={a.icon} />
-                <div>
-                  <p className="text-sm font-semibold">{a.quando}</p>
-                  <p className="text-muted-foreground text-xs">{a.oque}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-base font-semibold">Agenda do dia</h2>
+            <Link to="/admin/agenda" className="text-xs font-semibold">
+              Ver calendário
+            </Link>
+          </div>
+          {agenda.length ? (
+            <ul className="mt-3 divide-y divide-border">
+              {agenda.map((a) => (
+                <li key={a.id}>
+                  <a
+                    href={a.href}
+                    className="flex items-center gap-3 rounded-lg py-3 hover:bg-accent/40"
+                  >
+                    <IconBox icon={a.icon} />
+                    <div>
+                      <p className="text-sm font-semibold">{a.quando}</p>
+                      <p className="text-muted-foreground text-xs">{a.oque}</p>
+                    </div>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground mt-4 text-sm">Nenhum compromisso para hoje.</p>
+          )}
         </Panel>
 
         <Panel className="p-5">

@@ -1,9 +1,31 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { useState, type FormEvent } from "react";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 
 import { FinanceiroTabs } from "@/components/layout/section-nav";
 import { PageHeader, Panel, PanelHeader } from "@/components/panel";
 import { Button } from "@/components/ui/button";
-import { listarCustos } from "@/features/custos/server-functions";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { criarCusto, listarCustos } from "@/features/custos/server-functions";
+import { listarEventos } from "@/features/eventos/server-functions";
 import { formatBRL, formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/custos")({
@@ -18,12 +40,24 @@ export const Route = createFileRoute("/admin/custos")({
       { property: "og:description", content: "Custos de alimentos, bebidas, equipe e estrutura." },
     ],
   }),
-  loader: () => listarCustos({ data: { page: 1, pageSize: 100 } }),
+  loader: async () => {
+    const [custos, eventos] = await Promise.all([
+      listarCustos({ data: { page: 1, pageSize: 100 } }),
+      listarEventos({ data: { page: 1, pageSize: 100 } }),
+    ]);
+    return { custos, eventos: eventos.items };
+  },
   component: Custos,
 });
 
 function Custos() {
-  const { items: custos } = Route.useLoaderData();
+  const { custos: resultado, eventos } = Route.useLoaderData();
+  const custos = resultado.items;
+  const criar = useServerFn(criarCusto);
+  const router = useRouter();
+  const [aberto, setAberto] = useState(false);
+  const [eventoId, setEventoId] = useState("");
+  const [salvando, setSalvando] = useState(false);
   const porEvento = Array.from(
     custos
       .reduce(
@@ -38,12 +72,44 @@ function Custos() {
       .values(),
   );
 
+  async function registrar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const value = (name: string) => String(form.get(name) ?? "").trim();
+    setSalvando(true);
+    try {
+      await criar({
+        data: {
+          eventoId,
+          categoria: value("categoria"),
+          descricao: value("descricao"),
+          fornecedor: value("fornecedor") || null,
+          valor: Number(value("valor")),
+          data: new Date(`${value("data")}T12:00:00`),
+          observacoes: value("observacoes") || null,
+        },
+      });
+      toast.success("Custo registrado.");
+      setAberto(false);
+      setEventoId("");
+      await router.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível registrar o custo.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Custos"
         subtitle={`${custos.length} lançamentos registrados`}
-        actions={<Button disabled>Registrar custo</Button>}
+        actions={
+          <Button onClick={() => setAberto(true)} disabled={!eventos.length}>
+            Registrar custo
+          </Button>
+        }
       />
       <FinanceiroTabs />
 
@@ -89,6 +155,71 @@ function Custos() {
           </table>
         </div>
       </Panel>
+
+      <Dialog open={aberto} onOpenChange={setAberto}>
+        <DialogContent>
+          <form className="grid gap-4" onSubmit={registrar}>
+            <DialogHeader>
+              <DialogTitle>Registrar custo</DialogTitle>
+              <DialogDescription>Adicione uma despesa vinculada ao evento.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-1.5 sm:col-span-2">
+                <Label>Evento</Label>
+                <Select value={eventoId} onValueChange={setEventoId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione o evento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {eventos.map((evento) => (
+                      <SelectItem key={evento.id} value={evento.id}>
+                        {evento.nome} · {evento.cliente.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="categoria">Categoria</Label>
+                <Input
+                  id="categoria"
+                  name="categoria"
+                  placeholder="Alimentos, equipe, estrutura…"
+                  required
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="fornecedor">Fornecedor</Label>
+                <Input id="fornecedor" name="fornecedor" />
+              </div>
+              <div className="grid gap-1.5 sm:col-span-2">
+                <Label htmlFor="descricao">Descrição</Label>
+                <Input id="descricao" name="descricao" required />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="valor">Valor</Label>
+                <Input id="valor" name="valor" type="number" min="0" step="0.01" required />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="data">Data</Label>
+                <Input id="data" name="data" type="date" required />
+              </div>
+              <div className="grid gap-1.5 sm:col-span-2">
+                <Label htmlFor="observacoes">Observações</Label>
+                <Textarea id="observacoes" name="observacoes" rows={3} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAberto(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={salvando || !eventoId}>
+                {salvando ? "Salvando…" : "Registrar custo"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

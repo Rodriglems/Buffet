@@ -19,6 +19,7 @@ import {
 import { listarEventos } from "@/features/eventos/server-functions";
 import { criarOrcamento, enviarOrcamento } from "@/features/orcamentos/server-functions";
 import { formatBRL } from "@/lib/format";
+import { createWhatsAppUrl } from "@/lib/sharing";
 
 export const Route = createFileRoute("/admin/orcamentos/novo")({
   head: () => ({
@@ -55,6 +56,7 @@ function NovoOrcamento() {
   const [eventoId, setEventoId] = useState("");
   const [validade, setValidade] = useState("");
   const [observacoes, setObservacoes] = useState("");
+  const [mensagem, setMensagem] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [itens, setItens] = useState<Linha[]>([
     {
@@ -121,7 +123,16 @@ function NovoOrcamento() {
           })),
         },
       });
-      if (deveEnviar) await enviar({ data: { id: criado.id } });
+      if (deveEnviar) {
+        const contato = await enviar({ data: { id: criado.id, mensagem: mensagem || null } });
+        if (mensagem.trim() && contato.whatsapp) {
+          window.open(
+            createWhatsAppUrl(contato.whatsapp, mensagem),
+            "_blank",
+            "noopener,noreferrer",
+          );
+        }
+      }
       toast.success(deveEnviar ? "Orçamento enviado ao cliente." : "Rascunho salvo.");
       await navigate({ to: "/admin/orcamentos" });
     } catch (error) {
@@ -305,6 +316,23 @@ function NovoOrcamento() {
               placeholder="Observações visíveis ao cliente"
               className="bg-surface border-0 ring-1 ring-black/5"
             />
+            <div>
+              <Label htmlFor="mensagem-envio" className="mb-1.5 block">
+                Mensagem personalizada de envio (opcional)
+              </Label>
+              <Textarea
+                id="mensagem-envio"
+                rows={3}
+                value={mensagem}
+                onChange={(event) => setMensagem(event.target.value)}
+                placeholder="Olá! Preparei uma proposta especial para o seu evento…"
+                className="bg-surface border-0 ring-1 ring-black/5"
+              />
+              <p className="text-muted-foreground mt-1 text-xs">
+                Ao enviar, a mensagem será registrada no portal e também poderá ser aberta no
+                WhatsApp do cliente.
+              </p>
+            </div>
             <Textarea
               rows={3}
               placeholder="Condições de pagamento, prazos e políticas de cancelamento"

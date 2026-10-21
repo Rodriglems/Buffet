@@ -1,4 +1,5 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { useState } from "react";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Printer } from "lucide-react";
 import { toast } from "sonner";
@@ -7,7 +8,17 @@ import { PageHeader, Panel, PanelHeader } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { obterEmpresa } from "@/features/empresa/server-functions";
 import {
   aprovarOrcamento,
@@ -15,6 +26,7 @@ import {
   obterOrcamento,
 } from "@/features/orcamentos/server-functions";
 import { formatBRL, formatDate } from "@/lib/format";
+import { createWhatsAppUrl } from "@/lib/sharing";
 
 export const Route = createFileRoute("/admin/orcamentos/$id")({
   head: () => ({
@@ -43,6 +55,9 @@ function DetalheOrcamento() {
   const dados = Route.useLoaderData();
   const enviar = useServerFn(enviarOrcamento);
   const aprovar = useServerFn(aprovarOrcamento);
+  const router = useRouter();
+  const [dialogEnvio, setDialogEnvio] = useState(false);
+  const [enviando, setEnviando] = useState(false);
   const cliente = {
     ...dados.orcamento.evento.cliente,
     documento: dados.orcamento.evento.cliente.cpfCnpj ?? "Não informado",
@@ -97,6 +112,23 @@ function DetalheOrcamento() {
     data: string;
   }> = [];
 
+  async function enviarPersonalizado(mensagem: string) {
+    setEnviando(true);
+    try {
+      const contato = await enviar({ data: { id: orcamento.id, mensagem: mensagem || null } });
+      toast.success("Orçamento enviado ao cliente.");
+      setDialogEnvio(false);
+      await router.invalidate();
+      if (mensagem.trim() && contato.whatsapp) {
+        window.open(createWhatsAppUrl(contato.whatsapp, mensagem), "_blank", "noopener,noreferrer");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível enviar.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
@@ -108,25 +140,28 @@ function DetalheOrcamento() {
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="size-4" /> Imprimir / PDF
             </Button>
-            <Button
-              variant="outline"
-              onClick={() =>
-                void enviar({ data: { id: orcamento.id } })
-                  .then(() => toast.success("Orçamento enviado ao cliente."))
-                  .catch(() => toast.error("Não foi possível enviar."))
-              }
-            >
-              Reenviar
-            </Button>
-            <Button
-              onClick={() =>
-                void aprovar({ data: { id: orcamento.id } })
-                  .then(() => toast.success("Contrato gerado a partir do orçamento."))
-                  .catch(() => toast.error("Não foi possível gerar o contrato."))
-              }
-            >
-              Gerar contrato
-            </Button>
+            {!["APROVADO", "REJEITADO", "EXPIRADO", "CANCELADO"].includes(orcamento.status) ? (
+              <Button variant="outline" onClick={() => setDialogEnvio(true)}>
+                Enviar mensagem
+              </Button>
+            ) : null}
+            {!orcamento.contratos.length &&
+            ["ENVIADO", "VISUALIZADO", "AGUARDANDO_APROVACAO", "EM_NEGOCIACAO"].includes(
+              orcamento.status,
+            ) ? (
+              <Button
+                onClick={() =>
+                  void aprovar({ data: { id: orcamento.id } })
+                    .then(async () => {
+                      toast.success("Contrato gerado a partir do orçamento.");
+                      await router.invalidate();
+                    })
+                    .catch(() => toast.error("Não foi possível gerar o contrato."))
+                }
+              >
+                Gerar contrato
+              </Button>
+            ) : null}
           </>
         }
       />
@@ -310,6 +345,44 @@ function DetalheOrcamento() {
           </Panel>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={dialogEnvio} onOpenChange={setDialogEnvio}>
+        <DialogContent>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const mensagem = String(new FormData(event.currentTarget).get("mensagem") ?? "");
+              void enviarPersonalizado(mensagem);
+            }}
+            className="grid gap-4"
+          >
+            <DialogHeader>
+              <DialogTitle>Enviar orçamento</DialogTitle>
+              <DialogDescription>
+                Personalize o contato com {cliente.nome}. A mensagem também ficará disponível no
+                portal do cliente.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-1.5">
+              <Label htmlFor="mensagem">Mensagem personalizada</Label>
+              <Textarea
+                id="mensagem"
+                name="mensagem"
+                rows={5}
+                defaultValue={`Olá ${cliente.nome.split(" ")[0]}, preparei o orçamento ${orcamento.codigo} para o seu evento. Fico à disposição para qualquer dúvida.`}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDialogEnvio(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={enviando}>
+                {enviando ? "Enviando…" : "Enviar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

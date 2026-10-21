@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { CalendarDays, CreditCard } from "lucide-react";
+import { ptBR } from "date-fns/locale";
 
 import { PageHeader, Panel, PanelHeader } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
+import { Calendar } from "@/components/ui/calendar";
 import { listarEventos } from "@/features/eventos/server-functions";
 import { listarPagamentos } from "@/features/pagamentos/server-functions";
 import { formatBRL, formatDate } from "@/lib/format";
@@ -55,6 +59,21 @@ function Agenda() {
     (acc[k] ??= []).push(i);
     return acc;
   }, {});
+  const hoje = new Date();
+  const [selecionada, setSelecionada] = useState<Date>(hoje);
+  const chaveData = (data: Date) =>
+    `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`;
+  const dataLocal = (iso: string) => {
+    const [ano, mes, dia] = iso.split("-").map(Number);
+    return new Date(ano!, mes! - 1, dia!, 12);
+  };
+  const selecionados = itens.filter((item) => item.data === chaveData(selecionada));
+  const diasComEvento = itens
+    .filter((item) => item.tipo === "Evento")
+    .map((item) => dataLocal(item.data));
+  const diasComVencimento = itens
+    .filter((item) => item.tipo === "Vencimento")
+    .map((item) => dataLocal(item.data));
 
   const nomeMes = (k: string) => {
     const [y, m] = k.split("-");
@@ -70,6 +89,78 @@ function Agenda() {
         title="Agenda"
         subtitle={`${itens.length} compromissos entre eventos e vencimentos`}
       />
+      <Panel className="grid gap-6 p-5 lg:grid-cols-[auto_1fr]">
+        <div>
+          <div className="mb-3 flex flex-wrap gap-4 text-xs">
+            <span className="flex items-center gap-1.5">
+              <span className="bg-brand size-2 rounded-full" /> Evento
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="bg-warning size-2 rounded-full" /> Vencimento
+            </span>
+          </div>
+          <Calendar
+            mode="single"
+            selected={selecionada}
+            onSelect={(data) => data && setSelecionada(data)}
+            locale={ptBR}
+            modifiers={{ evento: diasComEvento, vencimento: diasComVencimento }}
+            modifiersClassNames={{
+              evento:
+                "after:absolute after:bottom-0.5 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-brand",
+              vencimento:
+                "before:absolute before:right-1 before:top-1 before:size-1 before:rounded-full before:bg-warning",
+            }}
+            className="w-full rounded-xl bg-surface p-3 ring-1 ring-black/5 [--cell-size:2.6rem]"
+          />
+        </div>
+        <div className="min-w-0">
+          <PanelHeader
+            title={selecionada
+              .toLocaleDateString("pt-BR", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              })
+              .replace(/^./, (letra) => letra.toUpperCase())}
+            subtitle={`${selecionados.length} compromisso${selecionados.length === 1 ? "" : "s"}`}
+          />
+          {selecionados.length ? (
+            <ul className="mt-3 divide-y divide-border">
+              {selecionados.map((item, index) => {
+                const Icon = item.tipo === "Evento" ? CalendarDays : CreditCard;
+                const conteudo = (
+                  <div className="flex items-center gap-3 py-3">
+                    <span className="bg-background grid size-10 shrink-0 place-items-center rounded-xl ring-1 ring-black/5">
+                      <Icon className="size-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{item.titulo}</p>
+                      <p className="text-muted-foreground truncate text-xs">{item.detalhe}</p>
+                    </div>
+                    <StatusBadge status={item.status as never} />
+                  </div>
+                );
+                return (
+                  <li key={`${item.data}-${index}`}>
+                    {item.to ? (
+                      <a href={item.to} className="block rounded-lg hover:bg-accent/40">
+                        {conteudo}
+                      </a>
+                    ) : (
+                      conteudo
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="text-muted-foreground mt-6 rounded-xl border border-dashed border-border p-6 text-center text-sm">
+              Nenhum compromisso nesta data.
+            </div>
+          )}
+        </div>
+      </Panel>
       {Object.entries(porMes).map(([mes, lista]) => (
         <Panel key={mes} className="p-5">
           <PanelHeader

@@ -161,7 +161,9 @@ export const excluirOrcamento = createServerFn({ method: "POST" })
   });
 
 export const enviarOrcamento = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => id.parse(value))
+  .inputValidator((value: unknown) =>
+    id.extend({ mensagem: z.string().trim().max(2000).nullable().optional() }).parse(value),
+  )
   .handler(async ({ data }) => {
     const auth = await requirePermission("orcamentos");
     return getPrisma().$transaction(async (tx) => {
@@ -169,14 +171,17 @@ export const enviarOrcamento = createServerFn({ method: "POST" })
         where: { id: data.id, empresaId: auth.empresaId },
         include: { evento: { include: { cliente: true } } },
       });
-      if (!found || !["RASCUNHO", "EM_NEGOCIACAO"].includes(found.status))
+      if (!found || ["APROVADO", "REJEITADO", "EXPIRADO", "CANCELADO"].includes(found.status))
         throw new Error("Orcamento nao pode ser enviado.");
-      await tx.orcamento.update({ where: { id: found.id }, data: { status: "ENVIADO" } });
+      if (["RASCUNHO", "EM_NEGOCIACAO"].includes(found.status)) {
+        await tx.orcamento.update({ where: { id: found.id }, data: { status: "ENVIADO" } });
+      }
       if (found.evento.cliente.usuarioId) {
         await notificar(tx, found.evento.cliente.usuarioId, {
           tipo: "ORCAMENTO_ENVIADO",
           titulo: "Novo orcamento",
-          mensagem: `O orcamento ${found.numero.toString()} esta disponivel.`,
+          mensagem:
+            data.mensagem || `O orçamento ${found.numero.toString()} está disponível para análise.`,
         });
       }
       await registrarAtividade(tx, auth, {
@@ -185,7 +190,11 @@ export const enviarOrcamento = createServerFn({ method: "POST" })
         entidadeTipo: "ORCAMENTO",
         entidadeId: found.id,
       });
-      return { ok: true };
+      return {
+        ok: true,
+        cliente: found.evento.cliente.nome,
+        whatsapp: found.evento.cliente.whatsapp,
+      };
     });
   });
 

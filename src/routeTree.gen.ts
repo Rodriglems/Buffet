@@ -21,7 +21,6 @@ import { Route as AdminConfiguracoesRouteImport } from './routes/admin.configura
 import { Route as AdminCustosRouteImport } from './routes/admin.custos'
 import { Route as AdminDocumentosRouteImport } from './routes/admin.documentos'
 import { Route as AdminFinanceiroRouteImport } from './routes/admin.financeiro'
-import { Route as AdminLeadsRouteImport } from './routes/admin.leads'
 import { Route as AdminNotificacoesRouteImport } from './routes/admin.notificacoes'
 import { Route as AdminPagamentosRouteImport } from './routes/admin.pagamentos'
 import { Route as AdminServicosRouteImport } from './routes/admin.servicos'
@@ -33,6 +32,7 @@ import { Route as ClienteEventosRouteImport } from './routes/cliente.eventos'
 import { Route as ClienteOrcamentosRouteImport } from './routes/cliente.orcamentos'
 import { Route as ClientePagamentosRouteImport } from './routes/cliente.pagamentos'
 import { Route as ClientePerfilRouteImport } from './routes/cliente.perfil'
+import { Route as SolicitarOrcamentoTokenRouteImport } from './routes/solicitar-orcamento.$token'
 import { Route as AdminClientesIndexRouteImport } from './routes/admin.clientes.index'
 import { Route as AdminClientesIdRouteImport } from './routes/admin.clientes.$id'
 import { Route as AdminClientesNovoRouteImport } from './routes/admin.clientes.novo'
@@ -105,11 +105,6 @@ const AdminFinanceiroRoute = AdminFinanceiroRouteImport.update({
   path: '/financeiro',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminLeadsRoute = AdminLeadsRouteImport.update({
-  id: '/leads',
-  path: '/leads',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminNotificacoesRoute = AdminNotificacoesRouteImport.update({
   id: '/notificacoes',
   path: '/notificacoes',
@@ -164,6 +159,11 @@ const ClientePerfilRoute = ClientePerfilRouteImport.update({
   id: '/perfil',
   path: '/perfil',
   getParentRoute: () => ClienteRoute,
+} as any)
+const SolicitarOrcamentoTokenRoute = SolicitarOrcamentoTokenRouteImport.update({
+  id: '/solicitar-orcamento/$token',
+  path: '/solicitar-orcamento/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AdminClientesIndexRoute = AdminClientesIndexRouteImport.update({
   id: '/clientes/',
@@ -233,7 +233,6 @@ export interface FileRoutesByFullPath {
   '/admin/custos': typeof AdminCustosRoute
   '/admin/documentos': typeof AdminDocumentosRoute
   '/admin/financeiro': typeof AdminFinanceiroRoute
-  '/admin/leads': typeof AdminLeadsRoute
   '/admin/notificacoes': typeof AdminNotificacoesRoute
   '/admin/pagamentos': typeof AdminPagamentosRoute
   '/admin/servicos': typeof AdminServicosRoute
@@ -244,6 +243,7 @@ export interface FileRoutesByFullPath {
   '/cliente/orcamentos': typeof ClienteOrcamentosRoute
   '/cliente/pagamentos': typeof ClientePagamentosRoute
   '/cliente/perfil': typeof ClientePerfilRoute
+  '/solicitar-orcamento/$token': typeof SolicitarOrcamentoTokenRoute
   '/admin/': typeof AdminIndexRoute
   '/cliente/': typeof ClienteIndexRoute
   '/admin/clientes/$id': typeof AdminClientesIdRoute
@@ -268,7 +268,6 @@ export interface FileRoutesByTo {
   '/admin/custos': typeof AdminCustosRoute
   '/admin/documentos': typeof AdminDocumentosRoute
   '/admin/financeiro': typeof AdminFinanceiroRoute
-  '/admin/leads': typeof AdminLeadsRoute
   '/admin/notificacoes': typeof AdminNotificacoesRoute
   '/admin/pagamentos': typeof AdminPagamentosRoute
   '/admin/servicos': typeof AdminServicosRoute
@@ -279,6 +278,7 @@ export interface FileRoutesByTo {
   '/cliente/orcamentos': typeof ClienteOrcamentosRoute
   '/cliente/pagamentos': typeof ClientePagamentosRoute
   '/cliente/perfil': typeof ClientePerfilRoute
+  '/solicitar-orcamento/$token': typeof SolicitarOrcamentoTokenRoute
   '/admin': typeof AdminIndexRoute
   '/cliente': typeof ClienteIndexRoute
   '/admin/clientes/$id': typeof AdminClientesIdRoute
@@ -306,7 +306,6 @@ export interface FileRoutesById {
   '/admin/custos': typeof AdminCustosRoute
   '/admin/documentos': typeof AdminDocumentosRoute
   '/admin/financeiro': typeof AdminFinanceiroRoute
-  '/admin/leads': typeof AdminLeadsRoute
   '/admin/notificacoes': typeof AdminNotificacoesRoute
   '/admin/pagamentos': typeof AdminPagamentosRoute
   '/admin/servicos': typeof AdminServicosRoute
@@ -317,6 +316,7 @@ export interface FileRoutesById {
   '/cliente/orcamentos': typeof ClienteOrcamentosRoute
   '/cliente/pagamentos': typeof ClientePagamentosRoute
   '/cliente/perfil': typeof ClientePerfilRoute
+  '/solicitar-orcamento/$token': typeof SolicitarOrcamentoTokenRoute
   '/admin/': typeof AdminIndexRoute
   '/cliente/': typeof ClienteIndexRoute
   '/admin/clientes/$id': typeof AdminClientesIdRoute
@@ -345,7 +345,6 @@ export interface FileRouteTypes {
     | '/admin/custos'
     | '/admin/documentos'
     | '/admin/financeiro'
-    | '/admin/leads'
     | '/admin/notificacoes'
     | '/admin/pagamentos'
     | '/admin/servicos'
@@ -356,6 +355,7 @@ export interface FileRouteTypes {
     | '/cliente/orcamentos'
     | '/cliente/pagamentos'
     | '/cliente/perfil'
+    | '/solicitar-orcamento/$token'
     | '/admin/'
     | '/cliente/'
     | '/admin/clientes/$id'
@@ -380,7 +380,6 @@ export interface FileRouteTypes {
     | '/admin/custos'
     | '/admin/documentos'
     | '/admin/financeiro'
-    | '/admin/leads'
     | '/admin/notificacoes'
     | '/admin/pagamentos'
     | '/admin/servicos'
@@ -391,6 +390,7 @@ export interface FileRouteTypes {
     | '/cliente/orcamentos'
     | '/cliente/pagamentos'
     | '/cliente/perfil'
+    | '/solicitar-orcamento/$token'
     | '/admin'
     | '/cliente'
     | '/admin/clientes/$id'
@@ -417,7 +417,6 @@ export interface FileRouteTypes {
     | '/admin/custos'
     | '/admin/documentos'
     | '/admin/financeiro'
-    | '/admin/leads'
     | '/admin/notificacoes'
     | '/admin/pagamentos'
     | '/admin/servicos'
@@ -428,6 +427,7 @@ export interface FileRouteTypes {
     | '/cliente/orcamentos'
     | '/cliente/pagamentos'
     | '/cliente/perfil'
+    | '/solicitar-orcamento/$token'
     | '/admin/'
     | '/cliente/'
     | '/admin/clientes/$id'
@@ -449,6 +449,7 @@ export interface RootRouteChildren {
   ClienteRoute: typeof ClienteRouteWithChildren
   RecuperarSenhaRoute: typeof RecuperarSenhaRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
+  SolicitarOrcamentoTokenRoute: typeof SolicitarOrcamentoTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -537,13 +538,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminFinanceiroRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/leads': {
-      id: '/admin/leads'
-      path: '/leads'
-      fullPath: '/admin/leads'
-      preLoaderRoute: typeof AdminLeadsRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/notificacoes': {
       id: '/admin/notificacoes'
       path: '/notificacoes'
@@ -620,6 +614,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/cliente/perfil'
       preLoaderRoute: typeof ClientePerfilRouteImport
       parentRoute: typeof ClienteRoute
+    }
+    '/solicitar-orcamento/$token': {
+      id: '/solicitar-orcamento/$token'
+      path: '/solicitar-orcamento/$token'
+      fullPath: '/solicitar-orcamento/$token'
+      preLoaderRoute: typeof SolicitarOrcamentoTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/clientes/': {
       id: '/admin/clientes/'
@@ -708,7 +709,6 @@ interface AdminRouteChildren {
   AdminCustosRoute: typeof AdminCustosRoute
   AdminDocumentosRoute: typeof AdminDocumentosRoute
   AdminFinanceiroRoute: typeof AdminFinanceiroRoute
-  AdminLeadsRoute: typeof AdminLeadsRoute
   AdminNotificacoesRoute: typeof AdminNotificacoesRoute
   AdminPagamentosRoute: typeof AdminPagamentosRoute
   AdminServicosRoute: typeof AdminServicosRoute
@@ -734,7 +734,6 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCustosRoute: AdminCustosRoute,
   AdminDocumentosRoute: AdminDocumentosRoute,
   AdminFinanceiroRoute: AdminFinanceiroRoute,
-  AdminLeadsRoute: AdminLeadsRoute,
   AdminNotificacoesRoute: AdminNotificacoesRoute,
   AdminPagamentosRoute: AdminPagamentosRoute,
   AdminServicosRoute: AdminServicosRoute,
@@ -784,6 +783,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClienteRoute: ClienteRouteWithChildren,
   RecuperarSenhaRoute: RecuperarSenhaRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
+  SolicitarOrcamentoTokenRoute: SolicitarOrcamentoTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

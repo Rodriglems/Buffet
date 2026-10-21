@@ -71,7 +71,7 @@ export const listarEventos = createServerFn({ method: "GET" })
         where,
         ...pagination(data.page, data.pageSize),
         include: {
-          cliente: { select: { nome: true } },
+          cliente: { select: { nome: true, whatsapp: true, telefone: true, email: true } },
           contratos: {
             select: { id: true, numero: true, status: true, valorTotal: true },
             orderBy: { createdAt: "desc" },

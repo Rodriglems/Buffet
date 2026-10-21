@@ -39,12 +39,13 @@ describe("menu com permissões", () => {
     expect(item({ eventos: false, contatos: true }, "/admin/eventos")).toBeUndefined();
   });
 
-  it("acessa contratos pelos registros de eventos, sem item lateral separado", () => {
-    expect(item({}, "/admin/contratos")).toBeUndefined();
+  it("exibe contratos no lugar de documentos", () => {
+    expect(item({}, "/admin/contratos")?.label).toBe("Contratos");
+    expect(item({}, "/admin/documentos")).toBeUndefined();
   });
 
   it("esconde o item quando a permissão da área está desligada", () => {
-    const nav = visibleAdminNav({ leads: false, agenda: false });
+    const nav = visibleAdminNav({ agenda: false });
     const destinos = nav.flatMap((group) => group.items.map((entry) => entry.to));
     expect(destinos).not.toContain("/admin/leads");
     expect(destinos).not.toContain("/admin/agenda");

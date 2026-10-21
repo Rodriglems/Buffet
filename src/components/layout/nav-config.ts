@@ -12,11 +12,8 @@ import {
   History,
   Bell,
   BriefcaseBusiness,
-  Files,
-  FolderOpen,
   PartyPopper,
   UserCog,
-  UserPlus,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -54,7 +51,6 @@ export const adminNav: NavGroup[] = [
     label: "Gestão",
     items: [
       { label: "Dashboard", to: "/admin", icon: LayoutDashboard },
-      { label: "Leads", to: "/admin/leads", icon: UserPlus, permission: "leads" },
       { label: "Clientes", to: "/admin/clientes", icon: Users, permission: "contatos" },
       { label: "Serviços", to: "/admin/servicos", icon: BriefcaseBusiness, permission: "servicos" },
       { label: "Eventos", to: "/admin/eventos", icon: PartyPopper, permission: "eventos" },
@@ -73,7 +69,7 @@ export const adminNav: NavGroup[] = [
       { label: "Agenda", to: "/admin/agenda", icon: CalendarDays, permission: "agenda" },
       { label: "Atividades", to: "/admin/atividades", icon: History, permission: "atividades" },
       { label: "Notificações", to: "/admin/notificacoes", icon: Bell, permission: "notificacoes" },
-      { label: "Documentos", to: "/admin/documentos", icon: Files, permission: "documentos" },
+      { label: "Contratos", to: "/admin/contratos", icon: FileSignature, permission: "contratos" },
       { label: "Usuários", to: "/admin/usuarios", icon: UserCog, permission: "usuarios" },
       {
         label: "Configurações",
@@ -119,7 +115,6 @@ export const clienteNav: NavGroup[] = [
       { label: "Orçamentos", to: "/cliente/orcamentos", icon: FileText },
       { label: "Contratos", to: "/cliente/contratos", icon: FileSignature },
       { label: "Pagamentos", to: "/cliente/pagamentos", icon: Wallet },
-      { label: "Documentos", to: "/cliente/documentos", icon: FolderOpen },
       { label: "Perfil", to: "/cliente/perfil", icon: User },
     ],
   },
