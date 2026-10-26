@@ -1,23 +1,20 @@
-import { type FormEvent, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Search } from "lucide-react";
+import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { CheckSquare, Download, Loader2, MoreHorizontal, Search, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -26,230 +23,324 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  createDocumento,
-  listDocumentos,
-  type CreateDocumentoInput,
-  type DocumentoStatus,
-  type DocumentoTipo,
-} from "@/features/documentos/server-functions";
-import { formatDate } from "@/lib/format";
+  baixarPdfDoEvento,
+  baixarPdfsDosEventos,
+  listarEventosComPdf,
+} from "@/features/documentos/eventos-pdf";
+import { formatBRL, formatDate } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
 
 export const Route = createFileRoute("/admin/documentos")({
-  head: () => pageMeta("Documentos", "Centralize propostas, contratos e termos."),
+  head: () => pageMeta("Documentos", "PDFs dos eventos confirmados."),
+  loader: () => listarEventosComPdf(),
   component: DocumentosPage,
 });
 
-const initialForm: CreateDocumentoInput = {
-  titulo: "",
-  tipo: "Contrato",
-  cliente: "",
-  status: "Pendente",
-  vencimento: null,
-  url: "",
+const LIMITE_POR_VEZ = 50;
+
+type EventoComPdf = Awaited<ReturnType<typeof listarEventosComPdf>>[number];
+type Ordem = "chegada-recente" | "chegada-antiga" | "data-evento";
+
+// "Chegada" é quando o pedido foi recebido (criação do evento).
+const ORDENACOES: Record<
+  Ordem,
+  { rotulo: string; comparar: (a: EventoComPdf, b: EventoComPdf) => number }
+> = {
+  "chegada-recente": {
+    rotulo: "Mais recentes",
+    comparar: (a, b) => b.createdAt.localeCompare(a.createdAt),
+  },
+  "chegada-antiga": {
+    rotulo: "Mais antigos",
+    comparar: (a, b) => a.createdAt.localeCompare(b.createdAt),
+  },
+  "data-evento": {
+    rotulo: "Data do evento",
+    comparar: (a, b) => a.dataEvento.localeCompare(b.dataEvento),
+  },
 };
 
-function DocumentosPage() {
-  const queryClient = useQueryClient();
-  const [busca, setBusca] = useState("");
-  const [aberto, setAberto] = useState(false);
-  const [form, setForm] = useState<CreateDocumentoInput>(initialForm);
-  const query = useQuery({ queryKey: ["documentos"], queryFn: listDocumentos });
-  const mutation = useMutation({
-    mutationFn: createDocumento,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["documentos"] });
-      setForm(initialForm);
-      setAberto(false);
-      toast.success("Documento cadastrado.");
-    },
-    onError: () => toast.error("Não foi possível cadastrar o documento."),
+function formatarRecebimento(iso: string) {
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
-  const lista = (query.data ?? []).filter((documento) =>
-    [documento.titulo, documento.cliente, documento.tipo].some((valor) =>
-      valor.toLowerCase().includes(busca.toLowerCase()),
-    ),
-  );
+}
 
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    mutation.mutate(form);
+function DocumentosPage() {
+  const eventos = Route.useLoaderData();
+  const [busca, setBusca] = useState("");
+  const [baixando, setBaixando] = useState<string | null>(null);
+  // Modo de seleção aberto pelo menu "⋯" para juntar vários cardápios em um único PDF.
+  const [selecionando, setSelecionando] = useState(false);
+  const [selecionados, setSelecionados] = useState<Set<string>>(() => new Set());
+  const [ordem, setOrdem] = useState<Ordem>("chegada-recente");
+  const [dataFiltro, setDataFiltro] = useState("");
+  const termo = busca.trim().toLowerCase();
+  const lista = eventos
+    .filter((evento) =>
+      [evento.tipo, evento.nome, evento.cliente.nome].some((valor) =>
+        valor.toLowerCase().includes(termo),
+      ),
+    )
+    // Filtro pela data do evento (ex.: imprimir os cardápios de um dia).
+    .filter((evento) => !dataFiltro || evento.dataEvento.slice(0, 10) === dataFiltro)
+    .sort(ORDENACOES[ordem].comparar);
+  const todosMarcados = lista.length > 0 && lista.every((evento) => selecionados.has(evento.id));
+
+  async function baixar(id: string) {
+    setBaixando(id);
+    try {
+      await baixarPdfDoEvento(id);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível gerar o PDF.");
+    } finally {
+      setBaixando(null);
+    }
+  }
+
+  function alternar(id: string, marcado: boolean) {
+    setSelecionados((atuais) => {
+      const proximos = new Set(atuais);
+      if (marcado) proximos.add(id);
+      else proximos.delete(id);
+      return proximos;
+    });
+  }
+
+  function marcarTodos(marcado: boolean) {
+    setSelecionados((atuais) => {
+      const proximos = new Set(atuais);
+      for (const evento of lista) {
+        if (marcado) proximos.add(evento.id);
+        else proximos.delete(evento.id);
+      }
+      return proximos;
+    });
+  }
+
+  function sairDaSelecao() {
+    setSelecionando(false);
+    setSelecionados(new Set());
+  }
+
+  async function baixarSelecionados() {
+    if (selecionados.size > LIMITE_POR_VEZ) {
+      toast.error(`Selecione no máximo ${LIMITE_POR_VEZ} documentos por vez.`);
+      return;
+    }
+    setBaixando("varios");
+    try {
+      await baixarPdfsDosEventos([...selecionados]);
+      toast.success(
+        selecionados.size === 1
+          ? "Documento baixado."
+          : `${selecionados.size} cardápios juntos em um único PDF, prontos para imprimir.`,
+      );
+      sairDaSelecao();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível gerar os PDFs.");
+    } finally {
+      setBaixando(null);
+    }
   }
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Documentos"
-        subtitle="Propostas, contratos e termos em um só lugar"
+        subtitle="O PDF de cada evento fica disponível quando ele é confirmado"
         actions={
-          <Button onClick={() => setAberto(true)}>
-            <Plus className="size-4" />
-            Novo documento
-          </Button>
+          eventos.length ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Mais opções">
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setSelecionando(true)}>
+                  <CheckSquare className="size-4" />
+                  Selecionar PDFs
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null
         }
       />
       <Panel className="p-5">
-        <div className="relative max-w-sm">
-          <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-          <Input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por título, cliente ou tipo"
-            className="bg-surface border-0 pl-9 ring-1 ring-black/5"
-          />
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+          <div className="relative">
+            <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input
+              value={busca}
+              onChange={(event) => setBusca(event.target.value)}
+              placeholder="Buscar por evento ou cliente"
+              className="bg-surface border-0 pl-9 ring-1 ring-black/5"
+            />
+          </div>
+          <Select value={ordem} onValueChange={(valor) => setOrdem(valor as Ordem)}>
+            <SelectTrigger
+              className="bg-surface w-full border-0 ring-1 ring-black/5 sm:w-44"
+              aria-label="Ordenar documentos"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(ORDENACOES) as Ordem[]).map((chave) => (
+                <SelectItem key={chave} value={chave}>
+                  {ORDENACOES[chave].rotulo}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              aria-label="Filtrar pela data do evento"
+              title="Filtrar pela data do evento"
+              value={dataFiltro}
+              onChange={(event) => setDataFiltro(event.target.value)}
+              className="bg-surface w-full border-0 ring-1 ring-black/5 sm:w-44"
+            />
+            {dataFiltro ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Limpar filtro de data"
+                onClick={() => setDataFiltro("")}
+              >
+                <X className="size-4" />
+              </Button>
+            ) : null}
+          </div>
         </div>
-        {query.isPending ? (
-          <LoadingState label="Carregando documentos…" />
-        ) : query.isError ? (
-          <ErrorState onRetry={() => void query.refetch()} />
-        ) : lista.length === 0 ? (
+
+        {selecionando ? (
+          <div className="bg-primary/5 ring-primary/20 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl p-3 ring-1">
+            <p className="text-sm">
+              <strong>{selecionados.size}</strong>{" "}
+              {selecionados.size === 1 ? "documento selecionado" : "documentos selecionados"}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="ghost" onClick={sairDaSelecao}>
+                <X className="size-4" /> Cancelar
+              </Button>
+              <Button
+                size="sm"
+                disabled={!selecionados.size || baixando !== null}
+                onClick={() => void baixarSelecionados()}
+              >
+                {baixando === "varios" ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Download className="size-4" />
+                )}
+                Baixar em um único PDF
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {lista.length === 0 ? (
           <EmptyState
-            title="Nenhum documento encontrado"
-            description="Ajuste a busca ou cadastre um novo documento."
-            action={<Button onClick={() => setAberto(true)}>Novo documento</Button>}
+            title={eventos.length ? "Nenhum documento encontrado" : "Nenhum evento confirmado"}
+            description={
+              eventos.length
+                ? "Ajuste a busca para encontrar o evento."
+                : "Quando um evento for confirmado, o PDF dele aparece aqui."
+            }
           />
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[860px] text-left text-sm">
               <thead>
                 <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
-                  <th className="pb-2 font-medium">Documento</th>
+                  {selecionando ? (
+                    <th className="w-10 pb-2">
+                      <Checkbox
+                        checked={todosMarcados}
+                        onCheckedChange={(marcado) => marcarTodos(marcado === true)}
+                        aria-label="Selecionar todos"
+                      />
+                    </th>
+                  ) : null}
+                  <th className="pb-2 font-medium">Evento</th>
                   <th className="pb-2 font-medium">Cliente</th>
-                  <th className="pb-2 font-medium">Criado em</th>
-                  <th className="pb-2 font-medium">Vencimento</th>
+                  <th className="pb-2 font-medium">Data do evento</th>
+                  <th className="pb-2 font-medium">Valor</th>
+                  <th className="pb-2 font-medium">Recebido em</th>
                   <th className="pb-2 font-medium">Status</th>
+                  {selecionando ? null : <th className="pb-2 font-medium text-right">PDF</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {lista.map((documento) => (
-                  <tr key={documento.id}>
-                    <td className="py-3 pr-3 font-medium">
-                      <a
-                        href={documento.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="hover:underline"
-                      >
-                        {documento.titulo}
-                      </a>
-                      <p className="text-muted-foreground text-[11px] font-normal">
-                        {documento.tipo}
-                      </p>
-                    </td>
-                    <td className="text-muted-foreground py-3 pr-3">{documento.cliente}</td>
-                    <td className="text-muted-foreground py-3 pr-3">
-                      {formatDate(documento.criadoEm)}
-                    </td>
-                    <td className="text-muted-foreground py-3 pr-3">
-                      {documento.vencimento ? formatDate(documento.vencimento) : "Sem vencimento"}
-                    </td>
-                    <td className="py-3">
-                      <StatusBadge status={documento.status} />
-                    </td>
-                  </tr>
-                ))}
+                {lista.map((evento) => {
+                  const marcado = selecionados.has(evento.id);
+                  return (
+                    <tr
+                      key={evento.id}
+                      className={selecionando && marcado ? "bg-primary/5" : undefined}
+                    >
+                      {selecionando ? (
+                        <td className="py-3 pr-3">
+                          <Checkbox
+                            checked={marcado}
+                            onCheckedChange={(valor) => alternar(evento.id, valor === true)}
+                            aria-label={`Selecionar ${evento.tipo} de ${evento.cliente.nome}`}
+                          />
+                        </td>
+                      ) : null}
+                      <td className="py-3 pr-3 font-medium">
+                        <Link
+                          to="/admin/eventos/$id"
+                          params={{ id: evento.id }}
+                          className="hover:underline"
+                        >
+                          {evento.tipo}
+                        </Link>
+                      </td>
+                      <td className="text-muted-foreground py-3 pr-3">{evento.cliente.nome}</td>
+                      <td className="text-muted-foreground py-3 pr-3">
+                        {formatDate(evento.dataEvento)}
+                      </td>
+                      <td className="py-3 pr-3">
+                        {evento.orcamentos[0] ? formatBRL(Number(evento.orcamentos[0].total)) : "—"}
+                      </td>
+                      <td className="text-muted-foreground py-3 pr-3 whitespace-nowrap">
+                        {formatarRecebimento(evento.createdAt)}
+                      </td>
+                      <td className="py-3 pr-3">
+                        <StatusBadge status={evento.status} />
+                      </td>
+                      {selecionando ? null : (
+                        <td className="py-3 text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={baixando !== null}
+                            onClick={() => void baixar(evento.id)}
+                          >
+                            {baixando === evento.id ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Download className="size-4" />
+                            )}
+                            Baixar PDF
+                          </Button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </Panel>
-
-      <Dialog open={aberto} onOpenChange={setAberto}>
-        <DialogContent>
-          <form onSubmit={submit} className="grid gap-4">
-            <DialogHeader>
-              <DialogTitle>Novo documento</DialogTitle>
-              <DialogDescription>
-                Cadastre os dados para vinculação posterior do arquivo.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-1.5 sm:col-span-2">
-                <Label htmlFor="documento-titulo">Título</Label>
-                <Input
-                  id="documento-titulo"
-                  required
-                  value={form.titulo}
-                  onChange={(e) => setForm({ ...form, titulo: e.target.value })}
-                />
-              </div>
-              <div className="grid gap-1.5 sm:col-span-2">
-                <Label htmlFor="documento-cliente">Cliente</Label>
-                <Input
-                  id="documento-cliente"
-                  value={form.cliente}
-                  onChange={(e) => setForm({ ...form, cliente: e.target.value })}
-                />
-              </div>
-              <div className="grid gap-1.5 sm:col-span-2">
-                <Label htmlFor="documento-url">URL do arquivo</Label>
-                <Input
-                  id="documento-url"
-                  type="url"
-                  required
-                  value={form.url}
-                  onChange={(e) => setForm({ ...form, url: e.target.value })}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Tipo</Label>
-                <Select
-                  value={form.tipo}
-                  onValueChange={(tipo) => setForm({ ...form, tipo: tipo as DocumentoTipo })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(["Contrato", "Proposta", "Termo", "Outro"] as const).map((tipo) => (
-                      <SelectItem key={tipo} value={tipo}>
-                        {tipo}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(status) =>
-                    setForm({ ...form, status: status as DocumentoStatus })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(["Pendente", "Assinado", "Expirado"] as const).map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5 sm:col-span-2">
-                <Label htmlFor="documento-vencimento">Vencimento (opcional)</Label>
-                <Input
-                  id="documento-vencimento"
-                  type="date"
-                  value={form.vencimento ?? ""}
-                  onChange={(e) => setForm({ ...form, vencimento: e.target.value || null })}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setAberto(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={mutation.isPending}>
-                {mutation.isPending ? "Salvando…" : "Salvar documento"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
