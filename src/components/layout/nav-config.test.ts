@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { rotaAtiva, visibleAdminNav } from "./nav-config";
+import { rotaAtiva, trilhaDoCaminho, visibleAdminNav } from "./nav-config";
 
 function item(permissoes: unknown, to: string) {
   return visibleAdminNav(permissoes)
@@ -29,7 +29,10 @@ describe("menu com permissões", () => {
     expect(clientes?.to).toBe("/admin/clientes");
     expect(rotaAtiva(eventos!, "/admin/clientes/novo")).toBe(false);
     expect(rotaAtiva(clientes!, "/admin/clientes/novo")).toBe(true);
-    expect(rotaAtiva(eventos!, "/admin/orcamentos")).toBe(false);
+    expect(rotaAtiva(eventos!, "/admin/orcamentos")).toBe(true);
+    expect(
+      visibleAdminNav({}).flatMap((group) => group.items.map((entry) => entry.to)),
+    ).not.toContain("/admin/orcamentos");
   });
 
   it("mantém clientes no menu quando eventos está desligado", () => {
@@ -39,9 +42,10 @@ describe("menu com permissões", () => {
     expect(item({ eventos: false, contatos: true }, "/admin/eventos")).toBeUndefined();
   });
 
-  it("exibe contratos no lugar de documentos", () => {
-    expect(item({}, "/admin/contratos")?.label).toBe("Contratos");
-    expect(item({}, "/admin/documentos")).toBeUndefined();
+  it("exibe documentos no lugar de contratos", () => {
+    expect(item({}, "/admin/documentos")?.label).toBe("Documentos");
+    expect(item({}, "/admin/contratos")).toBeUndefined();
+    expect(item({ documentos: false }, "/admin/documentos")).toBeUndefined();
   });
 
   it("esconde o item quando a permissão da área está desligada", () => {
@@ -49,5 +53,26 @@ describe("menu com permissões", () => {
     const destinos = nav.flatMap((group) => group.items.map((entry) => entry.to));
     expect(destinos).not.toContain("/admin/leads");
     expect(destinos).not.toContain("/admin/agenda");
+    expect(destinos).not.toContain("/admin/atividades");
+  });
+});
+
+describe("trilha de navegação", () => {
+  it("troca o identificador interno por um nome legível", () => {
+    expect(trilhaDoCaminho("/admin/eventos/ee25416e-8dbb-49a3-978a-14226624dc07")).toEqual([
+      "Painel",
+      "Eventos",
+      "Detalhes do evento",
+    ]);
+    expect(trilhaDoCaminho("/cliente/orcamentos/ee25416e-8dbb-49a3-978a-14226624dc07")).toEqual([
+      "Meu portal",
+      "Orçamentos",
+      "Orçamento",
+    ]);
+  });
+
+  it("usa os nomes com acento", () => {
+    expect(trilhaDoCaminho("/admin/servicos")).toEqual(["Painel", "Cardápio"]);
+    expect(trilhaDoCaminho("/admin/configuracoes")[1]).toBe("Configurações");
   });
 });

@@ -9,10 +9,9 @@ import {
   User,
   Users,
   Wallet,
-  History,
   Bell,
-  BriefcaseBusiness,
   PartyPopper,
+  Utensils,
   UserCog,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -52,9 +51,14 @@ export const adminNav: NavGroup[] = [
     items: [
       { label: "Dashboard", to: "/admin", icon: LayoutDashboard },
       { label: "Clientes", to: "/admin/clientes", icon: Users, permission: "contatos" },
-      { label: "Serviços", to: "/admin/servicos", icon: BriefcaseBusiness, permission: "servicos" },
-      { label: "Eventos", to: "/admin/eventos", icon: PartyPopper, permission: "eventos" },
-      { label: "Orçamentos", to: "/admin/orcamentos", icon: FileText, permission: "orcamentos" },
+      { label: "Cardápio", to: "/admin/servicos", icon: Utensils, permission: "servicos" },
+      {
+        label: "Eventos",
+        to: "/admin/eventos",
+        icon: PartyPopper,
+        permission: "eventos",
+        activePrefixes: ["/admin/eventos", "/admin/orcamentos"],
+      },
     ],
   },
   {
@@ -67,9 +71,8 @@ export const adminNav: NavGroup[] = [
     label: "Organização",
     items: [
       { label: "Agenda", to: "/admin/agenda", icon: CalendarDays, permission: "agenda" },
-      { label: "Atividades", to: "/admin/atividades", icon: History, permission: "atividades" },
       { label: "Notificações", to: "/admin/notificacoes", icon: Bell, permission: "notificacoes" },
-      { label: "Contratos", to: "/admin/contratos", icon: FileSignature, permission: "contratos" },
+      { label: "Documentos", to: "/admin/documentos", icon: FileText, permission: "documentos" },
       { label: "Usuários", to: "/admin/usuarios", icon: UserCog, permission: "usuarios" },
       {
         label: "Configurações",
@@ -113,9 +116,50 @@ export const clienteNav: NavGroup[] = [
       { label: "Início", to: "/cliente", icon: Home },
       { label: "Meus eventos", to: "/cliente/eventos", icon: PartyPopper },
       { label: "Orçamentos", to: "/cliente/orcamentos", icon: FileText },
-      { label: "Contratos", to: "/cliente/contratos", icon: FileSignature },
+      { label: "Documentos", to: "/cliente/documentos", icon: FileSignature },
       { label: "Pagamentos", to: "/cliente/pagamentos", icon: Wallet },
       { label: "Perfil", to: "/cliente/perfil", icon: User },
     ],
   },
 ];
+
+const ROTULOS_DO_CAMINHO: Record<string, string> = {
+  admin: "Painel",
+  cliente: "Meu portal",
+  agenda: "Agenda",
+  clientes: "Clientes",
+  configuracoes: "Configurações",
+  custos: "Custos",
+  documentos: "Documentos",
+  eventos: "Eventos",
+  financeiro: "Financeiro",
+  notificacoes: "Notificações",
+  novo: "Novo",
+  orcamentos: "Orçamentos",
+  pagamentos: "Pagamentos",
+  perfil: "Perfil",
+  servicos: "Cardápio",
+  usuarios: "Usuários",
+};
+
+// Nome mostrado no lugar do identificador interno (UUID), conforme a seção anterior do caminho.
+const ROTULOS_DE_REGISTRO: Record<string, string> = {
+  clientes: "Cadastro do cliente",
+  eventos: "Detalhes do evento",
+  orcamentos: "Orçamento",
+};
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Trilha de navegação legível: "/admin/eventos/<id>" → ["Painel", "Eventos", "Detalhes do evento"]. */
+export function trilhaDoCaminho(pathname: string): string[] {
+  const partes = pathname.split("/").filter(Boolean);
+  return partes.map((parte, indice) => {
+    const texto = decodeURIComponent(parte);
+    const anterior = partes[indice - 1] ?? "";
+    return UUID.test(texto)
+      ? (ROTULOS_DE_REGISTRO[anterior] ?? "Detalhes")
+      : (ROTULOS_DO_CAMINHO[texto] ??
+          texto.replace(/-/g, " ").replace(/^\p{L}/u, (letra) => letra.toUpperCase()));
+  });
+}

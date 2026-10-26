@@ -10,25 +10,21 @@ import {
   CreditCard,
   FileText,
   Gem,
-  MessageSquare,
-  PenLine,
   Plus,
-  Send,
   Users,
   Wallet,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { toast } from "sonner";
 
 import { Panel } from "@/components/panel";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { listarEventos } from "@/features/eventos/server-functions";
 import { obterResumoFinanceiro } from "@/features/financeiro/server-functions";
 import { listarOrcamentos } from "@/features/orcamentos/server-functions";
 import { listarPagamentos } from "@/features/pagamentos/server-functions";
-import { formatBRLShort } from "@/lib/format";
+import { formatBRLShort, formatDate } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
+import { rotuloStatusEvento } from "@/lib/status-evento";
 
 export const Route = createFileRoute("/admin/")({
   head: () =>
@@ -69,13 +65,21 @@ const iconeTipo: Record<string, LucideIcon> = {
   Confraternização: Users,
 };
 
+/** "há 5 min", "há 3 h", "há 2 dias" — para destacar pedidos recém-chegados. */
+function tempoDesde(iso: string, agora = Date.now()) {
+  const minutos = Math.max(0, Math.round((agora - new Date(iso).getTime()) / 60_000));
+  if (minutos < 60) return `há ${minutos} min`;
+  const horas = Math.round(minutos / 60);
+  if (horas < 24) return `há ${horas} h`;
+  const dias = Math.round(horas / 24);
+  return `há ${dias} dia${dias === 1 ? "" : "s"}`;
+}
+
 const proximaAcao: Record<string, string> = {
-  Contrato: "Confirmar cardápio",
-  Aprovado: "Abrir evento",
-  Negociação: "Revisar proposta",
   Orçamento: "Enviar proposta",
-  Assinado: "Planejar equipe",
-  Planejamento: "Definir cardápio",
+  Aprovado: "Definir parcelas",
+  Pagamento: "Acompanhar pagamentos",
+  Confirmado: "Baixar PDF do evento",
 };
 
 function IconBox({ icon: Icon, dark }: { icon: LucideIcon; dark?: boolean }) {
@@ -94,35 +98,17 @@ function IconBox({ icon: Icon, dark }: { icon: LucideIcon; dark?: boolean }) {
 
 function Dashboard() {
   const dados = Route.useLoaderData();
-  const statusEvento: Record<string, string> = {
-    PLANEJAMENTO: "Planejamento",
-    ORCAMENTO: "Orçamento",
-    NEGOCIACAO: "Negociação",
-    APROVADO: "Aprovado",
-    CONTRATO: "Contrato",
-    ASSINADO: "Assinado",
-    CONFIRMADO: "Confirmado",
-    REALIZADO: "Realizado",
-    FINALIZADO: "Finalizado",
-    CANCELADO: "Cancelado",
-  };
   const eventos = dados.eventos.map((evento) => ({
     ...evento,
     data: evento.dataEvento.slice(0, 10),
     local: evento.localNome ?? "Local a definir",
     convidados: evento.quantidadeConvidados,
     clienteId: evento.clienteId,
-    status: statusEvento[evento.status] ?? evento.status,
-  }));
-  const orcamentos = dados.orcamentos.map((orcamento) => ({
-    ...orcamento,
-    codigo: `#${orcamento.numero}`,
-    clienteId: orcamento.evento.clienteId,
-    status: orcamento.status === "EM_NEGOCIACAO" ? "Em negociação" : orcamento.status,
+    status: rotuloStatusEvento(evento.status),
   }));
   const parcelas = dados.pagamentos.map((pagamento) => ({
     ...pagamento,
-    clienteId: pagamento.contrato.evento.clienteId,
+    clienteId: pagamento.evento.clienteId,
     vencimento: pagamento.dataVencimento.slice(0, 10),
     valor: Number(pagamento.valor),
     status:
@@ -156,28 +142,41 @@ function Dashboard() {
     .sort((a, b) => a.data.localeCompare(b.data));
   const proximo = futuros[0];
 
-  const atrasada = parcelas.find((p) => p.status === "Atrasado");
-  const negociando = orcamentos.find((o) => o.status === "Em negociação");
-  const pendencias = [
-    negociando && {
-      icon: FileText,
-      titulo: `Retornar proposta de ${nomeCliente(negociando.clienteId).split(" ")[0]}`,
-      meta: `${negociando.codigo} em negociação`,
-      acao: "Preparar retorno",
-    },
-    proximo && {
+  // Pedidos novos (orçamento ainda em rascunho, evento aguardando) primeiro, do mais recente.
+  const pedidosRecentes = dados.orcamentos
+    .filter(
+      (orcamento) => orcamento.status === "RASCUNHO" && orcamento.evento.status === "ORCAMENTO",
+    )
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 5);
+  const pendencias: {
+    id: string;
+    icon: LucideIcon;
+    titulo: string;
+    meta: string;
+    acao: string;
+    eventoId: string;
+  }[] = [
+    ...pedidosRecentes.map((orcamento) => ({
+      id: `pedido-${orcamento.id}`,
       icon: ConciergeBell,
-      titulo: `Confirmar cardápio do ${proximo.nome}`,
-      meta: `Prazo: ${curta(proximo.data)}`,
-      acao: "Revisar cardápio",
-    },
-    atrasada && {
-      icon: CreditCard,
-      titulo: `Parcela de ${nomeCliente(atrasada.clienteId).split(" ")[0]} vencida`,
-      meta: `${formatBRLShort(atrasada.valor)} · venceu em ${curta(atrasada.vencimento)}`,
-      acao: "Ver cobrança",
-    },
-  ].filter(Boolean) as { icon: LucideIcon; titulo: string; meta: string; acao: string }[];
+      titulo: `${orcamento.evento.cliente.nome} - PEDIU ORÇAMENTO`,
+      meta: `${orcamento.evento.tipo} · ${formatDate(orcamento.evento.dataEvento)} · ${tempoDesde(orcamento.createdAt)}`,
+      acao: "Abrir pedido",
+      eventoId: orcamento.eventoId,
+    })),
+    ...parcelas
+      .filter((parcela) => parcela.status === "Atrasado")
+      .slice(0, 3)
+      .map((parcela) => ({
+        id: `parcela-${parcela.id}`,
+        icon: CreditCard,
+        titulo: `Parcela de ${nomeCliente(parcela.clienteId).split(" ")[0]} vencida`,
+        meta: `${formatBRLShort(parcela.valor)} · venceu em ${curta(parcela.vencimento)}`,
+        acao: "Ver cobrança",
+        eventoId: parcela.eventoId,
+      })),
+  ];
 
   const recebido = parcelas.filter((p) => p.status === "Pago").reduce((s, p) => s + p.valor, 0);
   const aReceber = parcelas.filter((p) => p.status === "Pendente").reduce((s, p) => s + p.valor, 0);
@@ -211,14 +210,6 @@ function Dashboard() {
       })),
   ];
 
-  const contar = (st: string[]) => orcamentos.filter((o) => st.includes(o.status)).length;
-  const funil = [
-    { icon: FileText, label: "Novos", total: contar(["Rascunho"]) },
-    { icon: Send, label: "Propostas enviadas", total: contar(["Enviado", "Visualizado"]) },
-    { icon: MessageSquare, label: "Negociação", total: contar(["Em negociação"]) },
-    { icon: PenLine, label: "Aguardando assinatura", total: contar(["Aguardando aprovação"]) },
-  ];
-
   return (
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_340px]">
       {/* Coluna principal */}
@@ -230,13 +221,8 @@ function Dashboard() {
           </div>
           <div className="flex gap-2">
             <Button asChild className="h-11 rounded-xl px-5">
-              <Link to="/admin/orcamentos/novo">
-                <Plus className="size-4" /> Novo orçamento
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="bg-surface h-11 rounded-xl px-5">
               <Link to="/admin/eventos/novo">
-                <CalendarDays className="size-4" /> Novo evento
+                <Plus className="size-4" /> Adicionar evento
               </Link>
             </Button>
           </div>
@@ -249,21 +235,28 @@ function Dashboard() {
               {pendencias.length} pendências
             </span>
           </div>
+          {pendencias.length ? null : (
+            <p className="text-muted-foreground mt-3 text-sm">
+              Nenhum pedido novo ou parcela vencida. Tudo em dia!
+            </p>
+          )}
           <ul className="mt-3 divide-y divide-border">
             {pendencias.map((p) => (
-              <li key={p.titulo} className="flex flex-wrap items-center gap-4 py-3">
+              <li key={p.id} className="flex flex-wrap items-center gap-4 py-3">
                 <p.icon className="text-foreground/70 size-5 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{p.titulo}</p>
                   <p className="text-muted-foreground text-xs">{p.meta}</p>
                 </div>
                 <Button
+                  asChild
                   variant="outline"
                   size="sm"
                   className="bg-surface h-9 min-w-36 rounded-lg"
-                  onClick={() => toast.success(`${p.acao}: aberto.`)}
                 >
-                  {p.acao}
+                  <Link to="/admin/eventos/$id" params={{ id: p.eventoId }}>
+                    {p.acao}
+                  </Link>
                 </Button>
               </li>
             ))}
@@ -410,12 +403,8 @@ function Dashboard() {
             <p className="text-primary-foreground/70 text-sm">
               {curta(proximo.data)} · {proximo.convidados} convidados
             </p>
-            <Progress
-              value={75}
-              className="bg-primary-foreground/20 mt-4 h-2.5 [&>div]:bg-primary-foreground"
-            />
-            <p className="mt-3 text-sm font-medium">Preparação do evento</p>
-            <p className="text-primary-foreground/70 text-xs">6 de 8 tarefas concluídas</p>
+            <p className="mt-4 text-sm font-medium">{proximo.tipo}</p>
+            <p className="text-primary-foreground/70 text-xs">Etapa atual: {proximo.status}</p>
             <Button
               asChild
               variant="secondary"
@@ -455,21 +444,6 @@ function Dashboard() {
           ) : (
             <p className="text-muted-foreground mt-4 text-sm">Nenhum compromisso para hoje.</p>
           )}
-        </Panel>
-
-        <Panel className="p-5">
-          <h2 className="font-display text-base font-semibold">Atendimentos em andamento</h2>
-          <ul className="mt-3 divide-y divide-border">
-            {funil.map((f) => (
-              <li key={f.label}>
-                <Link to="/admin/orcamentos" className="flex items-center gap-3 py-3 text-sm">
-                  <f.icon className="text-foreground/70 size-[18px]" />
-                  <span className="flex-1">{f.label}</span>
-                  <span className="font-display font-bold">{f.total}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
         </Panel>
       </div>
     </div>

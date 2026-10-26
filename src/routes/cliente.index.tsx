@@ -4,7 +4,8 @@ import { PageHeader, Panel, PanelHeader, StatCard } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { currentUser } from "@/features/auth/server-functions";
 import { listarEventos } from "@/features/eventos/server-functions";
-import { listarOrcamentos } from "@/features/orcamentos/server-functions";
+import { ResumoPedido } from "@/features/orcamentos/resumo-pedido";
+import { listarOrcamentos, obterOrcamento } from "@/features/orcamentos/server-functions";
 import { listarPagamentos } from "@/features/pagamentos/server-functions";
 import { formatBRL, formatDate } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
@@ -18,11 +19,15 @@ export const Route = createFileRoute("/cliente/")({
       listarOrcamentos({ data: { page: 1, pageSize: 100 } }),
       listarPagamentos({ data: { page: 1, pageSize: 100 } }),
     ]);
+    // A lista vem do mais recente para o mais antigo: o primeiro é o último pedido feito.
+    const ultimo = orcamentos.items[0];
+    const ultimoPedido = ultimo ? await obterOrcamento({ data: { id: ultimo.id } }) : null;
     return {
       usuario,
       eventos: eventos.items,
       orcamentos: orcamentos.items,
       pagamentos: pagamentos.items,
+      ultimoPedido,
     };
   },
   component: Inicio,
@@ -34,6 +39,7 @@ function Inicio() {
     eventos: meusEventos,
     orcamentos,
     pagamentos: minhasParcelas,
+    ultimoPedido,
   } = Route.useLoaderData();
   const pago = minhasParcelas
     .filter((p) => p.status === "PAGO")
@@ -58,6 +64,24 @@ function Inicio() {
         <StatCard label="A pagar" value={formatBRL(aPagar)} />
         <StatCard label="Orçamentos aguardando você" value={String(orcPend)} />
       </div>
+      {ultimoPedido ? (
+        <Panel className="p-5 sm:p-6">
+          <PanelHeader
+            title="Resumo do seu pedido"
+            subtitle={`Pedido feito em ${formatDate(ultimoPedido.createdAt)}`}
+            action={
+              orcamentos.length > 1 ? (
+                <Link to="/cliente/orcamentos" className="text-brand text-xs font-medium">
+                  Ver todos os pedidos
+                </Link>
+              ) : null
+            }
+          />
+          <div className="mt-4">
+            <ResumoPedido orcamento={ultimoPedido} />
+          </div>
+        </Panel>
+      ) : null}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel className="p-5">
           <PanelHeader title="Meus eventos" />
@@ -65,7 +89,7 @@ function Inicio() {
             {meusEventos.map((e) => (
               <li key={e.id} className="flex items-center justify-between gap-3 py-3">
                 <div>
-                  <p className="text-sm font-medium">{e.nome}</p>
+                  <p className="text-sm font-medium">{e.tipo}</p>
                   <p className="text-muted-foreground text-xs">
                     {formatDate(e.dataEvento)} · {e.localNome ?? "Local a definir"} ·{" "}
                     {e.quantidadeConvidados} convidados
@@ -88,7 +112,7 @@ function Inicio() {
           {proxima ? (
             <div className="bg-surface mt-4 rounded-xl p-4 ring-1 ring-black/5">
               <p className="text-muted-foreground text-xs">
-                {proxima.contrato.evento.nome} · parcela {proxima.numeroParcela}
+                {proxima.evento.nome} · parcela {proxima.numeroParcela}
               </p>
               <p className="font-display mt-1 text-2xl font-semibold">
                 {formatBRL(Number(proxima.valor))}
