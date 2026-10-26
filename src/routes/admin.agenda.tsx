@@ -48,7 +48,7 @@ function Agenda() {
       .map((p) => ({
         data: p.dataVencimento.slice(0, 10),
         titulo: `Parcela ${p.numeroParcela} · ${formatBRL(Number(p.valor))}`,
-        detalhe: p.contrato.evento.nome,
+        detalhe: p.evento.nome,
         tipo: "Vencimento" as const,
         status: p.status,
       })),

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, List, Plus } from "lucide-react";
+import { CalendarDays, Copy, ExternalLink, List, Plus } from "lucide-react";
+import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
@@ -16,7 +17,9 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { listarEventos } from "@/features/eventos/server-functions";
+import { obterLinkFormularioOrcamento } from "@/features/orcamentos/solicitacao-publica";
 import { formatBRL, formatDate } from "@/lib/format";
+import { rotuloStatusEvento } from "@/lib/status-evento";
 
 export const Route = createFileRoute("/admin/eventos/")({
   head: () => ({
@@ -31,25 +34,43 @@ export const Route = createFileRoute("/admin/eventos/")({
       { property: "og:description", content: "Lista e calendário de eventos do buffet." },
     ],
   }),
-  loader: () => listarEventos({ data: { page: 1, pageSize: 100 } }),
+  loader: async () => {
+    const [eventos, formulario] = await Promise.all([
+      listarEventos({ data: { page: 1, pageSize: 100 } }),
+      obterLinkFormularioOrcamento(),
+    ]);
+    return { eventos, formulario };
+  },
   component: EventosPage,
 });
 
 const TODOS = "todos";
+const MAIS_RECENTES = "recentes";
+const MAIS_ANTIGOS = "antigos";
 
 function EventosPage() {
-  const { items: eventos } = Route.useLoaderData();
+  const { eventos: resultado, formulario } = Route.useLoaderData();
+  const eventos = resultado.items;
   const [busca, setBusca] = useState("");
   const [tipo, setTipo] = useState(TODOS);
   const [status, setStatus] = useState(TODOS);
+  const [data, setData] = useState("");
+  const [ordem, setOrdem] = useState(MAIS_RECENTES);
 
-  const lista = eventos.filter(
-    (e) =>
-      (e.nome.toLowerCase().includes(busca.toLowerCase()) ||
-        e.cliente.nome.toLowerCase().includes(busca.toLowerCase())) &&
-      (tipo === TODOS || e.tipo === tipo) &&
-      (status === TODOS || e.status === status),
-  );
+  const lista = eventos
+    .filter(
+      (e) =>
+        (e.nome.toLowerCase().includes(busca.toLowerCase()) ||
+          e.tipo.toLowerCase().includes(busca.toLowerCase()) ||
+          e.cliente.nome.toLowerCase().includes(busca.toLowerCase())) &&
+        (tipo === TODOS || e.tipo === tipo) &&
+        (status === TODOS || e.status === status) &&
+        (!data || e.dataEvento.slice(0, 10) === data),
+    )
+    .sort((a, b) => {
+      const diferenca = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return ordem === MAIS_RECENTES ? diferenca : -diferenca;
+    });
 
   const tipos = Array.from(new Set(eventos.map((e) => e.tipo)));
   const statusList = Array.from(new Set(eventos.map((e) => e.status)));
@@ -67,16 +88,38 @@ function EventosPage() {
         title="Eventos"
         subtitle={`${eventos.length} eventos cadastrados`}
         actions={
-          <Button asChild>
-            <Link to="/admin/eventos/novo">
-              <Plus className="size-4" />
-              Novo evento
-            </Link>
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const link = `${window.location.origin}/solicitar-orcamento/${formulario.token}`;
+                void navigator.clipboard.writeText(link).then(
+                  () =>
+                    toast.success("Link do formulário copiado!", {
+                      description: "Cole no WhatsApp ou e-mail para enviar ao cliente.",
+                    }),
+                  () => toast.error("Não foi possível copiar o link."),
+                );
+              }}
+            >
+              <Copy className="size-4" /> Link para orçamento
+            </Button>
+            <Button variant="outline" asChild>
+              <a href={`/solicitar-orcamento/${formulario.token}`} target="_blank" rel="noreferrer">
+                <ExternalLink className="size-4" /> Abrir formulário
+              </a>
+            </Button>
+            <Button asChild>
+              <Link to="/admin/eventos/novo">
+                <Plus className="size-4" />
+                Novo evento
+              </Link>
+            </Button>
+          </>
         }
       />
       <Panel className="p-5">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
@@ -104,12 +147,26 @@ function EventosPage() {
               <SelectItem value={TODOS}>Todos os status</SelectItem>
               {statusList.map((s) => (
                 <SelectItem key={s} value={s}>
-                  {s}
+                  {rotuloStatusEvento(s)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Input type="date" className="bg-surface border-0 ring-1 ring-black/5" />
+          <Input
+            type="date"
+            value={data}
+            onChange={(event) => setData(event.target.value)}
+            className="bg-surface border-0 ring-1 ring-black/5"
+          />
+          <Select value={ordem} onValueChange={setOrdem}>
+            <SelectTrigger className="bg-surface w-full border-0 ring-1 ring-black/5">
+              <SelectValue placeholder="Ordenar registros" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={MAIS_RECENTES}>Registros mais recentes</SelectItem>
+              <SelectItem value={MAIS_ANTIGOS}>Registros mais antigos</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </Panel>
 
@@ -132,7 +189,7 @@ function EventosPage() {
               />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[960px] text-left text-sm">
+                <table className="w-full min-w-[840px] text-left text-sm">
                   <thead>
                     <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                       <th className="pb-2 font-medium">Evento</th>
@@ -140,7 +197,6 @@ function EventosPage() {
                       <th className="pb-2 font-medium">Data</th>
                       <th className="pb-2 font-medium">Local</th>
                       <th className="pb-2 font-medium">Convidados</th>
-                      <th className="pb-2 font-medium">Contrato</th>
                       <th className="pb-2 font-medium">Valor</th>
                       <th className="pb-2 font-medium">Status</th>
                     </tr>
@@ -154,9 +210,11 @@ function EventosPage() {
                             params={{ id: e.id }}
                             className="font-medium hover:underline"
                           >
-                            {e.nome}
+                            {e.tipo}
                           </Link>
-                          <p className="text-muted-foreground text-[11px]">{e.tipo}</p>
+                          {e.formatoServico ? (
+                            <p className="text-muted-foreground text-[11px]">{e.formatoServico}</p>
+                          ) : null}
                         </td>
                         <td className="text-muted-foreground py-3 pr-3">{e.cliente.nome}</td>
                         <td className="text-muted-foreground py-3 pr-3">
@@ -164,33 +222,8 @@ function EventosPage() {
                         </td>
                         <td className="text-muted-foreground py-3 pr-3">{e.localNome ?? "—"}</td>
                         <td className="py-3 pr-3">{e.quantidadeConvidados}</td>
-                        <td className="py-3 pr-3">
-                          {e.contratos.length ? (
-                            <div className="flex flex-col items-start gap-1">
-                              {e.contratos.map((contrato) => (
-                                <Link
-                                  key={contrato.id}
-                                  to="/admin/contratos/$id"
-                                  params={{ id: contrato.id }}
-                                  className="font-medium hover:underline"
-                                >
-                                  #{contrato.numero.toString()} · {contrato.status}
-                                </Link>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </td>
                         <td className="py-3 pr-3 font-medium">
-                          {e.contratos.length
-                            ? formatBRL(
-                                e.contratos.reduce(
-                                  (total, contrato) => total + Number(contrato.valorTotal),
-                                  0,
-                                ),
-                              )
-                            : "—"}
+                          {e.orcamentos[0] ? formatBRL(Number(e.orcamentos[0].total)) : "—"}
                         </td>
                         <td className="py-3">
                           <StatusBadge status={e.status} />
