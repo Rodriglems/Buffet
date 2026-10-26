@@ -1,5 +1,6 @@
 import "./lib/error-capture";
 
+import { aplicarCabecalhosSeguranca } from "./lib/cabecalhos-seguranca";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 
@@ -44,18 +45,22 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
+const PRODUCAO = process.env["NODE_ENV"] === "production";
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    let response: Response;
     try {
       const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      response = await normalizeCatastrophicSsrResponse(await handler.fetch(request, env, ctx));
     } catch (error) {
       console.error(error);
-      return new Response(renderErrorPage(), {
+      response = new Response(renderErrorPage(), {
         status: 500,
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     }
+    // Aplicado aqui para cobrir todas as respostas, inclusive páginas de erro.
+    return aplicarCabecalhosSeguranca(response, PRODUCAO);
   },
 };
