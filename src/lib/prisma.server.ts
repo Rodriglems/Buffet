@@ -17,9 +17,9 @@ export function getPrisma(): PrismaClient {
   const adapter = new PrismaPg({ connectionString });
   const client = new PrismaClient({ adapter });
 
-  if (process.env["NODE_ENV"] !== "production") {
-    globalForPrisma.prisma = client;
-  }
+  // Um único cliente (e pool de conexões) por processo, também em produção:
+  // criar um por chamada esgotaria as conexões do PostgreSQL.
+  globalForPrisma.prisma = client;
 
   return client;
 }
