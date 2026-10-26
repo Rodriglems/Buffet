@@ -59,7 +59,7 @@ function Financeiro() {
       .map((p) => ({
         id: `r-${p.id}`,
         data: p.dataPagamento ?? p.dataVencimento,
-        descricao: `Recebimento · ${p.contrato.evento.nome} (${p.contrato.evento.cliente.nome})`,
+        descricao: `Recebimento · ${p.evento.nome} (${p.evento.cliente.nome})`,
         tipo: "Entrada" as const,
         valor: Number(p.valor),
       })),

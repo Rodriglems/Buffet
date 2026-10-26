@@ -6,7 +6,7 @@ import { getPrisma } from "@/lib/prisma.server";
 import { requireAuth } from "@/lib/session.server";
 
 export const obterResumoFinanceiro = createServerFn({ method: "GET" })
-  .inputValidator((value: unknown) =>
+  .validator((value: unknown) =>
     z
       .object({ inicio: z.coerce.date(), fim: z.coerce.date() })
       .refine((data) => data.fim >= data.inicio, { message: "Periodo invalido." })
@@ -14,7 +14,7 @@ export const obterResumoFinanceiro = createServerFn({ method: "GET" })
   )
   .handler(async ({ data }) => {
     const auth = await requireAuth("ADMIN");
-    const [recebido, aReceber, custos, contratos] = await getPrisma().$transaction([
+    const [recebido, aReceber, custos, fechados] = await getPrisma().$transaction([
       getPrisma().pagamento.aggregate({
         where: {
           empresaId: auth.empresaId,
@@ -35,13 +35,17 @@ export const obterResumoFinanceiro = createServerFn({ method: "GET" })
         where: { empresaId: auth.empresaId, data: { gte: data.inicio, lte: data.fim } },
         _sum: { valor: true },
       }),
-      getPrisma().contrato.aggregate({
+      // Valor fechado: orçamentos aprovados de eventos não cancelados que acontecem no período.
+      getPrisma().orcamento.aggregate({
         where: {
           empresaId: auth.empresaId,
-          status: "ASSINADO",
-          assinadoEm: { gte: data.inicio, lte: data.fim },
+          status: "APROVADO",
+          evento: {
+            status: { not: "CANCELADO" },
+            dataEvento: { gte: data.inicio, lte: data.fim },
+          },
         },
-        _sum: { valorTotal: true },
+        _sum: { total: true },
       }),
     ]);
     const faturamento = Number(recebido._sum.valor ?? 0);
@@ -49,7 +53,7 @@ export const obterResumoFinanceiro = createServerFn({ method: "GET" })
     return serialize({
       faturamento,
       aReceber: Number(aReceber._sum.valor ?? 0),
-      valorContratado: Number(contratos._sum.valorTotal ?? 0),
+      valorContratado: Number(fechados._sum.total ?? 0),
       custos: despesas,
       lucro: faturamento - despesas,
       margem: faturamento > 0 ? ((faturamento - despesas) / faturamento) * 100 : 0,
