@@ -38,7 +38,9 @@ function nextDate(value: string | Date): string {
 export function createCalendarFile(event: CalendarEvent): string {
   const day = datePart(event.date);
   const hasTime = Boolean(event.startTime);
-  const start = hasTime ? `DTSTART:${day}T${timePart(event.startTime!)}` : `DTSTART;VALUE=DATE:${day}`;
+  const start = hasTime
+    ? `DTSTART:${day}T${timePart(event.startTime!)}`
+    : `DTSTART;VALUE=DATE:${day}`;
   const end = event.endTime
     ? `DTEND:${day}T${timePart(event.endTime)}`
     : hasTime
@@ -52,7 +54,10 @@ export function createCalendarFile(event: CalendarEvent): string {
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
     `UID:${event.id}@mesa-buffet`,
-    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")}`,
+    `DTSTAMP:${new Date()
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}/, "")}`,
     start,
     end,
     `SUMMARY:${escapeIcs(event.title)}`,
