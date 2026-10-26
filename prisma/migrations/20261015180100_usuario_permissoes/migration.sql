@@ -1,1 +1,1 @@
-﻿ALTER TABLE "usuarios" ADD COLUMN "permissoes" JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE "usuarios" ADD COLUMN "permissoes" JSONB NOT NULL DEFAULT '{}';
