@@ -17,7 +17,7 @@ const custo = z.object({
 const id = z.object({ id: z.string().uuid() });
 
 export const listarCustos = createServerFn({ method: "GET" })
-  .inputValidator((value: unknown) =>
+  .validator((value: unknown) =>
     z
       .object({
         page: z.number().int().positive().default(1),
@@ -46,7 +46,7 @@ export const listarCustos = createServerFn({ method: "GET" })
   });
 
 export const criarCusto = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => custo.parse(value))
+  .validator((value: unknown) => custo.parse(value))
   .handler(async ({ data }) => {
     const auth = await requirePermission("custos");
     const evento = await getPrisma().evento.findFirst({
@@ -61,7 +61,7 @@ export const criarCusto = createServerFn({ method: "POST" })
   });
 
 export const atualizarCusto = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => id.extend({ dados: custo.partial() }).parse(value))
+  .validator((value: unknown) => id.extend({ dados: custo.partial() }).parse(value))
   .handler(async ({ data }) => {
     const auth = await requirePermission("custos");
     const found = await getPrisma().custo.findFirst({
@@ -76,7 +76,7 @@ export const atualizarCusto = createServerFn({ method: "POST" })
   });
 
 export const excluirCusto = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => id.parse(value))
+  .validator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
     const auth = await requirePermission("custos");
     const result = await getPrisma().custo.deleteMany({

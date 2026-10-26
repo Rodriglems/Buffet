@@ -27,7 +27,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Acesse o painel Mesly para gerenciar clientes, eventos, orçamentos, contratos e pagamentos do seu buffet.",
+          "Acesse o painel Mesly para gerenciar clientes, eventos, orçamentos, documentos e pagamentos do seu buffet.",
       },
       { property: "og:title", content: "Entrar — Mesly" },
       {
@@ -47,7 +47,7 @@ const destaques = [
   },
   {
     icon: FileSignature,
-    titulo: "Orçamentos e contratos",
+    titulo: "Orçamentos e documentos",
     texto: "Propostas e documentos organizados em um só lugar.",
   },
   {
@@ -73,7 +73,7 @@ function Logo({ inverso = false }: { inverso?: boolean }) {
         <p
           className={`font-display text-lg font-semibold tracking-tight ${inverso ? "text-white" : ""}`}
         >
-          mesly
+          Mesly
         </p>
         <p className={`text-xs ${inverso ? "text-white/60" : "text-muted-foreground"}`}>
           Buffet &amp; Eventos

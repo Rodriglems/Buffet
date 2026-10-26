@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { firstZodError } from "@/features/shared/validation/errors";
-import { pagination, registrarAtividade, serialize } from "@/lib/domain.server";
+import { pagination, serialize } from "@/lib/domain.server";
 import { Prisma } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma.server";
 import {
@@ -134,7 +134,7 @@ const listSchema = z.object({
 });
 
 export const listarClientes = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => listSchema.parse(input ?? {}))
+  .validator((input: unknown) => listSchema.parse(input ?? {}))
   .handler(async ({ data }) => {
     const auth = await requireAnyPermission(["contatos", "eventos", "usuarios"]);
     const where = {
@@ -161,7 +161,7 @@ export const listarClientes = createServerFn({ method: "GET" })
   });
 
 export const obterCliente = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => idSchema.parse(input))
+  .validator((input: unknown) => idSchema.parse(input))
   .handler(async ({ data }) => {
     const auth = await requireAuth();
     assertAdminPermission(auth, "contatos");
@@ -178,7 +178,7 @@ export const obterCliente = createServerFn({ method: "GET" })
   });
 
 export const criarCliente = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => lerCliente(input))
+  .validator((input: unknown) => lerCliente(input))
   .handler(async ({ data }) => {
     const auth = await requirePermission("contatos");
     try {
@@ -191,12 +191,6 @@ export const criarCliente = createServerFn({ method: "POST" })
             ...(usuarioId ? { usuarioId } : {}),
           },
         });
-        await registrarAtividade(tx, auth, {
-          tipo: "CLIENTE_CRIADO",
-          descricao: `Cliente ${cliente.nome} cadastrado.`,
-          entidadeTipo: "CLIENTE",
-          entidadeId: cliente.id,
-        });
         return serialize(cliente);
       });
     } catch (error) {
@@ -205,7 +199,7 @@ export const criarCliente = createServerFn({ method: "POST" })
   });
 
 export const atualizarCliente = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => {
+  .validator((input: unknown) => {
     const bruto = z
       .object({ id: z.string().uuid("Cliente inválido."), dados: z.unknown() })
       .safeParse(input);
@@ -228,7 +222,7 @@ export const atualizarCliente = createServerFn({ method: "POST" })
   });
 
 export const excluirCliente = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => idSchema.parse(input))
+  .validator((input: unknown) => idSchema.parse(input))
   .handler(async ({ data }) => {
     const auth = await requirePermission("contatos");
     const existing = await getPrisma().cliente.findFirst({

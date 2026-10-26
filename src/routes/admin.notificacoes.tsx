@@ -16,7 +16,7 @@ import { pageMeta } from "@/lib/meta";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/notificacoes")({
-  head: () => pageMeta("Notificações", "Alertas de contratos, pagamentos, orçamentos e eventos."),
+  head: () => pageMeta("Notificações", "Alertas de pagamentos, orçamentos e eventos."),
   loader: () => listarNotificacoes({ data: { page: 1, pageSize: 100, apenasNaoLidas: false } }),
   component: Notificacoes,
 });

@@ -1,31 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
-import type { AuthContext } from "@/lib/session.server";
-
 type Transaction = Prisma.TransactionClient;
-
-export async function registrarAtividade(
-  tx: Transaction,
-  auth: AuthContext,
-  input: {
-    tipo: string;
-    descricao: string;
-    entidadeTipo?: string;
-    entidadeId?: string;
-    metadata?: Prisma.InputJsonValue;
-  },
-): Promise<void> {
-  await tx.atividade.create({
-    data: {
-      empresaId: auth.empresaId,
-      usuarioId: auth.usuarioId,
-      tipo: input.tipo,
-      descricao: input.descricao,
-      ...(input.entidadeTipo ? { entidadeTipo: input.entidadeTipo } : {}),
-      ...(input.entidadeId ? { entidadeId: input.entidadeId } : {}),
-      metadata: input.metadata ?? {},
-    },
-  });
-}
 
 export async function notificar(
   tx: Transaction,
