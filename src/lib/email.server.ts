@@ -61,6 +61,22 @@ function escapeHtml(value: string): string {
   );
 }
 
+export async function enviarEmail(input: {
+  destinatario: string;
+  assunto: string;
+  texto: string;
+  html?: string;
+}): Promise<void> {
+  const config = getEmailConfig();
+  await getTransporter(config).sendMail({
+    from: config.from,
+    to: input.destinatario,
+    subject: input.assunto,
+    text: input.texto,
+    html: input.html,
+  });
+}
+
 export async function enviarEmailRecuperacaoSenha(input: {
   destinatario: string;
   nome: string;

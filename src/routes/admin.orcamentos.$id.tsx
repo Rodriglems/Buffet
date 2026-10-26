@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { obterEmpresa } from "@/features/empresa/server-functions";
+import { DescontoOrcamento } from "@/features/orcamentos/desconto-orcamento";
 import {
   aprovarOrcamento,
   enviarOrcamento,
@@ -145,21 +146,20 @@ function DetalheOrcamento() {
                 Enviar mensagem
               </Button>
             ) : null}
-            {!orcamento.contratos.length &&
-            ["ENVIADO", "VISUALIZADO", "AGUARDANDO_APROVACAO", "EM_NEGOCIACAO"].includes(
+            {["ENVIADO", "VISUALIZADO", "AGUARDANDO_APROVACAO", "EM_NEGOCIACAO"].includes(
               orcamento.status,
             ) ? (
               <Button
                 onClick={() =>
                   void aprovar({ data: { id: orcamento.id } })
                     .then(async () => {
-                      toast.success("Contrato gerado a partir do orçamento.");
+                      toast.success("Orçamento aprovado. O evento passou para “Aprovado”.");
                       await router.invalidate();
                     })
-                    .catch(() => toast.error("Não foi possível gerar o contrato."))
+                    .catch(() => toast.error("Não foi possível aprovar o orçamento."))
                 }
               >
-                Gerar contrato
+                Aprovar orçamento
               </Button>
             ) : null}
           </>
@@ -257,12 +257,20 @@ function DetalheOrcamento() {
                   <span>{formatBRL(subtotal)}</span>
                 </div>
                 <div className="flex justify-between py-1">
-                  <span className="text-muted-foreground">Desconto</span>
+                  <span className="text-muted-foreground">
+                    Desconto
+                    {dados.orcamento.tipoDesconto === "PERCENTUAL"
+                      ? ` (${Number(dados.orcamento.descontoValor)}%)`
+                      : ""}
+                  </span>
                   <span className="text-destructive">− {formatBRL(desconto)}</span>
                 </div>
                 <div className="mt-2 flex justify-between border-t border-border pt-3">
                   <span className="font-display font-semibold">Valor total</span>
                   <span className="font-display text-lg font-semibold">{formatBRL(total)}</span>
+                </div>
+                <div className="mt-5 border-t border-border pt-4 empty:hidden">
+                  <DescontoOrcamento orcamento={dados.orcamento} />
                 </div>
               </div>
             </div>
@@ -287,21 +295,6 @@ function DetalheOrcamento() {
                 )}
               </div>
             )}
-
-            <div className="mt-6 flex flex-wrap justify-end gap-2 border-t border-border pt-6">
-              <Button
-                variant="outline"
-                onClick={() => toast("Solicitação de alteração registrada.")}
-              >
-                Solicitar alteração
-              </Button>
-              <Button variant="outline" onClick={() => toast.error("Orçamento rejeitado.")}>
-                Rejeitar
-              </Button>
-              <Button onClick={() => toast.success("Orçamento aprovado.")}>
-                Aprovar orçamento
-              </Button>
-            </div>
           </Panel>
         </TabsContent>
 
