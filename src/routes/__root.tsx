@@ -9,6 +9,8 @@ import {
 } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 
+import { ConfirmacaoProvider } from "@/components/confirmacao-provider";
+import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
@@ -77,7 +79,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Plataforma de gestão para empresas de buffet: clientes, eventos, orçamentos, contratos e financeiro em um só lugar.",
+          "Plataforma de gestão para empresas de buffet: clientes, eventos, orçamentos, documentos e financeiro em um só lugar.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -116,6 +118,8 @@ function RootShell({ children }: { children: ReactNode }) {
       </head>
       <body>
         {children}
+        {/* Exibe os avisos (toast) chamados em todo o sistema, ex.: "Link copiado". */}
+        <Toaster position="top-center" richColors closeButton />
         <Scripts />
       </body>
     </html>
@@ -127,8 +131,10 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <ConfirmacaoProvider>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </ConfirmacaoProvider>
     </QueryClientProvider>
   );
 }

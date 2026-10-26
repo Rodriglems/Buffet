@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { excluirCliente, listarClientes } from "@/features/clientes/server-functions";
+import { useConfirmar } from "@/lib/confirmacao";
 import { formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/clientes/")({
@@ -39,9 +40,16 @@ function ClientesPage() {
   const excluir = useServerFn(excluirCliente);
   const [busca, setBusca] = useState("");
   const { items: clientes } = Route.useLoaderData();
+  const confirmar = useConfirmar();
 
   async function remover(id: string, nome: string) {
-    if (!window.confirm(`Excluir o cliente ${nome}?`)) return;
+    const ok = await confirmar({
+      titulo: `Excluir o cliente ${nome}?`,
+      descricao: "Essa ação não pode ser desfeita.",
+      textoConfirmar: "Excluir cliente",
+      perigoso: true,
+    });
+    if (!ok) return;
     try {
       await excluir({ data: { id } });
       toast.success("Cliente excluído.");
@@ -150,9 +158,6 @@ function ClientesPage() {
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <Link to="/admin/eventos/novo">Criar evento</Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link to="/admin/orcamentos/novo">Criar orçamento</Link>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
