@@ -22,6 +22,7 @@ test("valida e normaliza documentos brasileiros", () => {
 
 test("normaliza dados de contato e endereço", () => {
   assert.equal(phoneSchema.parse("(11) 91234-5678"), "+5511912345678");
+  assert.equal(phoneSchema.parse("+55 (86) 99999-9999"), "+5586999999999");
   assert.equal(cepSchema.parse("01310-100"), "01310100");
   assert.equal(ufSchema.parse("sp"), "SP");
 });

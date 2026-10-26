@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { STATUS_EVENTO } from "@/lib/status-evento";
+
 import {
   cepSchema,
   cnpjSchema,
@@ -58,18 +60,7 @@ export const statusLeadSchema = z.enum([
   "CONVERTIDO",
   "PERDIDO",
 ]);
-export const statusEventoSchema = z.enum([
-  "PLANEJAMENTO",
-  "ORCAMENTO",
-  "NEGOCIACAO",
-  "APROVADO",
-  "CONTRATO",
-  "ASSINADO",
-  "CONFIRMADO",
-  "REALIZADO",
-  "FINALIZADO",
-  "CANCELADO",
-]);
+export const statusEventoSchema = z.enum(STATUS_EVENTO);
 export const statusOrcamentoSchema = z.enum([
   "RASCUNHO",
   "ENVIADO",
@@ -81,15 +72,6 @@ export const statusOrcamentoSchema = z.enum([
   "EXPIRADO",
   "CANCELADO",
 ]);
-export const statusContratoSchema = z.enum([
-  "RASCUNHO",
-  "ENVIADO",
-  "AGUARDANDO_ASSINATURA",
-  "ASSINADO",
-  "CANCELADO",
-]);
-export const tipoAssinaturaSchema = z.enum(["CLIENTE"]);
-export const statusAssinaturaSchema = z.enum(["PENDENTE", "ASSINADA", "RECUSADA", "CANCELADA"]);
 export const statusPagamentoSchema = z.enum(["PENDENTE", "PAGO", "ATRASADO", "CANCELADO"]);
 export const tipoDocumentoSchema = z.enum([
   "CONTRATO",
@@ -297,95 +279,9 @@ export const orcamentoItemUpdateSchema = orcamentoItemFields
   .strict()
   .superRefine(validateItemTotal);
 
-const contratoFields = z.object({
-  empresaId: uuidSchema,
-  eventoId: uuidSchema,
-  orcamentoId: uuidSchema,
-  numero: positiveBigIntSchema,
-  status: statusContratoSchema.optional(),
-  valorTotal: positiveMoneySchema,
-  conteudo: optionalText(100_000),
-  documentoUrl: optionalUrl,
-  enviadoEm: optionalDateTime,
-  assinadoEm: optionalDateTime,
-});
-function validateContract(
-  value: {
-    status?: z.infer<typeof statusContratoSchema>;
-    enviadoEm?: Date;
-    assinadoEm?: Date;
-  },
-  ctx: z.RefinementCtx,
-) {
-  if (
-    value.status &&
-    ["ENVIADO", "AGUARDANDO_ASSINATURA", "ASSINADO"].includes(value.status) &&
-    !value.enviadoEm
-  ) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["enviadoEm"],
-      message: "Informe quando o contrato foi enviado",
-    });
-  }
-  if (value.status === "ASSINADO" && !value.assinadoEm) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["assinadoEm"],
-      message: "Contrato assinado exige data da assinatura",
-    });
-  }
-  if (value.enviadoEm && value.assinadoEm && value.assinadoEm < value.enviadoEm) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["assinadoEm"],
-      message: "A assinatura não pode anteceder o envio",
-    });
-  }
-}
-export const contratoCreateSchema = contratoFields.strict().superRefine(validateContract);
-export const contratoUpdateSchema = contratoFields.partial().strict().superRefine(validateContract);
-
-const assinaturaFields = z.object({
-  contratoId: uuidSchema,
-  usuarioId: uuidSchema,
-  tipo: tipoAssinaturaSchema.optional(),
-  status: statusAssinaturaSchema.optional(),
-  assinadoEm: optionalDateTime,
-  ip: z.preprocess(emptyStringToUndefined, z.string().ip().optional()),
-  userAgent: optionalText(1_000),
-});
-function validateSignature(
-  value: {
-    status?: z.infer<typeof statusAssinaturaSchema>;
-    assinadoEm?: Date;
-  },
-  ctx: z.RefinementCtx,
-) {
-  if (value.status === "ASSINADA" && !value.assinadoEm) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["assinadoEm"],
-      message: "Assinatura concluída exige data",
-    });
-  }
-  if (value.status && value.status !== "ASSINADA" && value.assinadoEm !== undefined) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["assinadoEm"],
-      message: "Somente assinaturas concluídas podem ter data de assinatura",
-    });
-  }
-}
-export const assinaturaCreateSchema = assinaturaFields.strict().superRefine(validateSignature);
-export const assinaturaUpdateSchema = assinaturaFields
-  .partial()
-  .strict()
-  .superRefine(validateSignature);
-
 const pagamentoFields = z.object({
   empresaId: uuidSchema,
-  contratoId: uuidSchema,
+  eventoId: uuidSchema,
   numeroParcela: positiveIntegerSchema,
   descricao: optionalText(1_000),
   valor: positiveMoneySchema,
@@ -436,33 +332,6 @@ const custoFields = z.object({
 export const custoCreateSchema = custoFields.strict();
 export const custoUpdateSchema = custoFields.partial().strict();
 
-const atividadeFields = z.object({
-  empresaId: uuidSchema,
-  usuarioId: optionalUuid,
-  tipo: requiredText("Tipo", 120),
-  descricao: requiredText("Descrição", 2_000),
-  entidadeTipo: optionalText(120),
-  entidadeId: optionalUuid,
-  metadata: z.record(z.unknown()).optional(),
-});
-function validateActivity(
-  value: { entidadeTipo?: string; entidadeId?: string },
-  ctx: z.RefinementCtx,
-) {
-  if (Boolean(value.entidadeTipo) !== Boolean(value.entidadeId)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: value.entidadeTipo ? ["entidadeId"] : ["entidadeTipo"],
-      message: "Tipo e ID da entidade devem ser informados juntos",
-    });
-  }
-}
-export const atividadeCreateSchema = atividadeFields.strict().superRefine(validateActivity);
-export const atividadeUpdateSchema = atividadeFields
-  .partial()
-  .strict()
-  .superRefine(validateActivity);
-
 const notificacaoFields = z.object({
   usuarioId: uuidSchema,
   tipo: requiredText("Tipo", 120),
@@ -498,7 +367,6 @@ const documentoFields = z.object({
   usuarioId: optionalUuid,
   clienteId: optionalUuid,
   eventoId: optionalUuid,
-  contratoId: optionalUuid,
   nome: requiredText("Nome"),
   tipo: tipoDocumentoSchema,
   url: z.string().trim().url("URL inválida").max(2_048),
@@ -519,11 +387,8 @@ export type EventoCreate = z.output<typeof eventoCreateSchema>;
 export type ServicoCreate = z.output<typeof servicoCreateSchema>;
 export type OrcamentoCreate = z.output<typeof orcamentoCreateSchema>;
 export type OrcamentoItemCreate = z.output<typeof orcamentoItemCreateSchema>;
-export type ContratoCreate = z.output<typeof contratoCreateSchema>;
-export type AssinaturaCreate = z.output<typeof assinaturaCreateSchema>;
 export type PagamentoCreate = z.output<typeof pagamentoCreateSchema>;
 export type CustoCreate = z.output<typeof custoCreateSchema>;
-export type AtividadeCreate = z.output<typeof atividadeCreateSchema>;
 export type NotificacaoCreate = z.output<typeof notificacaoCreateSchema>;
 export type DocumentoCreate = z.output<typeof documentoCreateSchema>;
 export type EmpresaUpdate = z.output<typeof empresaUpdateSchema>;
@@ -534,10 +399,7 @@ export type EventoUpdate = z.output<typeof eventoUpdateSchema>;
 export type ServicoUpdate = z.output<typeof servicoUpdateSchema>;
 export type OrcamentoUpdate = z.output<typeof orcamentoUpdateSchema>;
 export type OrcamentoItemUpdate = z.output<typeof orcamentoItemUpdateSchema>;
-export type ContratoUpdate = z.output<typeof contratoUpdateSchema>;
-export type AssinaturaUpdate = z.output<typeof assinaturaUpdateSchema>;
 export type PagamentoUpdate = z.output<typeof pagamentoUpdateSchema>;
 export type CustoUpdate = z.output<typeof custoUpdateSchema>;
-export type AtividadeUpdate = z.output<typeof atividadeUpdateSchema>;
 export type NotificacaoUpdate = z.output<typeof notificacaoUpdateSchema>;
 export type DocumentoUpdate = z.output<typeof documentoUpdateSchema>;
