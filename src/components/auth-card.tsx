@@ -21,7 +21,7 @@ export function AuthCard({
             <span className="font-display text-lg leading-none font-semibold">M</span>
           </div>
           <div className="leading-tight">
-            <p className="font-display text-lg font-semibold tracking-tight">mesly</p>
+            <p className="font-display text-lg font-semibold tracking-tight">Mesly</p>
             <p className="text-muted-foreground text-xs">Buffet &amp; Eventos</p>
           </div>
         </Link>

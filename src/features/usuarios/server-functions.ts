@@ -24,7 +24,7 @@ const novoUsuario = z.object({
 const id = z.object({ id: z.string().uuid() });
 
 export const listarUsuarios = createServerFn({ method: "GET" })
-  .inputValidator((value: unknown) =>
+  .validator((value: unknown) =>
     z
       .object({
         page: z.number().int().positive().default(1),
@@ -58,7 +58,7 @@ export const listarUsuarios = createServerFn({ method: "GET" })
   });
 
 export const criarUsuario = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => {
+  .validator((value: unknown) => {
     const result = novoUsuario.safeParse(value);
     if (!result.success) throw new Error(result.error.issues[0]?.message ?? "Dados inválidos.");
     return result.data;
@@ -107,7 +107,7 @@ export const criarUsuario = createServerFn({ method: "POST" })
   });
 
 export const atualizarUsuario = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) =>
+  .validator((value: unknown) =>
     id
       .extend({
         nome: z.string().trim().min(2).max(160).optional(),
@@ -137,7 +137,7 @@ export const atualizarUsuario = createServerFn({ method: "POST" })
   });
 
 export const excluirUsuario = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => id.parse(value))
+  .validator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
     const auth = await requirePermission("usuarios");
     if (data.id === auth.usuarioId) throw new Error("Voce nao pode excluir seu proprio usuario.");
@@ -157,7 +157,7 @@ const permissoesInput = z.object(
 );
 
 export const atualizarPermissoes = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) =>
+  .validator((value: unknown) =>
     z.object({ id: z.string().uuid(), permissoes: permissoesInput }).parse(value),
   )
   .handler(async ({ data }) => {
@@ -196,7 +196,7 @@ export const obterMeuPerfil = createServerFn({ method: "GET" }).handler(async ()
 });
 
 export const atualizarMeuPerfil = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) =>
+  .validator((value: unknown) =>
     z
       .object({
         nome: z.string().trim().min(2).max(160),
