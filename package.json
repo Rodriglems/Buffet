@@ -11,6 +11,7 @@
     "build": "prisma generate && vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "start": "prisma migrate deploy && node .output/server/index.mjs",
     "check": "npm run typecheck && npm run lint && npm test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
