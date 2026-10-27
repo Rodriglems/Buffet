@@ -23,6 +23,10 @@ WORKDIR /app
 
 RUN chown node:node /app
 COPY --from=build --chown=node:node /app/.output ./.output
+# Prisma CLI e migrations, para o comando de release `npx prisma migrate deploy`.
+COPY --from=build --chown=node:node /app/package.json /app/prisma.config.ts ./
+COPY --from=build --chown=node:node /app/prisma ./prisma
+COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
 
 USER node
 
