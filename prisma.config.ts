@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -8,6 +8,8 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    // Opcional aqui: o build (prisma generate) não acessa o banco e roda sem a variável.
+    // Migrations continuam exigindo a DATABASE_URL e falham com aviso se ela faltar.
+    url: process.env["DATABASE_URL"] ?? "",
   },
 });
