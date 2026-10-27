@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { notificar, pagination, registrarAtividade, serialize } from "@/lib/domain.server";
+import { calcularDescontoOrcamento } from "@/features/orcamentos/calculos";
+import { notificar, pagination, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
 import { requireAuth, requirePermission } from "@/lib/session.server";
 
@@ -21,6 +22,7 @@ const item = z
 const orcamento = z.object({
   eventoId: z.string().uuid(),
   validade: z.coerce.date().nullable().optional(),
+  tipoDesconto: z.enum(["VALOR_FIXO", "PERCENTUAL"]).default("VALOR_FIXO"),
   desconto: z.coerce.number().nonnegative().default(0),
   observacoes: z.string().trim().max(5000).nullable().optional(),
   itens: z.array(item).min(1).max(200),
@@ -29,11 +31,12 @@ const id = z.object({ id: z.string().uuid() });
 const money = (value: number) => value.toFixed(2);
 
 export const listarOrcamentos = createServerFn({ method: "GET" })
-  .inputValidator((value: unknown) =>
+  .validator((value: unknown) =>
     z
       .object({
         page: z.number().int().positive().default(1),
         pageSize: z.number().int().min(1).max(100).default(20),
+        clienteId: z.string().uuid().optional(),
       })
       .parse(value ?? {}),
   )
@@ -41,6 +44,7 @@ export const listarOrcamentos = createServerFn({ method: "GET" })
     const auth = await requireAuth();
     const where = {
       empresaId: auth.empresaId,
+      ...(data.clienteId ? { evento: { clienteId: data.clienteId } } : {}),
       ...(auth.role === "CLIENT" ? { evento: { cliente: { usuarioId: auth.usuarioId } } } : {}),
     };
     const [items, total] = await getPrisma().$transaction([
@@ -59,7 +63,7 @@ export const listarOrcamentos = createServerFn({ method: "GET" })
   });
 
 export const obterOrcamento = createServerFn({ method: "GET" })
-  .inputValidator((value: unknown) => id.parse(value))
+  .validator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
     const auth = await requireAuth();
     const result = await getPrisma().orcamento.findFirst({
@@ -71,7 +75,6 @@ export const obterOrcamento = createServerFn({ method: "GET" })
       include: {
         itens: { include: { servico: true } },
         evento: { include: { cliente: true } },
-        contratos: true,
       },
     });
     if (!result) throw new Error("Orcamento nao encontrado.");
@@ -85,7 +88,7 @@ export const obterOrcamento = createServerFn({ method: "GET" })
   });
 
 export const criarOrcamento = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => orcamento.parse(value))
+  .validator((value: unknown) => orcamento.parse(value))
   .handler(async ({ data }) => {
     const auth = await requirePermission("orcamentos");
     return getPrisma().$transaction(async (tx) => {
@@ -109,16 +112,18 @@ export const criarOrcamento = createServerFn({ method: "POST" })
         (sum, entry) => sum + entry.quantidade * entry.valorUnitario - entry.desconto,
         0,
       );
-      if (data.desconto > subtotal) throw new Error("Desconto maior que o subtotal.");
+      const valores = calcularDescontoOrcamento(subtotal, data.tipoDesconto, data.desconto);
       const created = await tx.orcamento.create({
         data: {
           empresaId: auth.empresaId,
           eventoId: data.eventoId,
           numero: (ultimo?.numero ?? 0n) + 1n,
           validade: data.validade,
-          subtotal: money(subtotal),
-          desconto: money(data.desconto),
-          total: money(subtotal - data.desconto),
+          subtotal: money(valores.subtotal),
+          tipoDesconto: data.tipoDesconto,
+          descontoValor: money(data.desconto),
+          desconto: money(valores.desconto),
+          total: money(valores.total),
           observacoes: data.observacoes,
           itens: {
             create: data.itens.map((entry) => ({
@@ -135,33 +140,119 @@ export const criarOrcamento = createServerFn({ method: "POST" })
         include: { itens: true },
       });
       await tx.evento.update({ where: { id: evento.id }, data: { status: "ORCAMENTO" } });
-      await registrarAtividade(tx, auth, {
-        tipo: "ORCAMENTO_CRIADO",
-        descricao: `Orcamento ${created.numero.toString()} criado.`,
-        entidadeTipo: "ORCAMENTO",
-        entidadeId: created.id,
-      });
       return serialize(created);
     });
   });
 
 export const excluirOrcamento = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => id.parse(value))
+  .validator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
     const auth = await requirePermission("orcamentos");
     const found = await getPrisma().orcamento.findFirst({
       where: { id: data.id, empresaId: auth.empresaId },
-      include: { _count: { select: { contratos: true } } },
     });
     if (!found) throw new Error("Orcamento nao encontrado.");
-    if (found.status !== "RASCUNHO" || found._count.contratos)
-      throw new Error("Somente rascunhos sem contrato podem ser excluidos.");
+    if (found.status !== "RASCUNHO") throw new Error("Somente rascunhos podem ser excluidos.");
     await getPrisma().orcamento.delete({ where: { id: found.id } });
     return { ok: true };
   });
 
+export const atualizarDescontoOrcamento = createServerFn({ method: "POST" })
+  .validator((value: unknown) =>
+    id
+      .extend({
+        tipoDesconto: z.enum(["VALOR_FIXO", "PERCENTUAL"]),
+        desconto: z.coerce.number().nonnegative(),
+      })
+      .parse(value),
+  )
+  .handler(async ({ data }) => {
+    const auth = await requirePermission("orcamentos");
+    return getPrisma().$transaction(async (tx) => {
+      const found = await tx.orcamento.findFirst({
+        where: { id: data.id, empresaId: auth.empresaId },
+      });
+      if (!found) throw new Error("Orçamento não encontrado.");
+      // O desconto continua liberado após a aprovação: o administrador negocia pelo evento.
+      if (["REJEITADO", "EXPIRADO", "CANCELADO"].includes(found.status)) {
+        throw new Error("O desconto não pode ser alterado neste orçamento.");
+      }
+
+      const valores = calcularDescontoOrcamento(
+        Number(found.subtotal),
+        data.tipoDesconto,
+        data.desconto,
+      );
+      const atualizado = await tx.orcamento.update({
+        where: { id: found.id },
+        data: {
+          tipoDesconto: data.tipoDesconto,
+          descontoValor: money(data.desconto),
+          desconto: money(valores.desconto),
+          total: money(valores.total),
+        },
+      });
+      return serialize(atualizado);
+    });
+  });
+
+/** Substitui os itens do orçamento (remover, adicionar ou alterar) e recalcula os totais. */
+export const atualizarItensOrcamento = createServerFn({ method: "POST" })
+  .validator((value: unknown) => id.extend({ itens: z.array(item).min(1).max(200) }).parse(value))
+  .handler(async ({ data }) => {
+    const auth = await requirePermission("orcamentos");
+    return getPrisma().$transaction(async (tx) => {
+      const found = await tx.orcamento.findFirst({
+        where: { id: data.id, empresaId: auth.empresaId },
+      });
+      if (!found) throw new Error("Orçamento não encontrado.");
+      if (["REJEITADO", "EXPIRADO", "CANCELADO"].includes(found.status)) {
+        throw new Error("Este orçamento não pode mais ser editado.");
+      }
+      const servicoIds = data.itens.flatMap((entry) => (entry.servicoId ? [entry.servicoId] : []));
+      const validos = await tx.servico.count({
+        where: { empresaId: auth.empresaId, id: { in: servicoIds } },
+      });
+      if (validos !== new Set(servicoIds).size) {
+        throw new Error("Um ou mais itens do cardápio são inválidos.");
+      }
+
+      const subtotal = data.itens.reduce(
+        (sum, entry) => sum + entry.quantidade * entry.valorUnitario - entry.desconto,
+        0,
+      );
+      // Mantém o desconto combinado; se ficar maior que o novo subtotal, o cálculo recusa.
+      const valores = calcularDescontoOrcamento(
+        subtotal,
+        found.tipoDesconto,
+        Number(found.descontoValor),
+      );
+      await tx.orcamentoItem.deleteMany({ where: { orcamentoId: found.id } });
+      const atualizado = await tx.orcamento.update({
+        where: { id: found.id },
+        data: {
+          subtotal: money(valores.subtotal),
+          desconto: money(valores.desconto),
+          total: money(valores.total),
+          itens: {
+            create: data.itens.map((entry) => ({
+              servicoId: entry.servicoId,
+              descricao: entry.descricao,
+              quantidade: entry.quantidade.toString(),
+              unidade: entry.unidade,
+              valorUnitario: money(entry.valorUnitario),
+              desconto: money(entry.desconto),
+              valorTotal: money(entry.quantidade * entry.valorUnitario - entry.desconto),
+            })),
+          },
+        },
+      });
+      return serialize(atualizado);
+    });
+  });
+
 export const enviarOrcamento = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) =>
+  .validator((value: unknown) =>
     id.extend({ mensagem: z.string().trim().max(2000).nullable().optional() }).parse(value),
   )
   .handler(async ({ data }) => {
@@ -184,12 +275,6 @@ export const enviarOrcamento = createServerFn({ method: "POST" })
             data.mensagem || `O orçamento ${found.numero.toString()} está disponível para análise.`,
         });
       }
-      await registrarAtividade(tx, auth, {
-        tipo: "ORCAMENTO_ENVIADO",
-        descricao: `Orcamento enviado para ${found.evento.cliente.nome}.`,
-        entidadeTipo: "ORCAMENTO",
-        entidadeId: found.id,
-      });
       return {
         ok: true,
         cliente: found.evento.cliente.nome,
@@ -199,7 +284,7 @@ export const enviarOrcamento = createServerFn({ method: "POST" })
   });
 
 export const criarVersaoOrcamento = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => id.parse(value))
+  .validator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
     const auth = await requirePermission("orcamentos");
     return getPrisma().$transaction(async (tx) => {
@@ -224,6 +309,8 @@ export const criarVersaoOrcamento = createServerFn({ method: "POST" })
           status: "RASCUNHO",
           validade: anterior.validade,
           subtotal: anterior.subtotal,
+          tipoDesconto: anterior.tipoDesconto,
+          descontoValor: anterior.descontoValor,
           desconto: anterior.desconto,
           total: anterior.total,
           observacoes: anterior.observacoes,
@@ -247,7 +334,7 @@ export const criarVersaoOrcamento = createServerFn({ method: "POST" })
   });
 
 export const aprovarOrcamento = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => id.parse(value))
+  .validator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
     const auth = await requireAuth();
     return getPrisma().$transaction(async (tx) => {
@@ -257,37 +344,22 @@ export const aprovarOrcamento = createServerFn({ method: "POST" })
           empresaId: auth.empresaId,
           ...(auth.role === "CLIENT" ? { evento: { cliente: { usuarioId: auth.usuarioId } } } : {}),
         },
-        include: { evento: true, contratos: true },
+        include: { evento: { select: { status: true } } },
       });
-      if (
-        !found ||
-        !["ENVIADO", "VISUALIZADO", "AGUARDANDO_APROVACAO", "EM_NEGOCIACAO"].includes(found.status)
-      )
+      // Aprovar é a primeira etapa: só vale enquanto o evento ainda está em "Orçamento".
+      if (found && found.evento.status !== "ORCAMENTO") {
+        throw new Error("Este evento já passou da etapa de aprovação.");
+      }
+      // A equipe pode aprovar direto do rascunho (pedidos do formulário público nascem assim).
+      const aprovaveis = ["ENVIADO", "VISUALIZADO", "AGUARDANDO_APROVACAO", "EM_NEGOCIACAO"];
+      if (auth.role === "ADMIN") aprovaveis.push("RASCUNHO");
+      if (!found || !aprovaveis.includes(found.status))
         throw new Error("Orcamento nao pode ser aprovado.");
-      if (found.contratos.length) throw new Error("Orcamento ja possui contrato.");
-      const ultimo = await tx.contrato.findFirst({
-        where: { empresaId: auth.empresaId },
-        orderBy: { numero: "desc" },
-        select: { numero: true },
+      const aprovado = await tx.orcamento.update({
+        where: { id: found.id },
+        data: { status: "APROVADO" },
       });
-      await tx.orcamento.update({ where: { id: found.id }, data: { status: "APROVADO" } });
-      const contrato = await tx.contrato.create({
-        data: {
-          empresaId: auth.empresaId,
-          eventoId: found.eventoId,
-          orcamentoId: found.id,
-          numero: (ultimo?.numero ?? 0n) + 1n,
-          valorTotal: found.total,
-          conteudo: `Contrato referente ao orcamento ${found.numero.toString()}, versao ${found.versao}.`,
-        },
-      });
-      await tx.evento.update({ where: { id: found.eventoId }, data: { status: "CONTRATO" } });
-      await registrarAtividade(tx, auth, {
-        tipo: "ORCAMENTO_APROVADO",
-        descricao: `Orcamento ${found.numero.toString()} aprovado.`,
-        entidadeTipo: "ORCAMENTO",
-        entidadeId: found.id,
-      });
-      return serialize(contrato);
+      await tx.evento.update({ where: { id: found.eventoId }, data: { status: "APROVADO" } });
+      return serialize(aprovado);
     });
   });

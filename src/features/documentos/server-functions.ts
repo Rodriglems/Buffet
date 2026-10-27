@@ -9,7 +9,6 @@ const documento = z.object({
   usuarioId: z.string().uuid().nullable().optional(),
   clienteId: z.string().uuid().nullable().optional(),
   eventoId: z.string().uuid().nullable().optional(),
-  contratoId: z.string().uuid().nullable().optional(),
   nome: z.string().trim().min(2).max(255),
   tipo: z.enum(["CONTRATO", "COMPROVANTE", "DOCUMENTO_CLIENTE", "OUTRO"]),
   url: z.string().url().max(2000),
@@ -18,7 +17,7 @@ const documento = z.object({
 const id = z.object({ id: z.string().uuid() });
 
 export const listarDocumentos = createServerFn({ method: "GET" })
-  .inputValidator((value: unknown) =>
+  .validator((value: unknown) =>
     z
       .object({
         page: z.number().int().positive().default(1),
@@ -37,7 +36,6 @@ export const listarDocumentos = createServerFn({ method: "GET" })
               { usuarioId: auth.usuarioId },
               { cliente: { usuarioId: auth.usuarioId } },
               { evento: { cliente: { usuarioId: auth.usuarioId } } },
-              { contrato: { evento: { cliente: { usuarioId: auth.usuarioId } } } },
             ],
           }
         : {}),
@@ -54,7 +52,7 @@ export const listarDocumentos = createServerFn({ method: "GET" })
   });
 
 export const criarDocumento = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => documento.parse(value))
+  .validator((value: unknown) => documento.parse(value))
   .handler(async ({ data }) => {
     const auth = await requirePermission("documentos");
     const checks = await Promise.all([
@@ -67,9 +65,6 @@ export const criarDocumento = createServerFn({ method: "POST" })
       data.eventoId
         ? getPrisma().evento.count({ where: { id: data.eventoId, empresaId: auth.empresaId } })
         : 1,
-      data.contratoId
-        ? getPrisma().contrato.count({ where: { id: data.contratoId, empresaId: auth.empresaId } })
-        : 1,
     ]);
     if (checks.some((value) => value !== 1))
       throw new Error("Um dos vinculos do documento e invalido.");
@@ -79,7 +74,7 @@ export const criarDocumento = createServerFn({ method: "POST" })
   });
 
 export const atualizarDocumento = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) =>
+  .validator((value: unknown) =>
     id
       .extend({
         dados: documento.pick({ nome: true, tipo: true, url: true, tamanho: true }).partial(),
@@ -98,7 +93,7 @@ export const atualizarDocumento = createServerFn({ method: "POST" })
   });
 
 export const excluirDocumento = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => id.parse(value))
+  .validator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
     const auth = await requirePermission("documentos");
     const result = await getPrisma().documento.deleteMany({

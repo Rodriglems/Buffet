@@ -9,6 +9,7 @@ import { listarEventos } from "@/features/eventos/server-functions";
 import { formatDate } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
 import { downloadCalendarFile } from "@/lib/sharing";
+import { rotuloStatusEvento } from "@/lib/status-evento";
 
 export const Route = createFileRoute("/cliente/eventos")({
   head: () => pageMeta("Meus eventos", "Detalhes dos seus eventos contratados."),
@@ -57,7 +58,7 @@ function MeusEventos() {
             </div>
             <div>
               <dt className="text-muted-foreground text-[11px] uppercase">Status</dt>
-              <dd>{e.status}</dd>
+              <dd>{rotuloStatusEvento(e.status)}</dd>
             </div>
           </dl>
           <div className="mt-3 flex items-center justify-between gap-3">

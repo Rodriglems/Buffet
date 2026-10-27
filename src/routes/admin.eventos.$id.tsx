@@ -1,109 +1,220 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarPlus, MessageCircle } from "lucide-react";
+import { useState } from "react";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { Check, FileText, Loader2, MessageCircle, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 
-import { PageHeader, Panel, StatCard } from "@/components/panel";
+import { PageHeader, Panel, PanelHeader, StatCard } from "@/components/panel";
+import { EmptyState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { listarAtividades } from "@/features/atividades/server-functions";
-import { obterEvento } from "@/features/eventos/server-functions";
-import { listarPagamentos } from "@/features/pagamentos/server-functions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { baixarPdfDoEvento, STATUS_COM_PDF } from "@/features/documentos/eventos-pdf";
+import { AlterarStatusEvento } from "@/features/eventos/alterar-status-evento";
+import { confirmarEvento, finalizarEvento, obterEvento } from "@/features/eventos/server-functions";
+import { DescontoOrcamento } from "@/features/orcamentos/desconto-orcamento";
+import { EditarOrcamentoDialog } from "@/features/orcamentos/editar-orcamento-dialog";
+import { aprovarOrcamento } from "@/features/orcamentos/server-functions";
+import { GerarParcelasDialog } from "@/features/pagamentos/gerar-parcelas-dialog";
+import { FORMAS_PAGAMENTO } from "@/features/pagamentos/parcelas";
+import {
+  alterarFormaPagamento,
+  excluirPagamento,
+  registrarPagamento,
+} from "@/features/pagamentos/server-functions";
+import { useConfirmar } from "@/lib/confirmacao";
 import { formatBRL, formatDate } from "@/lib/format";
-import { createWhatsAppUrl, downloadCalendarFile } from "@/lib/sharing";
+import { createWhatsAppUrl } from "@/lib/sharing";
+import { acaoDaEtapa, ETAPAS_EVENTO, rotuloStatusEvento } from "@/lib/status-evento";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/eventos/$id")({
-  loader: async ({ params }) => {
-    const [evento, pagamentos, atividades] = await Promise.all([
-      obterEvento({ data: { id: params.id } }),
-      listarPagamentos({ data: { page: 1, pageSize: 100 } }),
-      listarAtividades({
-        data: { page: 1, pageSize: 100, entidadeTipo: "EVENTO", entidadeId: params.id },
-      }),
-    ]);
-    return {
-      evento,
-      pagamentos: pagamentos.items.filter((item) => item.contrato.eventoId === params.id),
-      atividades: atividades.items,
-    };
-  },
+  loader: ({ params }) => obterEvento({ data: { id: params.id } }),
   component: DetalheEvento,
 });
 
+type EventoDetalhe = Awaited<ReturnType<typeof obterEvento>>;
+
+function valorDoEvento(evento: EventoDetalhe) {
+  const atual = evento.orcamentos[0];
+  const aprovado = evento.orcamentos.find((item) => item.status === "APROVADO");
+  return Number((aprovado ?? atual)?.total ?? 0);
+}
+
 function DetalheEvento() {
-  const { evento, pagamentos, atividades } = Route.useLoaderData();
-  const valorContratado = evento.contratos.reduce((sum, item) => sum + Number(item.valorTotal), 0);
-  const custos = evento.custos.reduce((sum, item) => sum + Number(item.valor), 0);
-  const recebido = pagamentos
+  const evento = Route.useLoaderData();
+  const orcamentoAtual = evento.orcamentos[0];
+  const valorEvento = valorDoEvento(evento);
+  const parcelas = evento.pagamentos.filter((item) => item.status !== "CANCELADO");
+  const recebido = parcelas
     .filter((item) => item.status === "PAGO")
-    .reduce((sum, item) => sum + Number(item.valor), 0);
+    .reduce((soma, item) => soma + Number(item.valor), 0);
+  const [editando, setEditando] = useState(false);
+  const encerrado = ["CANCELADO", "FINALIZADO"].includes(evento.status);
 
   return (
-    <div className="flex flex-col gap-4">
+    // Espaço extra no fim para a barra fixa de etapas não cobrir o conteúdo.
+    <div className="flex flex-col gap-4 pb-28">
       <PageHeader
         title={evento.nome}
-        subtitle={`${evento.cliente.nome} · ${formatDate(evento.dataEvento)} · ${evento.localNome ?? "Local a definir"}`}
+        subtitle={`${evento.tipo} · ${formatDate(evento.dataEvento)} · ${evento.localNome ?? "Local a definir"}`}
         actions={
-          <>
+          evento.cliente.whatsapp ? (
             <Button
               variant="outline"
-              onClick={() =>
-                downloadCalendarFile({
-                  id: evento.id,
-                  title: evento.nome,
-                  date: evento.dataEvento,
-                  startTime: evento.horaInicio,
-                  endTime: evento.horaFim,
-                  location: evento.localNome,
-                  description: evento.observacoes,
-                })
-              }
+              onClick={() => {
+                try {
+                  window.open(
+                    createWhatsAppUrl(
+                      evento.cliente.whatsapp!,
+                      `Olá ${evento.cliente.nome}, estamos entrando em contato sobre o seu evento em ${formatDate(evento.dataEvento)}.`,
+                    ),
+                    "_blank",
+                    "noopener,noreferrer",
+                  );
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "WhatsApp inválido.");
+                }
+              }}
             >
-              <CalendarPlus className="size-4" /> Calendário
+              <MessageCircle className="size-4" /> WhatsApp
             </Button>
-            {evento.cliente.whatsapp && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  try {
-                    window.open(
-                      createWhatsAppUrl(
-                        evento.cliente.whatsapp!,
-                        `Olá ${evento.cliente.nome}, estamos entrando em contato sobre o evento ${evento.nome}, em ${formatDate(evento.dataEvento)}.`,
-                      ),
-                      "_blank",
-                      "noopener,noreferrer",
-                    );
-                  } catch (error) {
-                    toast.error(error instanceof Error ? error.message : "WhatsApp inválido.");
-                  }
-                }}
-              >
-                <MessageCircle className="size-4" /> WhatsApp
-              </Button>
-            )}
-            <Button asChild>
-              <Link to="/admin/orcamentos/novo">Novo orçamento</Link>
-            </Button>
-          </>
+          ) : null
         }
       />
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <StatCard label="Contratado" value={formatBRL(valorContratado)} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard label="Valor do evento" value={formatBRL(valorEvento)} />
         <StatCard label="Recebido" value={formatBRL(recebido)} />
-        <StatCard label="Custos" value={formatBRL(custos)} />
-        <StatCard label="Resultado" value={formatBRL(recebido - custos)} />
+        <StatCard label="A receber" value={formatBRL(Math.max(0, valorEvento - recebido))} />
       </div>
       <Panel className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-display font-semibold">{evento.tipo}</p>
             <p className="text-muted-foreground text-sm">
+              {evento.formatoServico ? `${evento.formatoServico} · ` : ""}
               {evento.quantidadeConvidados} convidados
             </p>
+            {evento.servicosAdicionais.length ? (
+              <p className="text-muted-foreground mt-1 text-xs">
+                Adicionais: {evento.servicosAdicionais.join(", ")}
+              </p>
+            ) : null}
           </div>
-          <StatusBadge status={evento.status} />
+          <AlterarStatusEvento eventoId={evento.id} status={evento.status} />
         </div>
       </Panel>
+      <Panel className="p-5">
+        <PanelHeader
+          title="Orçamento do evento"
+          subtitle={
+            orcamentoAtual
+              ? `Proposta #${orcamentoAtual.numero} · versão ${orcamentoAtual.versao}`
+              : "Este evento ainda não possui orçamento"
+          }
+          action={
+            orcamentoAtual &&
+            !encerrado &&
+            !["REJEITADO", "EXPIRADO", "CANCELADO"].includes(orcamentoAtual.status) ? (
+              <Button size="sm" variant="outline" onClick={() => setEditando(true)}>
+                <Pencil className="size-4" /> Editar orçamento
+              </Button>
+            ) : null
+          }
+        />
+        {orcamentoAtual ? (
+          <>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[620px] text-left text-sm">
+                <thead>
+                  <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
+                    <th className="pb-2 font-medium">Item</th>
+                    <th className="pb-2 font-medium">Quantidade</th>
+                    <th className="pb-2 font-medium">Valor unitário</th>
+                    <th className="pb-2 font-medium text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {orcamentoAtual.itens.map((item) => (
+                    <tr key={item.id}>
+                      <td className="py-3 pr-3 font-medium">{item.descricao}</td>
+                      <td className="text-muted-foreground py-3 pr-3">
+                        {Number(item.quantidade)} {item.unidade}
+                      </td>
+                      <td className="text-muted-foreground py-3 pr-3">
+                        {formatBRL(Number(item.valorUnitario))}
+                      </td>
+                      <td className="py-3 text-right font-medium">
+                        {formatBRL(Number(item.valorTotal))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="w-full max-w-sm empty:hidden">
+                {encerrado ? null : (
+                  <DescontoOrcamento key={orcamentoAtual.id} orcamento={orcamentoAtual} />
+                )}
+              </div>
+              <dl className="w-full max-w-xs text-sm sm:ml-auto">
+                <div className="flex justify-between py-1">
+                  <dt className="text-muted-foreground">Subtotal</dt>
+                  <dd>{formatBRL(Number(orcamentoAtual.subtotal))}</dd>
+                </div>
+                <div className="flex justify-between py-1">
+                  <dt className="text-muted-foreground">
+                    Desconto
+                    {orcamentoAtual.tipoDesconto === "PERCENTUAL"
+                      ? ` (${Number(orcamentoAtual.descontoValor)}%)`
+                      : ""}
+                  </dt>
+                  <dd className="text-destructive">
+                    − {formatBRL(Number(orcamentoAtual.desconto))}
+                  </dd>
+                </div>
+                <div className="mt-1 flex justify-between border-t border-border pt-2 font-semibold">
+                  <dt>Total</dt>
+                  <dd>{formatBRL(Number(orcamentoAtual.total))}</dd>
+                </div>
+              </dl>
+            </div>
+            {orcamentoAtual.observacoes ? (
+              <div className="bg-surface mt-4 rounded-xl p-4 ring-1 ring-black/5">
+                <p className="text-muted-foreground text-[11px] uppercase">Observações</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm">{orcamentoAtual.observacoes}</p>
+              </div>
+            ) : null}
+            <EditarOrcamentoDialog
+              key={orcamentoAtual.id}
+              aberto={editando}
+              onOpenChange={setEditando}
+              orcamento={orcamentoAtual}
+              convidados={evento.quantidadeConvidados}
+            />
+          </>
+        ) : (
+          <EmptyState
+            title="Nenhum orçamento criado"
+            description="Crie a primeira proposta diretamente a partir deste evento."
+            action={
+              <Button asChild>
+                <Link to="/admin/orcamentos/novo" search={{ eventoId: evento.id }}>
+                  Criar orçamento
+                </Link>
+              </Button>
+            }
+          />
+        )}
+      </Panel>
+      <PagamentosDoEvento evento={evento} valorEvento={valorEvento} />
       <Panel className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -132,40 +243,358 @@ function DetalheEvento() {
           ))}
         </dl>
       </Panel>
-      <div className="grid gap-4 xl:grid-cols-2">
+      {evento.orcamentos.length > 1 ? (
         <Panel className="p-5">
-          <h2 className="font-display font-semibold">Orçamentos e contratos</h2>
+          <h2 className="font-display font-semibold">Histórico de orçamentos</h2>
           <ul className="mt-3 divide-y divide-border">
             {evento.orcamentos.map((item) => (
               <li key={item.id} className="flex justify-between py-3 text-sm">
                 <Link to="/admin/orcamentos/$id" params={{ id: item.id }}>
-                  Orçamento #{item.numero}
+                  Orçamento #{item.numero} · versão {item.versao}
                 </Link>
-                <StatusBadge status={item.status} />
-              </li>
-            ))}
-            {evento.contratos.map((item) => (
-              <li key={item.id} className="flex justify-between py-3 text-sm">
-                <Link to="/admin/contratos/$id" params={{ id: item.id }}>
-                  Contrato #{item.numero}
-                </Link>
-                <StatusBadge status={item.status} />
+                <span className="font-medium">{formatBRL(Number(item.total))}</span>
               </li>
             ))}
           </ul>
         </Panel>
-        <Panel className="p-5">
-          <h2 className="font-display font-semibold">Atividades</h2>
-          <ul className="mt-3 divide-y divide-border">
-            {atividades.map((item) => (
-              <li key={item.id} className="py-3 text-sm">
-                <p>{item.descricao}</p>
-                <p className="text-muted-foreground text-xs">{formatDate(item.createdAt)}</p>
-              </li>
-            ))}
-          </ul>
-        </Panel>
+      ) : null}
+      <BarraDeEtapas evento={evento} valorEvento={valorEvento} />
+    </div>
+  );
+}
+
+function PagamentosDoEvento({
+  evento,
+  valorEvento,
+}: {
+  evento: EventoDetalhe;
+  valorEvento: number;
+}) {
+  const router = useRouter();
+  const registrar = useServerFn(registrarPagamento);
+  const excluir = useServerFn(excluirPagamento);
+  const trocarForma = useServerFn(alterarFormaPagamento);
+  const pedirConfirmacao = useConfirmar();
+  const [aberto, setAberto] = useState(false);
+  const [processando, setProcessando] = useState<string | null>(null);
+  const parcelas = evento.pagamentos.filter((item) => item.status !== "CANCELADO");
+  const parcelado = parcelas.reduce((soma, item) => soma + Number(item.valor), 0);
+  // Novas parcelas só durante a etapa de pagamento; a primeira definição vem do botão de etapa.
+  const podeAdicionar = evento.status === "PAGAMENTO";
+
+  async function executar(id: string, acao: () => Promise<unknown>, sucesso: string) {
+    setProcessando(id);
+    try {
+      await acao();
+      toast.success(sucesso);
+      await router.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível concluir a ação.");
+    } finally {
+      setProcessando(null);
+    }
+  }
+
+  return (
+    <Panel className="p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PanelHeader
+          title="Pagamentos"
+          subtitle={
+            parcelas.length
+              ? `${parcelas.length} parcela(s) · ${formatBRL(parcelado)} de ${formatBRL(valorEvento)}`
+              : "O pagamento é definido depois da aprovação do orçamento"
+          }
+        />
+        {podeAdicionar ? (
+          <Button size="sm" variant="outline" onClick={() => setAberto(true)}>
+            <Plus className="size-4" /> Adicionar parcelas
+          </Button>
+        ) : null}
       </div>
+      {parcelas.length ? (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead>
+              <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
+                <th className="pb-2 font-medium">Parcela</th>
+                <th className="pb-2 font-medium">Vencimento</th>
+                <th className="pb-2 font-medium">Valor</th>
+                <th className="pb-2 font-medium">Forma de pagamento</th>
+                <th className="pb-2 font-medium">Status</th>
+                <th className="pb-2 font-medium text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {parcelas.map((parcela) => {
+                const formas: string[] = [...FORMAS_PAGAMENTO];
+                if (parcela.formaPagamento && !formas.includes(parcela.formaPagamento)) {
+                  formas.push(parcela.formaPagamento);
+                }
+                return (
+                  <tr key={parcela.id}>
+                    <td className="py-3 pr-3">
+                      <p className="font-medium">#{parcela.numeroParcela}</p>
+                      {parcela.descricao ? (
+                        <p className="text-muted-foreground text-xs">{parcela.descricao}</p>
+                      ) : null}
+                    </td>
+                    <td className="text-muted-foreground py-3 pr-3">
+                      {formatDate(parcela.dataVencimento)}
+                      {parcela.dataPagamento ? (
+                        <p className="text-xs">Pago em {formatDate(parcela.dataPagamento)}</p>
+                      ) : null}
+                    </td>
+                    <td className="py-3 pr-3 font-medium">{formatBRL(Number(parcela.valor))}</td>
+                    <td className="py-3 pr-3">
+                      <Select
+                        value={parcela.formaPagamento ?? ""}
+                        disabled={processando !== null}
+                        onValueChange={(forma) =>
+                          void executar(
+                            parcela.id,
+                            () => trocarForma({ data: { id: parcela.id, formaPagamento: forma } }),
+                            "Forma de pagamento alterada.",
+                          )
+                        }
+                      >
+                        <SelectTrigger
+                          className="h-8 w-44"
+                          aria-label={`Forma de pagamento da parcela ${parcela.numeroParcela}`}
+                        >
+                          <SelectValue placeholder="Definir" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {formas.map((forma) => (
+                            <SelectItem key={forma} value={forma}>
+                              {forma}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="py-3 pr-3">
+                      <StatusBadge status={parcela.status} />
+                    </td>
+                    <td className="py-3 text-right">
+                      {parcela.status === "PAGO" ? null : (
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={processando !== null}
+                            onClick={() =>
+                              void executar(
+                                parcela.id,
+                                () =>
+                                  registrar({
+                                    data: { id: parcela.id, dataPagamento: new Date() },
+                                  }),
+                                "Pagamento registrado.",
+                              )
+                            }
+                          >
+                            Marcar pago
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={processando !== null}
+                            onClick={async () => {
+                              const ok = await pedirConfirmacao({
+                                titulo: `Excluir a parcela #${parcela.numeroParcela}?`,
+                                descricao: `${formatBRL(Number(parcela.valor))} com vencimento em ${formatDate(parcela.dataVencimento)}.`,
+                                textoConfirmar: "Excluir parcela",
+                                perigoso: true,
+                              });
+                              if (!ok) return;
+                              void executar(
+                                parcela.id,
+                                () => excluir({ data: { id: parcela.id } }),
+                                "Parcela excluída.",
+                              );
+                            }}
+                          >
+                            Excluir
+                          </Button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      <GerarParcelasDialog
+        aberto={aberto}
+        onOpenChange={setAberto}
+        eventoFixoId={evento.id}
+        eventos={[
+          {
+            id: evento.id,
+            nome: evento.nome,
+            cliente: evento.cliente.nome,
+            saldo: valorEvento - parcelado,
+          },
+        ]}
+        onSalvo={() => router.invalidate()}
+      />
+    </Panel>
+  );
+}
+
+/**
+ * Barra fixa no rodapé com o indicador de etapas, o único botão de avanço da etapa atual
+ * e o PDF. O botão muda conforme o status, inclusive quando ele é alterado manualmente.
+ */
+function BarraDeEtapas({ evento, valorEvento }: { evento: EventoDetalhe; valorEvento: number }) {
+  const router = useRouter();
+  const aprovar = useServerFn(aprovarOrcamento);
+  const confirmar = useServerFn(confirmarEvento);
+  const finalizar = useServerFn(finalizarEvento);
+  const pedirConfirmacao = useConfirmar();
+  const [processando, setProcessando] = useState<"etapa" | "pdf" | null>(null);
+  const [definindoPagamento, setDefinindoPagamento] = useState(false);
+  const etapa = acaoDaEtapa(evento.status);
+  const orcamento = evento.orcamentos[0];
+  const pdfDisponivel = (STATUS_COM_PDF as readonly string[]).includes(evento.status);
+  const indiceAtual = ETAPAS_EVENTO.indexOf(evento.status as (typeof ETAPAS_EVENTO)[number]);
+  const parcelado = evento.pagamentos
+    .filter((item) => item.status !== "CANCELADO")
+    .reduce((soma, item) => soma + Number(item.valor), 0);
+
+  async function executar(tipo: "etapa" | "pdf", tarefa: () => Promise<unknown>, ok?: string) {
+    setProcessando(tipo);
+    try {
+      await tarefa();
+      if (ok) toast.success(ok);
+      if (tipo === "etapa") await router.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível concluir a ação.");
+    } finally {
+      setProcessando(null);
+    }
+  }
+
+  async function avancar() {
+    if (!etapa) return;
+    switch (etapa.acao) {
+      case "APROVAR":
+        if (!orcamento) {
+          toast.error("Crie o orçamento antes de aprovar.");
+          return;
+        }
+        void executar(
+          "etapa",
+          () => aprovar({ data: { id: orcamento.id } }),
+          "Orçamento aprovado.",
+        );
+        return;
+      case "PAGAMENTO":
+        setDefinindoPagamento(true);
+        return;
+      case "CONFIRMAR":
+        if (
+          !(await pedirConfirmacao({
+            titulo: "Confirmar este evento?",
+            descricao: "O evento passa para “Confirmado” e o PDF do evento é liberado.",
+            textoConfirmar: "Confirmar evento",
+          }))
+        ) {
+          return;
+        }
+        void executar("etapa", () => confirmar({ data: { id: evento.id } }), "Evento confirmado.");
+        return;
+      case "FINALIZAR":
+        if (
+          !(await pedirConfirmacao({
+            titulo: "Finalizar este evento?",
+            descricao: "Use depois que o evento acontecer. Ele sai das próximas etapas.",
+            textoConfirmar: "Finalizar evento",
+          }))
+        ) {
+          return;
+        }
+        void executar("etapa", () => finalizar({ data: { id: evento.id } }), "Evento finalizado.");
+        return;
+    }
+  }
+
+  return (
+    <div className="panel sticky bottom-3 z-10 flex flex-col gap-3 p-3 shadow-xl sm:flex-row sm:items-center sm:justify-between sm:p-4">
+      <ol className="flex flex-wrap items-center gap-1 text-xs" aria-label="Etapas do evento">
+        {evento.status === "CANCELADO" ? (
+          <li className="text-destructive font-semibold">Evento cancelado</li>
+        ) : (
+          ETAPAS_EVENTO.map((item, indice) => {
+            const concluida = indice < indiceAtual;
+            const atual = indice === indiceAtual;
+            return (
+              <li key={item} className="flex items-center gap-1">
+                {indice > 0 ? <span className="bg-border h-px w-3" aria-hidden /> : null}
+                <span
+                  aria-current={atual ? "step" : undefined}
+                  className={cn(
+                    "flex items-center gap-1 rounded-full px-2.5 py-1",
+                    atual && "bg-primary text-primary-foreground font-semibold",
+                    concluida && "bg-primary/10 text-primary",
+                    !atual && !concluida && "text-muted-foreground",
+                  )}
+                >
+                  {concluida ? <Check className="size-3" /> : null}
+                  {rotuloStatusEvento(item)}
+                </span>
+              </li>
+            );
+          })
+        )}
+      </ol>
+      <div className="flex shrink-0 items-center gap-2">
+        {etapa ? (
+          <p className="text-muted-foreground hidden max-w-56 text-xs lg:block">
+            {etapa.descricao}
+          </p>
+        ) : null}
+        <Button
+          variant="outline"
+          disabled={!pdfDisponivel || processando !== null}
+          title={pdfDisponivel ? undefined : "Disponível depois que o evento for confirmado"}
+          onClick={() => void executar("pdf", () => baixarPdfDoEvento(evento.id))}
+        >
+          {processando === "pdf" ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <FileText className="size-4" />
+          )}
+          PDF
+        </Button>
+        {etapa ? (
+          <Button
+            disabled={processando !== null}
+            onClick={() => void avancar()}
+            className="min-w-32"
+          >
+            {processando === "etapa" ? <Loader2 className="size-4 animate-spin" /> : null}
+            {etapa.rotulo}
+          </Button>
+        ) : null}
+      </div>
+      <GerarParcelasDialog
+        aberto={definindoPagamento}
+        onOpenChange={setDefinindoPagamento}
+        eventoFixoId={evento.id}
+        eventos={[
+          {
+            id: evento.id,
+            nome: evento.nome,
+            cliente: evento.cliente.nome,
+            saldo: valorEvento - parcelado,
+          },
+        ]}
+        onSalvo={() => router.invalidate()}
+      />
     </div>
   );
 }

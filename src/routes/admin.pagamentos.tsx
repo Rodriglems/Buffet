@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -8,29 +8,20 @@ import { PageHeader, Panel, StatCard } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { listarContratos } from "@/features/contratos/server-functions";
+import { listarEventos } from "@/features/eventos/server-functions";
 import {
-  criarPagamento,
-  listarPagamentos,
-  registrarPagamento,
-} from "@/features/pagamentos/server-functions";
+  GerarParcelasDialog,
+  type EventoParaParcelas,
+} from "@/features/pagamentos/gerar-parcelas-dialog";
+import { listarPagamentos, registrarPagamento } from "@/features/pagamentos/server-functions";
 import { formatBRL, formatBRLShort, formatDate } from "@/lib/format";
+import { rotuloStatus } from "@/lib/status-rotulos";
 
 export const Route = createFileRoute("/admin/pagamentos")({
   head: () => ({
@@ -45,11 +36,15 @@ export const Route = createFileRoute("/admin/pagamentos")({
     ],
   }),
   loader: async () => {
-    const [pagamentos, contratos] = await Promise.all([
+    const [pagamentos, eventos] = await Promise.all([
       listarPagamentos({ data: { page: 1, pageSize: 100 } }),
-      listarContratos({ data: { page: 1, pageSize: 100 } }),
+      listarEventos({ data: { page: 1, pageSize: 100 } }),
     ]);
-    return { pagamentos, contratos: contratos.items.filter((item) => item.status !== "CANCELADO") };
+    return {
+      pagamentos,
+      // Mesma regra do servidor: parcelas só depois da aprovação e antes da confirmação.
+      eventos: eventos.items.filter((item) => ["APROVADO", "PAGAMENTO"].includes(item.status)),
+    };
   },
   component: Pagamentos,
 });
@@ -57,15 +52,22 @@ export const Route = createFileRoute("/admin/pagamentos")({
 const TODOS = "todos";
 
 function Pagamentos() {
-  const { pagamentos, contratos } = Route.useLoaderData();
+  const { pagamentos, eventos } = Route.useLoaderData();
   const parcelas = pagamentos.items;
   const confirmar = useServerFn(registrarPagamento);
-  const criar = useServerFn(criarPagamento);
   const router = useRouter();
   const [status, setStatus] = useState(TODOS);
   const [aberto, setAberto] = useState(false);
-  const [contratoId, setContratoId] = useState("");
-  const [salvando, setSalvando] = useState(false);
+  const opcoesEventos: EventoParaParcelas[] = eventos.map((evento) => ({
+    id: evento.id,
+    nome: evento.nome,
+    cliente: evento.cliente.nome,
+    saldo:
+      Number(evento.orcamentos[0]?.total ?? 0) -
+      parcelas
+        .filter((parcela) => parcela.eventoId === evento.id && parcela.status !== "CANCELADO")
+        .reduce((soma, parcela) => soma + Number(parcela.valor), 0),
+  }));
   const lista = parcelas.filter((p) => status === TODOS || p.status === status);
 
   const pago = parcelas.filter((p) => p.status === "PAGO").reduce((a, p) => a + Number(p.valor), 0);
@@ -88,33 +90,6 @@ function Pagamentos() {
     }
   }
 
-  async function novaParcela(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const value = (name: string) => String(form.get(name) ?? "").trim();
-    setSalvando(true);
-    try {
-      await criar({
-        data: {
-          contratoId,
-          numeroParcela: Number(value("numeroParcela")),
-          descricao: value("descricao") || null,
-          valor: Number(value("valor")),
-          dataVencimento: new Date(`${value("dataVencimento")}T12:00:00`),
-          formaPagamento: value("formaPagamento") || null,
-        },
-      });
-      toast.success("Parcela cadastrada.");
-      setAberto(false);
-      setContratoId("");
-      await router.invalidate();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Falha ao cadastrar parcela.");
-    } finally {
-      setSalvando(false);
-    }
-  }
-
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
@@ -123,10 +98,12 @@ function Pagamentos() {
         actions={
           <Button
             onClick={() => setAberto(true)}
-            disabled={!contratos.length}
-            title={!contratos.length ? "Cadastre um contrato antes" : undefined}
+            disabled={!opcoesEventos.length}
+            title={
+              !opcoesEventos.length ? "Nenhum evento aprovado aguardando pagamento" : undefined
+            }
           >
-            Nova parcela
+            Gerar parcelas
           </Button>
         }
       />
@@ -152,7 +129,7 @@ function Pagamentos() {
             <SelectItem value={TODOS}>Todos os status</SelectItem>
             {["PENDENTE", "PAGO", "ATRASADO", "CANCELADO"].map((s) => (
               <SelectItem key={s} value={s}>
-                {s}
+                {rotuloStatus(s)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -173,8 +150,8 @@ function Pagamentos() {
             <tbody className="divide-y divide-border">
               {lista.map((p) => (
                 <tr key={p.id}>
-                  <td className="py-3 pr-3 font-medium">{p.contrato.evento.cliente.nome}</td>
-                  <td className="text-muted-foreground py-3 pr-3">{p.contrato.evento.nome}</td>
+                  <td className="py-3 pr-3 font-medium">{p.evento.cliente.nome}</td>
+                  <td className="text-muted-foreground py-3 pr-3">{p.evento.nome}</td>
                   <td className="py-3 pr-3">{p.numeroParcela}</td>
                   <td className="text-muted-foreground py-3 pr-3">
                     {formatDate(p.dataVencimento)}
@@ -182,7 +159,7 @@ function Pagamentos() {
                   <td className="py-3 pr-3 font-medium">{formatBRL(Number(p.valor))}</td>
                   <td className="py-3">
                     <StatusBadge status={p.status} />
-                    {p.status === "PENDENTE" && (
+                    {["PENDENTE", "ATRASADO"].includes(p.status) && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -200,67 +177,12 @@ function Pagamentos() {
         </div>
       </Panel>
 
-      <Dialog open={aberto} onOpenChange={setAberto}>
-        <DialogContent>
-          <form className="grid gap-4" onSubmit={novaParcela}>
-            <DialogHeader>
-              <DialogTitle>Nova parcela</DialogTitle>
-              <DialogDescription>
-                Vincule o recebimento a um contrato e informe o vencimento.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-1.5 sm:col-span-2">
-                <Label>Contrato</Label>
-                <Select value={contratoId} onValueChange={setContratoId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione o contrato" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contratos.map((contrato) => (
-                      <SelectItem key={contrato.id} value={contrato.id}>
-                        #{contrato.numero} · {contrato.evento.nome} · {contrato.evento.cliente.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="numeroParcela">Número da parcela</Label>
-                <Input id="numeroParcela" name="numeroParcela" type="number" min="1" required />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="valor">Valor</Label>
-                <Input id="valor" name="valor" type="number" min="0.01" step="0.01" required />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="dataVencimento">Vencimento</Label>
-                <Input id="dataVencimento" name="dataVencimento" type="date" required />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="formaPagamento">Forma de pagamento</Label>
-                <Input
-                  id="formaPagamento"
-                  name="formaPagamento"
-                  placeholder="PIX, cartão, transferência…"
-                />
-              </div>
-              <div className="grid gap-1.5 sm:col-span-2">
-                <Label htmlFor="descricao">Descrição</Label>
-                <Input id="descricao" name="descricao" placeholder="Entrada, saldo final…" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setAberto(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={salvando || !contratoId}>
-                {salvando ? "Salvando…" : "Cadastrar parcela"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <GerarParcelasDialog
+        aberto={aberto}
+        onOpenChange={setAberto}
+        eventos={opcoesEventos}
+        onSalvo={() => router.invalidate()}
+      />
     </div>
   );
 }

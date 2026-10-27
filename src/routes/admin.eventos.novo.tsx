@@ -41,11 +41,26 @@ function NovoEvento() {
   const [clienteId, setClienteId] = useState("");
   const [tipo, setTipo] = useState("");
   const [salvando, setSalvando] = useState(false);
+  const [tentouSalvar, setTentouSalvar] = useState(false);
+  const [erroHorario, setErroHorario] = useState(false);
 
   async function salvar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setTentouSalvar(true);
+    if (!tipo || !clienteId) {
+      toast.error("Selecione o tipo do evento e o cliente antes de salvar.");
+      return;
+    }
     const form = new FormData(event.currentTarget);
     const text = (name: string) => String(form.get(name) ?? "").trim();
+    const horaInicial = text("ini");
+    const horaFinal = text("fim");
+    if (horaInicial && horaFinal && horaFinal <= horaInicial) {
+      setErroHorario(true);
+      toast.error("O horário final deve ser posterior ao horário inicial.");
+      return;
+    }
+    setErroHorario(false);
     const time = (name: string) =>
       text(name) ? new Date(`1970-01-01T${text(name)}:00.000Z`) : null;
     setSalvando(true);
@@ -95,9 +110,12 @@ function NovoEvento() {
             />
           </div>
           <div>
-            <Label className="mb-1.5 block">Tipo de evento</Label>
+            <Label className="mb-1.5 block">Tipo de evento *</Label>
             <Select value={tipo} onValueChange={setTipo}>
-              <SelectTrigger className="bg-surface w-full border-0 ring-1 ring-black/5">
+              <SelectTrigger
+                aria-invalid={tentouSalvar && !tipo}
+                className="bg-surface w-full border-0 ring-1 ring-black/5 aria-invalid:ring-destructive"
+              >
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -110,6 +128,9 @@ function NovoEvento() {
                 )}
               </SelectContent>
             </Select>
+            {tentouSalvar && !tipo ? (
+              <p className="text-destructive mt-1 text-xs">Selecione o tipo do evento.</p>
+            ) : null}
           </div>
           <div>
             <Label htmlFor="data" className="mb-1.5 block">
@@ -131,6 +152,7 @@ function NovoEvento() {
               id="ini"
               name="ini"
               type="time"
+              onInput={() => setErroHorario(false)}
               className="bg-surface border-0 ring-1 ring-black/5"
             />
           </div>
@@ -142,8 +164,15 @@ function NovoEvento() {
               id="fim"
               name="fim"
               type="time"
-              className="bg-surface border-0 ring-1 ring-black/5"
+              aria-invalid={erroHorario}
+              onInput={() => setErroHorario(false)}
+              className="bg-surface border-0 ring-1 ring-black/5 aria-invalid:ring-destructive"
             />
+            {erroHorario ? (
+              <p className="text-destructive mt-1 text-xs">
+                O horário final deve ser posterior ao horário inicial.
+              </p>
+            ) : null}
           </div>
           <div>
             <Label htmlFor="conv" className="mb-1.5 block">
@@ -184,10 +213,13 @@ function NovoEvento() {
       </Panel>
 
       <Panel className="p-5">
-        <PanelHeader title="Cliente" subtitle="Selecione um cliente já cadastrado" />
+        <PanelHeader title="Cliente *" subtitle="Selecione um cliente já cadastrado" />
         <div className="mt-4 max-w-sm">
           <Select value={clienteId} onValueChange={setClienteId}>
-            <SelectTrigger className="bg-surface w-full border-0 ring-1 ring-black/5">
+            <SelectTrigger
+              aria-invalid={tentouSalvar && !clienteId}
+              className="bg-surface w-full border-0 ring-1 ring-black/5 aria-invalid:ring-destructive"
+            >
               <SelectValue placeholder="Selecione o cliente" />
             </SelectTrigger>
             <SelectContent>
@@ -198,6 +230,15 @@ function NovoEvento() {
               ))}
             </SelectContent>
           </Select>
+          {tentouSalvar && !clienteId ? (
+            <p className="text-destructive mt-1 text-xs">Selecione o cliente do evento.</p>
+          ) : null}
+          {clientes.length === 0 ? (
+            <p className="text-muted-foreground mt-2 text-sm">
+              Nenhum cliente cadastrado. <Link to="/admin/clientes/novo">Cadastre um cliente</Link>{" "}
+              primeiro.
+            </p>
+          ) : null}
         </div>
       </Panel>
 
@@ -216,7 +257,7 @@ function NovoEvento() {
         <Button variant="outline" asChild>
           <Link to="/admin/eventos">Cancelar</Link>
         </Button>
-        <Button type="submit" disabled={salvando || !clienteId || !tipo}>
+        <Button type="submit" disabled={salvando}>
           {salvando ? "Salvando…" : "Salvar evento"}
         </Button>
       </div>

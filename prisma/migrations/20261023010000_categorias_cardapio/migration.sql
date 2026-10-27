@@ -1,0 +1,3 @@
+ALTER TABLE "servicos"
+ADD COLUMN "categoria" TEXT NOT NULL DEFAULT 'Geral',
+ADD COLUMN "tipos_evento" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

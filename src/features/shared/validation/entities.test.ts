@@ -2,13 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import {
-  assinaturaCreateSchema,
-  assinaturaUpdateSchema,
-  atividadeUpdateSchema,
   clienteCreateSchema,
   clienteUpdateSchema,
-  contratoCreateSchema,
-  contratoUpdateSchema,
   documentoUpdateSchema,
   empresaUpdateSchema,
   eventoCreateSchema,
@@ -28,7 +23,7 @@ import {
 
 const id = "d9428888-122b-4e1c-8ad1-2cc6274810f7";
 
-test("disponibiliza update parcial para todas as 15 entidades", () => {
+test("disponibiliza update parcial para todas as 12 entidades", () => {
   const updateSchemas = [
     empresaUpdateSchema,
     usuarioUpdateSchema,
@@ -38,15 +33,12 @@ test("disponibiliza update parcial para todas as 15 entidades", () => {
     servicoUpdateSchema,
     orcamentoUpdateSchema,
     orcamentoItemUpdateSchema,
-    contratoUpdateSchema,
-    assinaturaUpdateSchema,
     pagamentoUpdateSchema,
     custoUpdateSchema,
-    atividadeUpdateSchema,
     notificacaoUpdateSchema,
     documentoUpdateSchema,
   ];
-  assert.equal(updateSchemas.length, 15);
+  assert.equal(updateSchemas.length, 12);
   for (const schema of updateSchemas) {
     assert.equal(schema.safeParse({}).success, true);
   }
@@ -113,11 +105,11 @@ test("calcula totais monetários sem ponto flutuante", () => {
   );
 });
 
-test("exige datas coerentes para pagamentos e assinaturas", () => {
+test("exige datas coerentes para pagamentos", () => {
   assert.equal(
     pagamentoCreateSchema.safeParse({
       empresaId: id,
-      contratoId: id,
+      eventoId: id,
       numeroParcela: 1,
       valor: "100.00",
       dataVencimento: "2026-10-10",
@@ -125,26 +117,4 @@ test("exige datas coerentes para pagamentos e assinaturas", () => {
     }).success,
     false,
   );
-  assert.equal(
-    assinaturaCreateSchema.safeParse({
-      contratoId: id,
-      usuarioId: id,
-      status: "ASSINADA",
-    }).success,
-    false,
-  );
-});
-
-test("contrato assinado exige envio e assinatura cronológicos", () => {
-  const result = contratoCreateSchema.safeParse({
-    empresaId: id,
-    eventoId: id,
-    orcamentoId: id,
-    numero: "10",
-    status: "ASSINADO",
-    valorTotal: "1000.00",
-    enviadoEm: "2026-10-11T12:00:00Z",
-    assinadoEm: "2026-10-10T12:00:00Z",
-  });
-  assert.equal(result.success, false);
 });

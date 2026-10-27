@@ -22,7 +22,7 @@ import { logout } from "@/features/auth/server-functions";
 import { listarNotificacoes } from "@/features/notificacoes/server-functions";
 import { aplicarCor } from "@/lib/theme-accent";
 import { cn } from "@/lib/utils";
-import { rotaAtiva, type NavGroup } from "./nav-config";
+import { rotaAtiva, trilhaDoCaminho, type NavGroup } from "./nav-config";
 
 interface ShellProps {
   nav: NavGroup[];
@@ -140,45 +140,33 @@ function Brand() {
   );
 }
 
-function SidebarFooter({ area }: { area: "admin" | "cliente" }) {
-  if (area === "cliente") {
-    return (
-      <div className="bg-surface mt-auto rounded-xl p-3 ring-1 ring-black/5">
-        <p className="text-xs font-medium">Precisa de ajuda?</p>
-        <p className="text-muted-foreground mt-1 text-[11px]">
-          Fale com sua consultora pelo WhatsApp (11) 4002-8922.
-        </p>
-      </div>
-    );
-  }
+function SidebarFooter({ onSair }: { onSair: () => void }) {
   return (
-    <div className="bg-surface mt-auto rounded-xl p-3 ring-1 ring-black/5">
-      <p className="text-xs font-medium">Plano Profissional</p>
-      <p className="text-muted-foreground mt-1 text-[11px]">12 de 20 eventos ativos</p>
-      <div className="bg-muted mt-2 h-1.5 overflow-hidden rounded-full">
-        <div className="bg-brand h-full w-3/5 rounded-full" />
-      </div>
+    <div className="mt-auto flex flex-col gap-2 pt-3">
+      <button
+        type="button"
+        onClick={onSair}
+        className="text-destructive hover:bg-destructive/10 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+      >
+        <LogOut className="size-4" />
+        Sair
+      </button>
     </div>
   );
 }
 
 function Breadcrumbs() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const partes = pathname.split("/").filter(Boolean);
-  if (partes.length <= 1) return null;
-
-  const rotulo = (p: string) =>
-    decodeURIComponent(p)
-      .replace(/-/g, " ")
-      .replace(/^\w/, (c) => c.toUpperCase());
+  const trilha = trilhaDoCaminho(pathname);
+  if (trilha.length <= 1) return null;
 
   return (
     <p className="text-muted-foreground mb-4 text-xs">
-      {partes.map((p, i) => (
-        <span key={`${p}-${i}`}>
+      {trilha.map((rotulo, i) => (
+        <span key={`${rotulo}-${i}`}>
           {i > 0 && <span className="px-1.5 opacity-50">/</span>}
-          <span className={cn(i === partes.length - 1 && "text-foreground font-medium")}>
-            {rotulo(p)}
+          <span className={cn(i === trilha.length - 1 && "text-foreground font-medium")}>
+            {rotulo}
           </span>
         </span>
       ))}
@@ -241,7 +229,7 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
                     <button
                       onClick={() => setCollapsed(false)}
                       aria-label="Expandir menu"
-                      className="text-foreground/60 hover:bg-secondary hover:text-foreground grid size-11 place-items-center rounded-xl transition-colors"
+                      className="bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground grid size-11 place-items-center rounded-xl transition-colors"
                     >
                       <PanelLeftOpen className="size-5" />
                     </button>
@@ -260,7 +248,7 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
                     <button
                       onClick={() => void sair()}
                       aria-label="Sair"
-                      className="text-foreground/60 hover:bg-secondary grid size-11 place-items-center rounded-xl"
+                      className="text-destructive hover:bg-destructive/10 grid size-11 place-items-center rounded-xl transition-colors"
                     >
                       <LogOut className="size-5" />
                     </button>
@@ -277,7 +265,7 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
               <button
                 onClick={() => setCollapsed(true)}
                 aria-label="Minimizar menu"
-                className="text-foreground/60 hover:bg-secondary hover:text-foreground grid size-9 place-items-center rounded-lg transition-colors"
+                className="bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground grid size-9 place-items-center rounded-lg transition-colors"
               >
                 <PanelLeftClose className="size-4" />
               </button>
@@ -285,7 +273,7 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
             <div className="mt-4 flex-1 overflow-y-auto">
               <NavLinks nav={nav} />
             </div>
-            <SidebarFooter area={area} />
+            <SidebarFooter onSair={() => void sair()} />
           </>
         )}
       </aside>
@@ -307,7 +295,7 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
                   <div className="mt-4 flex-1 overflow-y-auto">
                     <NavLinks nav={nav} onNavigate={() => setMobileOpen(false)} />
                   </div>
-                  <SidebarFooter area={area} />
+                  <SidebarFooter onSair={() => void sair()} />
                 </div>
               </SheetContent>
             </Sheet>
@@ -373,7 +361,11 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
                   ) : null}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <button type="button" className="w-full" onClick={() => void sair()}>
+                    <button
+                      type="button"
+                      className="text-destructive focus:bg-destructive/10 focus:text-destructive w-full [&_svg]:text-destructive"
+                      onClick={() => void sair()}
+                    >
                       <LogOut className="size-4" />
                       Sair
                     </button>

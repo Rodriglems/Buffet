@@ -17,11 +17,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { listarEventos } from "@/features/eventos/server-functions";
+import type { TipoDesconto } from "@/features/orcamentos/calculos";
 import { criarOrcamento, enviarOrcamento } from "@/features/orcamentos/server-functions";
 import { formatBRL } from "@/lib/format";
 import { createWhatsAppUrl } from "@/lib/sharing";
 
 export const Route = createFileRoute("/admin/orcamentos/novo")({
+  validateSearch: (search: Record<string, unknown>): { eventoId?: string } =>
+    typeof search["eventoId"] === "string" ? { eventoId: search["eventoId"] } : {},
   head: () => ({
     meta: [
       { title: "Criar orçamento — Mesly Buffet & Eventos" },
@@ -51,9 +54,12 @@ interface Linha {
 function NovoOrcamento() {
   const navigate = useNavigate();
   const { items: eventos } = Route.useLoaderData();
+  const search = Route.useSearch();
   const criar = useServerFn(criarOrcamento);
   const enviar = useServerFn(enviarOrcamento);
-  const [eventoId, setEventoId] = useState("");
+  const [eventoId, setEventoId] = useState(() =>
+    eventos.some((evento) => evento.id === search.eventoId) ? (search.eventoId ?? "") : "",
+  );
   const [validade, setValidade] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [mensagem, setMensagem] = useState("");
@@ -69,10 +75,13 @@ function NovoOrcamento() {
       desconto: 0,
     },
   ]);
+  const [tipoDesconto, setTipoDesconto] = useState<TipoDesconto>("VALOR_FIXO");
   const [descontoGeral, setDescontoGeral] = useState(0);
 
   const subtotal = itens.reduce((a, i) => a + i.quantidade * i.valorUnitario - i.desconto, 0);
-  const total = Math.max(subtotal - descontoGeral, 0);
+  const descontoCalculado =
+    tipoDesconto === "PERCENTUAL" ? subtotal * (descontoGeral / 100) : descontoGeral;
+  const total = Math.max(subtotal - descontoCalculado, 0);
 
   function atualizar(id: number, campo: keyof Linha, valor: string) {
     setItens((prev) =>
@@ -112,6 +121,7 @@ function NovoOrcamento() {
         data: {
           eventoId,
           validade: validade ? new Date(`${validade}T00:00:00.000Z`) : null,
+          tipoDesconto,
           desconto: descontoGeral,
           observacoes: observacoes || null,
           itens: itens.map((item) => ({
@@ -134,7 +144,7 @@ function NovoOrcamento() {
         }
       }
       toast.success(deveEnviar ? "Orçamento enviado ao cliente." : "Rascunho salvo.");
-      await navigate({ to: "/admin/orcamentos" });
+      await navigate({ to: "/admin/eventos/$id", params: { id: eventoId } });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Nao foi possivel salvar o orçamento.");
     } finally {
@@ -348,14 +358,42 @@ function NovoOrcamento() {
               <span className="text-muted-foreground">Subtotal</span>
               <span className="font-medium">{formatBRL(subtotal)}</span>
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">Desconto</span>
+            <div className="grid grid-cols-[1fr_9rem_8rem] items-end gap-3">
+              <span className="text-muted-foreground pb-2">Desconto</span>
+              <Select
+                value={tipoDesconto}
+                onValueChange={(valor) => setTipoDesconto(valor as TipoDesconto)}
+              >
+                <SelectTrigger aria-label="Tipo de desconto">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PERCENTUAL">Percentual (%)</SelectItem>
+                  <SelectItem value="VALOR_FIXO">Valor fixo (R$)</SelectItem>
+                </SelectContent>
+              </Select>
               <Input
+                aria-label={
+                  tipoDesconto === "PERCENTUAL" ? "Percentual de desconto" : "Valor do desconto"
+                }
                 type="number"
+                min="0"
+                max={tipoDesconto === "PERCENTUAL" ? 100 : subtotal}
+                step="0.01"
                 value={descontoGeral}
                 onChange={(e) => setDescontoGeral(Number(e.target.value) || 0)}
-                className="bg-surface w-32 border-0 text-right ring-1 ring-black/5"
+                className="bg-surface border-0 text-right ring-1 ring-black/5"
               />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">
+                {tipoDesconto === "PERCENTUAL"
+                  ? `Desconto aplicado (${descontoGeral || 0}%)`
+                  : "Desconto aplicado"}
+              </span>
+              <span className="text-destructive">
+                − {formatBRL(Math.max(0, descontoCalculado))}
+              </span>
             </div>
             <div className="mt-2 flex items-center justify-between border-t border-border pt-3">
               <span className="font-display font-semibold">Valor total</span>
@@ -367,7 +405,13 @@ function NovoOrcamento() {
 
       <div className="flex flex-wrap justify-end gap-2">
         <Button variant="outline" asChild>
-          <Link to="/admin/orcamentos">Cancelar</Link>
+          {eventoId ? (
+            <Link to="/admin/eventos/$id" params={{ id: eventoId }}>
+              Cancelar
+            </Link>
+          ) : (
+            <Link to="/admin/eventos">Cancelar</Link>
+          )}
         </Button>
         <Button
           variant="outline"

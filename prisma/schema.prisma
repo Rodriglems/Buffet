@@ -33,16 +33,12 @@ enum StatusLead {
 }
 
 enum StatusEvento {
-  PLANEJAMENTO
   ORCAMENTO
-  NEGOCIACAO
   APROVADO
-  CONTRATO
-  ASSINADO
+  PAGAMENTO
   CONFIRMADO
-  REALIZADO
-  FINALIZADO
   CANCELADO
+  FINALIZADO
 
   @@map("status_evento")
 }
@@ -61,29 +57,11 @@ enum StatusOrcamento {
   @@map("status_orcamento")
 }
 
-enum StatusContrato {
-  RASCUNHO
-  ENVIADO
-  AGUARDANDO_ASSINATURA
-  ASSINADO
-  CANCELADO
+enum TipoDescontoOrcamento {
+  VALOR_FIXO
+  PERCENTUAL
 
-  @@map("status_contrato")
-}
-
-enum TipoAssinatura {
-  CLIENTE
-
-  @@map("tipo_assinatura")
-}
-
-enum StatusAssinatura {
-  PENDENTE
-  ASSINADA
-  RECUSADA
-  CANCELADA
-
-  @@map("status_assinatura")
+  @@map("tipo_desconto_orcamento")
 }
 
 enum StatusPagamento {
@@ -113,6 +91,8 @@ model Empresa {
   email              String   @unique
   telefone           String?  @db.VarChar(20)
   whatsapp           String?  @db.VarChar(20)
+  // Telefones exibidos no PDF, como a empresa quer escrever: "(11) 9 1234-5678 / 3333-0000".
+  telefonesContato   String?  @map("telefones_contato")
   cep                String?  @db.VarChar(8)
   estado             String?  @db.Char(2)
   cidade             String?
@@ -121,21 +101,21 @@ model Empresa {
   numero             String?
   complemento        String?
   logoUrl            String?  @map("logo_url")
+  logoOrcamentoUrl   String?  @map("logo_orcamento_url")
   corTema            String   @default("grafite") @map("cor_tema")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  usuarios   Usuario[]
-  clientes   Cliente[]
-  leads      Lead[]
-  eventos    Evento[]
-  servicos   Servico[]
-  orcamentos Orcamento[]
-  contratos  Contrato[]
-  pagamentos Pagamento[]
-  custos     Custo[]
-  atividades Atividade[]
-  documentos Documento[]
+  usuarios           Usuario[]
+  clientes           Cliente[]
+  leads              Lead[]
+  eventos            Evento[]
+  servicos           Servico[]
+  categoriasCardapio CategoriaCardapio[]
+  orcamentos         Orcamento[]
+  pagamentos         Pagamento[]
+  custos             Custo[]
+  documentos         Documento[]
 
   @@map("empresas")
 }
@@ -151,12 +131,12 @@ model Usuario {
   sessaoVersao           Int                     @default(0) @map("sessao_versao")
   ativo                  Boolean                 @default(true)
   ultimoLogin            DateTime?               @map("ultimo_login") @db.Timestamptz(6)
+  tentativasLogin        Int                     @default(0) @map("tentativas_login")
+  bloqueadoAte           DateTime?               @map("bloqueado_ate") @db.Timestamptz(6)
   createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   empresa                Empresa                 @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   cliente                Cliente?
-  assinaturas            Assinatura[]
-  atividades             Atividade[]
   notificacoes           Notificacao[]
   documentos             Documento[]
   tokensRecuperacaoSenha TokenRecuperacaoSenha[]
@@ -240,6 +220,8 @@ model Evento {
   clienteId            String       @map("cliente_id") @db.Uuid
   nome                 String
   tipo                 String
+  formatoServico       String?      @map("formato_servico")
+  servicosAdicionais   String[]     @default([]) @map("servicos_adicionais")
   dataEvento           DateTime     @map("data_evento") @db.Date
   horaInicio           DateTime?    @map("hora_inicio") @db.Time(0)
   horaFim              DateTime?    @map("hora_fim") @db.Time(0)
@@ -252,14 +234,14 @@ model Evento {
   logradouro           String?
   numero               String?
   complemento          String?
-  status               StatusEvento @default(PLANEJAMENTO)
+  status               StatusEvento @default(ORCAMENTO)
   observacoes          String?
   createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   empresa              Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   cliente              Cliente      @relation(fields: [empresaId, clienteId], references: [empresaId, id], onDelete: Restrict)
   orcamentos           Orcamento[]
-  contratos            Contrato[]
+  pagamentos           Pagamento[]
   custos               Custo[]
   documentos           Documento[]
 
@@ -273,38 +255,78 @@ model Servico {
   id             String          @id @default(uuid()) @db.Uuid
   empresaId      String          @map("empresa_id") @db.Uuid
   nome           String
+  categoria      String          @default("Geral")
+  tiposEvento    String[]        @default([]) @map("tipos_evento")
+  cardapios      String[]        @default([])
   descricao      String?
+  imagemUrl      String?         @map("imagem_url")
   unidade        String
   precoBase      Decimal         @map("preco_base") @db.Decimal(14, 2)
+  precoVisivel   Boolean         @default(true) @map("preco_visivel")
+  ordem          Int             @default(0)
+  sugestaoChef   Boolean         @default(false) @map("sugestao_chef")
+  // Nome da escolha pedida ao cliente quando o item tem opções (ex.: "Recheio").
+  opcoesRotulo   String?         @map("opcoes_rotulo")
   ativo          Boolean         @default(true)
   createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   empresa        Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   orcamentoItens OrcamentoItem[]
+  opcoes         ServicoOpcao[]  @relation("ServicoComOpcoes")
+  opcaoDe        ServicoOpcao[]  @relation("OpcaoDoServico")
 
   @@unique([empresaId, nome])
   @@unique([empresaId, id])
+  @@index([empresaId, sugestaoChef, ativo, ordem])
   @@map("servicos")
 }
 
+/// Categorias do cardápio, editáveis pela empresa. Servico.categoria guarda o nome.
+model CategoriaCardapio {
+  id        String   @id @default(uuid()) @db.Uuid
+  empresaId String   @map("empresa_id") @db.Uuid
+  nome      String
+  ordem     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, nome])
+  @@index([empresaId, ordem])
+  @@map("categorias_cardapio")
+}
+
+/// Opções que o cliente escolhe para um item (ex.: os recheios possíveis de cada massa).
+model ServicoOpcao {
+  servicoId String  @map("servico_id") @db.Uuid
+  opcaoId   String  @map("opcao_id") @db.Uuid
+  servico   Servico @relation("ServicoComOpcoes", fields: [servicoId], references: [id], onDelete: Cascade)
+  opcao     Servico @relation("OpcaoDoServico", fields: [opcaoId], references: [id], onDelete: Cascade)
+
+  @@id([servicoId, opcaoId])
+  @@index([opcaoId])
+  @@map("servico_opcoes")
+}
+
 model Orcamento {
-  id          String          @id @default(uuid()) @db.Uuid
-  empresaId   String          @map("empresa_id") @db.Uuid
-  eventoId    String          @map("evento_id") @db.Uuid
-  numero      BigInt
-  versao      Int             @default(1)
-  status      StatusOrcamento @default(RASCUNHO)
-  validade    DateTime?       @db.Date
-  subtotal    Decimal         @default(0) @db.Decimal(14, 2)
-  desconto    Decimal         @default(0) @db.Decimal(14, 2)
-  total       Decimal         @default(0) @db.Decimal(14, 2)
-  observacoes String?
-  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  empresa     Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  evento      Evento          @relation(fields: [empresaId, eventoId], references: [empresaId, id], onDelete: Restrict)
-  itens       OrcamentoItem[]
-  contratos   Contrato[]
+  id            String                @id @default(uuid()) @db.Uuid
+  empresaId     String                @map("empresa_id") @db.Uuid
+  eventoId      String                @map("evento_id") @db.Uuid
+  numero        BigInt
+  versao        Int                   @default(1)
+  status        StatusOrcamento       @default(RASCUNHO)
+  validade      DateTime?             @db.Date
+  subtotal      Decimal               @default(0) @db.Decimal(14, 2)
+  tipoDesconto  TipoDescontoOrcamento @default(VALOR_FIXO) @map("tipo_desconto")
+  descontoValor Decimal               @default(0) @map("desconto_valor") @db.Decimal(14, 2)
+  desconto      Decimal               @default(0) @db.Decimal(14, 2)
+  total         Decimal               @default(0) @db.Decimal(14, 2)
+  observacoes   String?
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa       Empresa               @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  evento        Evento                @relation(fields: [empresaId, eventoId], references: [empresaId, id], onDelete: Restrict)
+  itens         OrcamentoItem[]
 
   @@unique([empresaId, numero, versao])
   @@unique([empresaId, id])
@@ -331,53 +353,10 @@ model OrcamentoItem {
   @@map("orcamento_itens")
 }
 
-model Contrato {
-  id           String         @id @default(uuid()) @db.Uuid
-  empresaId    String         @map("empresa_id") @db.Uuid
-  eventoId     String         @map("evento_id") @db.Uuid
-  orcamentoId  String         @map("orcamento_id") @db.Uuid
-  numero       BigInt
-  status       StatusContrato @default(RASCUNHO)
-  valorTotal   Decimal        @map("valor_total") @db.Decimal(14, 2)
-  conteudo     String?
-  documentoUrl String?        @map("documento_url")
-  enviadoEm    DateTime?      @map("enviado_em") @db.Timestamptz(6)
-  assinadoEm   DateTime?      @map("assinado_em") @db.Timestamptz(6)
-  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  empresa      Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  evento       Evento         @relation(fields: [empresaId, eventoId], references: [empresaId, id], onDelete: Restrict)
-  orcamento    Orcamento      @relation(fields: [empresaId, eventoId, orcamentoId], references: [empresaId, eventoId, id], onDelete: Restrict)
-  assinaturas  Assinatura[]
-  pagamentos   Pagamento[]
-  documentos   Documento[]
-
-  @@unique([empresaId, numero])
-  @@unique([empresaId, id])
-  @@index([eventoId])
-  @@map("contratos")
-}
-
-model Assinatura {
-  id         String           @id @default(uuid()) @db.Uuid
-  contratoId String           @map("contrato_id") @db.Uuid
-  usuarioId  String           @map("usuario_id") @db.Uuid
-  tipo       TipoAssinatura   @default(CLIENTE)
-  status     StatusAssinatura @default(PENDENTE)
-  assinadoEm DateTime?        @map("assinado_em") @db.Timestamptz(6)
-  ip         String?          @db.Inet
-  userAgent  String?          @map("user_agent")
-  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  contrato   Contrato         @relation(fields: [contratoId], references: [id], onDelete: Cascade)
-  usuario    Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
-
-  @@map("assinaturas")
-}
-
 model Pagamento {
   id             String          @id @default(uuid()) @db.Uuid
   empresaId      String          @map("empresa_id") @db.Uuid
-  contratoId     String          @map("contrato_id") @db.Uuid
+  eventoId       String          @map("evento_id") @db.Uuid
   numeroParcela  Int             @map("numero_parcela")
   descricao      String?
   valor          Decimal         @db.Decimal(14, 2)
@@ -389,9 +368,9 @@ model Pagamento {
   createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   empresa        Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  contrato       Contrato        @relation(fields: [empresaId, contratoId], references: [empresaId, id], onDelete: Restrict)
+  evento         Evento          @relation(fields: [empresaId, eventoId], references: [empresaId, id], onDelete: Restrict)
 
-  @@unique([contratoId, numeroParcela])
+  @@unique([eventoId, numeroParcela])
   @@index([empresaId, dataVencimento, status])
   @@map("pagamentos")
 }
@@ -415,24 +394,6 @@ model Custo {
   @@map("custos")
 }
 
-model Atividade {
-  id           String   @id @default(uuid()) @db.Uuid
-  empresaId    String   @map("empresa_id") @db.Uuid
-  usuarioId    String?  @map("usuario_id") @db.Uuid
-  tipo         String
-  descricao    String
-  entidadeTipo String?  @map("entidade_tipo")
-  entidadeId   String?  @map("entidade_id") @db.Uuid
-  metadata     Json     @default("{}") @db.JsonB
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  usuario      Usuario? @relation(fields: [empresaId, usuarioId], references: [empresaId, id], onDelete: Restrict)
-
-  @@index([empresaId, createdAt(sort: Desc)])
-  @@index([entidadeTipo, entidadeId])
-  @@map("atividades")
-}
-
 model Notificacao {
   id        String    @id @default(uuid()) @db.Uuid
   usuarioId String    @map("usuario_id") @db.Uuid
@@ -449,23 +410,21 @@ model Notificacao {
 }
 
 model Documento {
-  id         String        @id @default(uuid()) @db.Uuid
-  empresaId  String        @map("empresa_id") @db.Uuid
-  usuarioId  String?       @map("usuario_id") @db.Uuid
-  clienteId  String?       @map("cliente_id") @db.Uuid
-  eventoId   String?       @map("evento_id") @db.Uuid
-  contratoId String?       @map("contrato_id") @db.Uuid
-  nome       String
-  tipo       TipoDocumento
-  url        String
-  tamanho    BigInt?
-  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  empresa    Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  usuario    Usuario?      @relation(fields: [empresaId, usuarioId], references: [empresaId, id], onDelete: Restrict)
-  cliente    Cliente?      @relation(fields: [empresaId, clienteId], references: [empresaId, id], onDelete: Restrict)
-  evento     Evento?       @relation(fields: [empresaId, eventoId], references: [empresaId, id], onDelete: Restrict)
-  contrato   Contrato?     @relation(fields: [empresaId, contratoId], references: [empresaId, id], onDelete: Restrict)
+  id        String        @id @default(uuid()) @db.Uuid
+  empresaId String        @map("empresa_id") @db.Uuid
+  usuarioId String?       @map("usuario_id") @db.Uuid
+  clienteId String?       @map("cliente_id") @db.Uuid
+  eventoId  String?       @map("evento_id") @db.Uuid
+  nome      String
+  tipo      TipoDocumento
+  url       String
+  tamanho   BigInt?
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa   Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  usuario   Usuario?      @relation(fields: [empresaId, usuarioId], references: [empresaId, id], onDelete: Restrict)
+  cliente   Cliente?      @relation(fields: [empresaId, clienteId], references: [empresaId, id], onDelete: Restrict)
+  evento    Evento?       @relation(fields: [empresaId, eventoId], references: [empresaId, id], onDelete: Restrict)
 
   @@index([empresaId, createdAt(sort: Desc)])
   @@map("documentos")

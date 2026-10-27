@@ -16,7 +16,6 @@ import { Route as RecuperarSenhaRouteImport } from './routes/recuperar-senha'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAgendaRouteImport } from './routes/admin.agenda'
-import { Route as AdminAtividadesRouteImport } from './routes/admin.atividades'
 import { Route as AdminConfiguracoesRouteImport } from './routes/admin.configuracoes'
 import { Route as AdminCustosRouteImport } from './routes/admin.custos'
 import { Route as AdminDocumentosRouteImport } from './routes/admin.documentos'
@@ -26,24 +25,22 @@ import { Route as AdminPagamentosRouteImport } from './routes/admin.pagamentos'
 import { Route as AdminServicosRouteImport } from './routes/admin.servicos'
 import { Route as AdminUsuariosRouteImport } from './routes/admin.usuarios'
 import { Route as ClienteIndexRouteImport } from './routes/cliente.index'
-import { Route as ClienteContratosRouteImport } from './routes/cliente.contratos'
 import { Route as ClienteDocumentosRouteImport } from './routes/cliente.documentos'
 import { Route as ClienteEventosRouteImport } from './routes/cliente.eventos'
-import { Route as ClienteOrcamentosRouteImport } from './routes/cliente.orcamentos'
 import { Route as ClientePagamentosRouteImport } from './routes/cliente.pagamentos'
 import { Route as ClientePerfilRouteImport } from './routes/cliente.perfil'
 import { Route as SolicitarOrcamentoTokenRouteImport } from './routes/solicitar-orcamento.$token'
 import { Route as AdminClientesIndexRouteImport } from './routes/admin.clientes.index'
 import { Route as AdminClientesIdRouteImport } from './routes/admin.clientes.$id'
 import { Route as AdminClientesNovoRouteImport } from './routes/admin.clientes.novo'
-import { Route as AdminContratosIndexRouteImport } from './routes/admin.contratos.index'
-import { Route as AdminContratosIdRouteImport } from './routes/admin.contratos.$id'
 import { Route as AdminEventosIndexRouteImport } from './routes/admin.eventos.index'
 import { Route as AdminEventosIdRouteImport } from './routes/admin.eventos.$id'
 import { Route as AdminEventosNovoRouteImport } from './routes/admin.eventos.novo'
 import { Route as AdminOrcamentosIndexRouteImport } from './routes/admin.orcamentos.index'
 import { Route as AdminOrcamentosIdRouteImport } from './routes/admin.orcamentos.$id'
 import { Route as AdminOrcamentosNovoRouteImport } from './routes/admin.orcamentos.novo'
+import { Route as ClienteOrcamentosIndexRouteImport } from './routes/cliente.orcamentos.index'
+import { Route as ClienteOrcamentosIdRouteImport } from './routes/cliente.orcamentos.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -78,11 +75,6 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 const AdminAgendaRoute = AdminAgendaRouteImport.update({
   id: '/agenda',
   path: '/agenda',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminAtividadesRoute = AdminAtividadesRouteImport.update({
-  id: '/atividades',
-  path: '/atividades',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminConfiguracoesRoute = AdminConfiguracoesRouteImport.update({
@@ -130,11 +122,6 @@ const ClienteIndexRoute = ClienteIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ClienteRoute,
 } as any)
-const ClienteContratosRoute = ClienteContratosRouteImport.update({
-  id: '/contratos',
-  path: '/contratos',
-  getParentRoute: () => ClienteRoute,
-} as any)
 const ClienteDocumentosRoute = ClienteDocumentosRouteImport.update({
   id: '/documentos',
   path: '/documentos',
@@ -143,11 +130,6 @@ const ClienteDocumentosRoute = ClienteDocumentosRouteImport.update({
 const ClienteEventosRoute = ClienteEventosRouteImport.update({
   id: '/eventos',
   path: '/eventos',
-  getParentRoute: () => ClienteRoute,
-} as any)
-const ClienteOrcamentosRoute = ClienteOrcamentosRouteImport.update({
-  id: '/orcamentos',
-  path: '/orcamentos',
   getParentRoute: () => ClienteRoute,
 } as any)
 const ClientePagamentosRoute = ClientePagamentosRouteImport.update({
@@ -180,16 +162,6 @@ const AdminClientesNovoRoute = AdminClientesNovoRouteImport.update({
   path: '/clientes/novo',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminContratosIndexRoute = AdminContratosIndexRouteImport.update({
-  id: '/contratos/',
-  path: '/contratos/',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminContratosIdRoute = AdminContratosIdRouteImport.update({
-  id: '/contratos/$id',
-  path: '/contratos/$id',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminEventosIndexRoute = AdminEventosIndexRouteImport.update({
   id: '/eventos/',
   path: '/eventos/',
@@ -220,6 +192,16 @@ const AdminOrcamentosNovoRoute = AdminOrcamentosNovoRouteImport.update({
   path: '/orcamentos/novo',
   getParentRoute: () => AdminRoute,
 } as any)
+const ClienteOrcamentosIndexRoute = ClienteOrcamentosIndexRouteImport.update({
+  id: '/orcamentos/',
+  path: '/orcamentos/',
+  getParentRoute: () => ClienteRoute,
+} as any)
+const ClienteOrcamentosIdRoute = ClienteOrcamentosIdRouteImport.update({
+  id: '/orcamentos/$id',
+  path: '/orcamentos/$id',
+  getParentRoute: () => ClienteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -228,7 +210,6 @@ export interface FileRoutesByFullPath {
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/admin/agenda': typeof AdminAgendaRoute
-  '/admin/atividades': typeof AdminAtividadesRoute
   '/admin/configuracoes': typeof AdminConfiguracoesRoute
   '/admin/custos': typeof AdminCustosRoute
   '/admin/documentos': typeof AdminDocumentosRoute
@@ -237,10 +218,8 @@ export interface FileRoutesByFullPath {
   '/admin/pagamentos': typeof AdminPagamentosRoute
   '/admin/servicos': typeof AdminServicosRoute
   '/admin/usuarios': typeof AdminUsuariosRoute
-  '/cliente/contratos': typeof ClienteContratosRoute
   '/cliente/documentos': typeof ClienteDocumentosRoute
   '/cliente/eventos': typeof ClienteEventosRoute
-  '/cliente/orcamentos': typeof ClienteOrcamentosRoute
   '/cliente/pagamentos': typeof ClientePagamentosRoute
   '/cliente/perfil': typeof ClientePerfilRoute
   '/solicitar-orcamento/$token': typeof SolicitarOrcamentoTokenRoute
@@ -248,22 +227,21 @@ export interface FileRoutesByFullPath {
   '/cliente/': typeof ClienteIndexRoute
   '/admin/clientes/$id': typeof AdminClientesIdRoute
   '/admin/clientes/novo': typeof AdminClientesNovoRoute
-  '/admin/contratos/$id': typeof AdminContratosIdRoute
   '/admin/eventos/$id': typeof AdminEventosIdRoute
   '/admin/eventos/novo': typeof AdminEventosNovoRoute
   '/admin/orcamentos/$id': typeof AdminOrcamentosIdRoute
   '/admin/orcamentos/novo': typeof AdminOrcamentosNovoRoute
+  '/cliente/orcamentos/$id': typeof ClienteOrcamentosIdRoute
   '/admin/clientes/': typeof AdminClientesIndexRoute
-  '/admin/contratos/': typeof AdminContratosIndexRoute
   '/admin/eventos/': typeof AdminEventosIndexRoute
   '/admin/orcamentos/': typeof AdminOrcamentosIndexRoute
+  '/cliente/orcamentos/': typeof ClienteOrcamentosIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/admin/agenda': typeof AdminAgendaRoute
-  '/admin/atividades': typeof AdminAtividadesRoute
   '/admin/configuracoes': typeof AdminConfiguracoesRoute
   '/admin/custos': typeof AdminCustosRoute
   '/admin/documentos': typeof AdminDocumentosRoute
@@ -272,10 +250,8 @@ export interface FileRoutesByTo {
   '/admin/pagamentos': typeof AdminPagamentosRoute
   '/admin/servicos': typeof AdminServicosRoute
   '/admin/usuarios': typeof AdminUsuariosRoute
-  '/cliente/contratos': typeof ClienteContratosRoute
   '/cliente/documentos': typeof ClienteDocumentosRoute
   '/cliente/eventos': typeof ClienteEventosRoute
-  '/cliente/orcamentos': typeof ClienteOrcamentosRoute
   '/cliente/pagamentos': typeof ClientePagamentosRoute
   '/cliente/perfil': typeof ClientePerfilRoute
   '/solicitar-orcamento/$token': typeof SolicitarOrcamentoTokenRoute
@@ -283,15 +259,15 @@ export interface FileRoutesByTo {
   '/cliente': typeof ClienteIndexRoute
   '/admin/clientes/$id': typeof AdminClientesIdRoute
   '/admin/clientes/novo': typeof AdminClientesNovoRoute
-  '/admin/contratos/$id': typeof AdminContratosIdRoute
   '/admin/eventos/$id': typeof AdminEventosIdRoute
   '/admin/eventos/novo': typeof AdminEventosNovoRoute
   '/admin/orcamentos/$id': typeof AdminOrcamentosIdRoute
   '/admin/orcamentos/novo': typeof AdminOrcamentosNovoRoute
+  '/cliente/orcamentos/$id': typeof ClienteOrcamentosIdRoute
   '/admin/clientes': typeof AdminClientesIndexRoute
-  '/admin/contratos': typeof AdminContratosIndexRoute
   '/admin/eventos': typeof AdminEventosIndexRoute
   '/admin/orcamentos': typeof AdminOrcamentosIndexRoute
+  '/cliente/orcamentos': typeof ClienteOrcamentosIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -301,7 +277,6 @@ export interface FileRoutesById {
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/admin/agenda': typeof AdminAgendaRoute
-  '/admin/atividades': typeof AdminAtividadesRoute
   '/admin/configuracoes': typeof AdminConfiguracoesRoute
   '/admin/custos': typeof AdminCustosRoute
   '/admin/documentos': typeof AdminDocumentosRoute
@@ -310,10 +285,8 @@ export interface FileRoutesById {
   '/admin/pagamentos': typeof AdminPagamentosRoute
   '/admin/servicos': typeof AdminServicosRoute
   '/admin/usuarios': typeof AdminUsuariosRoute
-  '/cliente/contratos': typeof ClienteContratosRoute
   '/cliente/documentos': typeof ClienteDocumentosRoute
   '/cliente/eventos': typeof ClienteEventosRoute
-  '/cliente/orcamentos': typeof ClienteOrcamentosRoute
   '/cliente/pagamentos': typeof ClientePagamentosRoute
   '/cliente/perfil': typeof ClientePerfilRoute
   '/solicitar-orcamento/$token': typeof SolicitarOrcamentoTokenRoute
@@ -321,15 +294,15 @@ export interface FileRoutesById {
   '/cliente/': typeof ClienteIndexRoute
   '/admin/clientes/$id': typeof AdminClientesIdRoute
   '/admin/clientes/novo': typeof AdminClientesNovoRoute
-  '/admin/contratos/$id': typeof AdminContratosIdRoute
   '/admin/eventos/$id': typeof AdminEventosIdRoute
   '/admin/eventos/novo': typeof AdminEventosNovoRoute
   '/admin/orcamentos/$id': typeof AdminOrcamentosIdRoute
   '/admin/orcamentos/novo': typeof AdminOrcamentosNovoRoute
+  '/cliente/orcamentos/$id': typeof ClienteOrcamentosIdRoute
   '/admin/clientes/': typeof AdminClientesIndexRoute
-  '/admin/contratos/': typeof AdminContratosIndexRoute
   '/admin/eventos/': typeof AdminEventosIndexRoute
   '/admin/orcamentos/': typeof AdminOrcamentosIndexRoute
+  '/cliente/orcamentos/': typeof ClienteOrcamentosIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -340,7 +313,6 @@ export interface FileRouteTypes {
     | '/recuperar-senha'
     | '/redefinir-senha'
     | '/admin/agenda'
-    | '/admin/atividades'
     | '/admin/configuracoes'
     | '/admin/custos'
     | '/admin/documentos'
@@ -349,10 +321,8 @@ export interface FileRouteTypes {
     | '/admin/pagamentos'
     | '/admin/servicos'
     | '/admin/usuarios'
-    | '/cliente/contratos'
     | '/cliente/documentos'
     | '/cliente/eventos'
-    | '/cliente/orcamentos'
     | '/cliente/pagamentos'
     | '/cliente/perfil'
     | '/solicitar-orcamento/$token'
@@ -360,22 +330,21 @@ export interface FileRouteTypes {
     | '/cliente/'
     | '/admin/clientes/$id'
     | '/admin/clientes/novo'
-    | '/admin/contratos/$id'
     | '/admin/eventos/$id'
     | '/admin/eventos/novo'
     | '/admin/orcamentos/$id'
     | '/admin/orcamentos/novo'
+    | '/cliente/orcamentos/$id'
     | '/admin/clientes/'
-    | '/admin/contratos/'
     | '/admin/eventos/'
     | '/admin/orcamentos/'
+    | '/cliente/orcamentos/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/recuperar-senha'
     | '/redefinir-senha'
     | '/admin/agenda'
-    | '/admin/atividades'
     | '/admin/configuracoes'
     | '/admin/custos'
     | '/admin/documentos'
@@ -384,10 +353,8 @@ export interface FileRouteTypes {
     | '/admin/pagamentos'
     | '/admin/servicos'
     | '/admin/usuarios'
-    | '/cliente/contratos'
     | '/cliente/documentos'
     | '/cliente/eventos'
-    | '/cliente/orcamentos'
     | '/cliente/pagamentos'
     | '/cliente/perfil'
     | '/solicitar-orcamento/$token'
@@ -395,15 +362,15 @@ export interface FileRouteTypes {
     | '/cliente'
     | '/admin/clientes/$id'
     | '/admin/clientes/novo'
-    | '/admin/contratos/$id'
     | '/admin/eventos/$id'
     | '/admin/eventos/novo'
     | '/admin/orcamentos/$id'
     | '/admin/orcamentos/novo'
+    | '/cliente/orcamentos/$id'
     | '/admin/clientes'
-    | '/admin/contratos'
     | '/admin/eventos'
     | '/admin/orcamentos'
+    | '/cliente/orcamentos'
   id:
     | '__root__'
     | '/'
@@ -412,7 +379,6 @@ export interface FileRouteTypes {
     | '/recuperar-senha'
     | '/redefinir-senha'
     | '/admin/agenda'
-    | '/admin/atividades'
     | '/admin/configuracoes'
     | '/admin/custos'
     | '/admin/documentos'
@@ -421,10 +387,8 @@ export interface FileRouteTypes {
     | '/admin/pagamentos'
     | '/admin/servicos'
     | '/admin/usuarios'
-    | '/cliente/contratos'
     | '/cliente/documentos'
     | '/cliente/eventos'
-    | '/cliente/orcamentos'
     | '/cliente/pagamentos'
     | '/cliente/perfil'
     | '/solicitar-orcamento/$token'
@@ -432,15 +396,15 @@ export interface FileRouteTypes {
     | '/cliente/'
     | '/admin/clientes/$id'
     | '/admin/clientes/novo'
-    | '/admin/contratos/$id'
     | '/admin/eventos/$id'
     | '/admin/eventos/novo'
     | '/admin/orcamentos/$id'
     | '/admin/orcamentos/novo'
+    | '/cliente/orcamentos/$id'
     | '/admin/clientes/'
-    | '/admin/contratos/'
     | '/admin/eventos/'
     | '/admin/orcamentos/'
+    | '/cliente/orcamentos/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -501,13 +465,6 @@ declare module '@tanstack/react-router' {
       path: '/agenda'
       fullPath: '/admin/agenda'
       preLoaderRoute: typeof AdminAgendaRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/atividades': {
-      id: '/admin/atividades'
-      path: '/atividades'
-      fullPath: '/admin/atividades'
-      preLoaderRoute: typeof AdminAtividadesRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/configuracoes': {
@@ -573,13 +530,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClienteIndexRouteImport
       parentRoute: typeof ClienteRoute
     }
-    '/cliente/contratos': {
-      id: '/cliente/contratos'
-      path: '/contratos'
-      fullPath: '/cliente/contratos'
-      preLoaderRoute: typeof ClienteContratosRouteImport
-      parentRoute: typeof ClienteRoute
-    }
     '/cliente/documentos': {
       id: '/cliente/documentos'
       path: '/documentos'
@@ -592,13 +542,6 @@ declare module '@tanstack/react-router' {
       path: '/eventos'
       fullPath: '/cliente/eventos'
       preLoaderRoute: typeof ClienteEventosRouteImport
-      parentRoute: typeof ClienteRoute
-    }
-    '/cliente/orcamentos': {
-      id: '/cliente/orcamentos'
-      path: '/orcamentos'
-      fullPath: '/cliente/orcamentos'
-      preLoaderRoute: typeof ClienteOrcamentosRouteImport
       parentRoute: typeof ClienteRoute
     }
     '/cliente/pagamentos': {
@@ -643,20 +586,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminClientesNovoRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/contratos/': {
-      id: '/admin/contratos/'
-      path: '/contratos'
-      fullPath: '/admin/contratos/'
-      preLoaderRoute: typeof AdminContratosIndexRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/contratos/$id': {
-      id: '/admin/contratos/$id'
-      path: '/contratos/$id'
-      fullPath: '/admin/contratos/$id'
-      preLoaderRoute: typeof AdminContratosIdRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/eventos/': {
       id: '/admin/eventos/'
       path: '/eventos'
@@ -699,12 +628,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOrcamentosNovoRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/cliente/orcamentos/': {
+      id: '/cliente/orcamentos/'
+      path: '/orcamentos'
+      fullPath: '/cliente/orcamentos/'
+      preLoaderRoute: typeof ClienteOrcamentosIndexRouteImport
+      parentRoute: typeof ClienteRoute
+    }
+    '/cliente/orcamentos/$id': {
+      id: '/cliente/orcamentos/$id'
+      path: '/orcamentos/$id'
+      fullPath: '/cliente/orcamentos/$id'
+      preLoaderRoute: typeof ClienteOrcamentosIdRouteImport
+      parentRoute: typeof ClienteRoute
+    }
   }
 }
 
 interface AdminRouteChildren {
   AdminAgendaRoute: typeof AdminAgendaRoute
-  AdminAtividadesRoute: typeof AdminAtividadesRoute
   AdminConfiguracoesRoute: typeof AdminConfiguracoesRoute
   AdminCustosRoute: typeof AdminCustosRoute
   AdminDocumentosRoute: typeof AdminDocumentosRoute
@@ -716,20 +658,17 @@ interface AdminRouteChildren {
   AdminIndexRoute: typeof AdminIndexRoute
   AdminClientesIdRoute: typeof AdminClientesIdRoute
   AdminClientesNovoRoute: typeof AdminClientesNovoRoute
-  AdminContratosIdRoute: typeof AdminContratosIdRoute
   AdminEventosIdRoute: typeof AdminEventosIdRoute
   AdminEventosNovoRoute: typeof AdminEventosNovoRoute
   AdminOrcamentosIdRoute: typeof AdminOrcamentosIdRoute
   AdminOrcamentosNovoRoute: typeof AdminOrcamentosNovoRoute
   AdminClientesIndexRoute: typeof AdminClientesIndexRoute
-  AdminContratosIndexRoute: typeof AdminContratosIndexRoute
   AdminEventosIndexRoute: typeof AdminEventosIndexRoute
   AdminOrcamentosIndexRoute: typeof AdminOrcamentosIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAgendaRoute: AdminAgendaRoute,
-  AdminAtividadesRoute: AdminAtividadesRoute,
   AdminConfiguracoesRoute: AdminConfiguracoesRoute,
   AdminCustosRoute: AdminCustosRoute,
   AdminDocumentosRoute: AdminDocumentosRoute,
@@ -741,13 +680,11 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminIndexRoute: AdminIndexRoute,
   AdminClientesIdRoute: AdminClientesIdRoute,
   AdminClientesNovoRoute: AdminClientesNovoRoute,
-  AdminContratosIdRoute: AdminContratosIdRoute,
   AdminEventosIdRoute: AdminEventosIdRoute,
   AdminEventosNovoRoute: AdminEventosNovoRoute,
   AdminOrcamentosIdRoute: AdminOrcamentosIdRoute,
   AdminOrcamentosNovoRoute: AdminOrcamentosNovoRoute,
   AdminClientesIndexRoute: AdminClientesIndexRoute,
-  AdminContratosIndexRoute: AdminContratosIndexRoute,
   AdminEventosIndexRoute: AdminEventosIndexRoute,
   AdminOrcamentosIndexRoute: AdminOrcamentosIndexRoute,
 }
@@ -755,23 +692,23 @@ const AdminRouteChildren: AdminRouteChildren = {
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface ClienteRouteChildren {
-  ClienteContratosRoute: typeof ClienteContratosRoute
   ClienteDocumentosRoute: typeof ClienteDocumentosRoute
   ClienteEventosRoute: typeof ClienteEventosRoute
-  ClienteOrcamentosRoute: typeof ClienteOrcamentosRoute
   ClientePagamentosRoute: typeof ClientePagamentosRoute
   ClientePerfilRoute: typeof ClientePerfilRoute
   ClienteIndexRoute: typeof ClienteIndexRoute
+  ClienteOrcamentosIdRoute: typeof ClienteOrcamentosIdRoute
+  ClienteOrcamentosIndexRoute: typeof ClienteOrcamentosIndexRoute
 }
 
 const ClienteRouteChildren: ClienteRouteChildren = {
-  ClienteContratosRoute: ClienteContratosRoute,
   ClienteDocumentosRoute: ClienteDocumentosRoute,
   ClienteEventosRoute: ClienteEventosRoute,
-  ClienteOrcamentosRoute: ClienteOrcamentosRoute,
   ClientePagamentosRoute: ClientePagamentosRoute,
   ClientePerfilRoute: ClientePerfilRoute,
   ClienteIndexRoute: ClienteIndexRoute,
+  ClienteOrcamentosIdRoute: ClienteOrcamentosIdRoute,
+  ClienteOrcamentosIndexRoute: ClienteOrcamentosIndexRoute,
 }
 
 const ClienteRouteWithChildren =

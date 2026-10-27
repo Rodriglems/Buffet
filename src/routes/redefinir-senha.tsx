@@ -5,7 +5,7 @@ import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, LockKeyhole } from "luci
 
 import { AuthCard } from "@/components/auth-card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { InputSenha } from "@/components/input-senha";
 import { Label } from "@/components/ui/label";
 import { redefinirSenha, validarTokenRecuperacaoSenha } from "@/features/auth/server-functions";
 import { pageMeta } from "@/lib/meta";
@@ -29,12 +29,14 @@ function RedefinirSenha() {
   const [carregando, setCarregando] = useState(false);
   const [concluido, setConcluido] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const senhasDiferentes = confirmacao.length > 0 && senha !== confirmacao;
 
   async function salvar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErro(null);
-    if (senha.length < 12) {
-      setErro("A nova senha precisa ter pelo menos 12 caracteres.");
+    // O servidor exige 12 caracteres para a equipe; aqui só o mínimo comum a todos.
+    if (senha.length < 4) {
+      setErro("A nova senha precisa ter pelo menos 4 caracteres.");
       return;
     }
     if (senha !== confirmacao) {
@@ -85,7 +87,10 @@ function RedefinirSenha() {
   }
 
   return (
-    <AuthCard title="Criar nova senha" subtitle="Use pelo menos 12 caracteres.">
+    <AuthCard
+      title="Criar nova senha"
+      subtitle="Clientes: pelo menos 4 caracteres. Equipe: pelo menos 12."
+    >
       <form className="mt-7 flex flex-col gap-5" onSubmit={salvar} noValidate>
         {erro ? (
           <div
@@ -100,14 +105,13 @@ function RedefinirSenha() {
         <div className="flex flex-col gap-2">
           <Label htmlFor="nova-senha">Nova senha</Label>
           <div className="relative">
-            <LockKeyhole className="text-muted-foreground pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2" />
-            <Input
+            <LockKeyhole className="text-muted-foreground pointer-events-none absolute top-1/2 left-3.5 z-10 size-4 -translate-y-1/2" />
+            <InputSenha
               id="nova-senha"
-              type="password"
               autoComplete="new-password"
               autoFocus
               required
-              minLength={12}
+              minLength={4}
               value={senha}
               onChange={(event) => setSenha(event.target.value)}
               className="bg-surface h-11 border-0 pl-10 ring-1 ring-black/10"
@@ -117,16 +121,22 @@ function RedefinirSenha() {
 
         <div className="flex flex-col gap-2">
           <Label htmlFor="confirmar-senha">Confirmar nova senha</Label>
-          <Input
+          <InputSenha
             id="confirmar-senha"
-            type="password"
             autoComplete="new-password"
             required
-            minLength={12}
+            minLength={4}
+            aria-invalid={senhasDiferentes}
+            aria-describedby={senhasDiferentes ? "senhas-diferentes" : undefined}
             value={confirmacao}
             onChange={(event) => setConfirmacao(event.target.value)}
             className="bg-surface h-11 border-0 ring-1 ring-black/10"
           />
+          {senhasDiferentes ? (
+            <p id="senhas-diferentes" className="text-destructive text-xs">
+              As senhas não são iguais.
+            </p>
+          ) : null}
         </div>
 
         <Button type="submit" disabled={carregando} className="h-11 w-full">

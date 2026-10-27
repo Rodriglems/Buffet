@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { setCookie } from "@tanstack/react-start/server";
 
+import { exigirDentroDoLimite } from "@/lib/limite-taxa.server";
 import { getPrisma } from "@/lib/prisma.server";
 import { hasPermission, permissionForPath } from "@/lib/permissions";
 import { hashPassword, verifyPassword } from "@/lib/password.server";
@@ -31,40 +32,72 @@ const tokenSchema = z.object({
 });
 
 const novaSenhaSchema = tokenSchema.extend({
-  senha: z.string().min(12, "A nova senha precisa ter pelo menos 12 caracteres.").max(200),
+  // O mínimo depende do perfil (cliente: 4, administrador: 12) e é conferido no handler.
+  senha: z.string().min(4, "A nova senha precisa ter pelo menos 4 caracteres.").max(200),
 });
 
 const RESPOSTA_RECUPERACAO =
   "Se houver uma conta ativa com esse e-mail, enviaremos as instruções de recuperação.";
 const DURACAO_TOKEN_MS = 30 * 60 * 1000;
 const INTERVALO_SOLICITACAO_MS = 2 * 60 * 1000;
+const MAXIMO_TENTATIVAS_LOGIN = 5;
+const BLOQUEIO_LOGIN_MS = 15 * 60 * 1000;
+const TAMANHO_MINIMO_SENHA_CLIENTE = 4;
+const TAMANHO_MINIMO_SENHA_ADMIN = 12;
 
 function tokenHash(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
 export const login = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => loginSchema.parse(input))
+  .validator((input: unknown) => loginSchema.parse(input))
   .handler(async ({ data }) => {
+    exigirDentroDoLimite("login");
     const usuario = await getPrisma().usuario.findFirst({
       where: { email: data.email, ativo: true },
-      select: { id: true, senhaHash: true, role: true, sessaoVersao: true },
+      select: {
+        id: true,
+        senhaHash: true,
+        role: true,
+        sessaoVersao: true,
+        tentativasLogin: true,
+        bloqueadoAte: true,
+      },
     });
+    if (usuario?.bloqueadoAte && usuario.bloqueadoAte > new Date()) {
+      const minutos = Math.ceil((usuario.bloqueadoAte.getTime() - Date.now()) / 60_000);
+      throw new Error(
+        `Muitas tentativas incorretas. Tente novamente em ${minutos} minuto${minutos === 1 ? "" : "s"}.`,
+      );
+    }
     if (!usuario || !(await verifyPassword(data.senha, usuario.senhaHash))) {
+      if (usuario) {
+        // Senhas de clientes podem ter só 4 dígitos: o bloqueio impede adivinhação em sequência.
+        const tentativas = usuario.tentativasLogin + 1;
+        const bloquear = tentativas >= MAXIMO_TENTATIVAS_LOGIN;
+        await getPrisma().usuario.update({
+          where: { id: usuario.id },
+          data: {
+            tentativasLogin: bloquear ? 0 : tentativas,
+            bloqueadoAte: bloquear ? new Date(Date.now() + BLOQUEIO_LOGIN_MS) : null,
+          },
+        });
+      }
       throw new Error("Credenciais invalidas.");
     }
 
     await getPrisma().usuario.update({
       where: { id: usuario.id },
-      data: { ultimoLogin: new Date() },
+      data: { ultimoLogin: new Date(), tentativasLogin: 0, bloqueadoAte: null },
     });
     issueSession(usuario.id, usuario.sessaoVersao);
     return { destino: usuario.role === "ADMIN" ? ("/admin" as const) : ("/cliente" as const) };
   });
 
 export const solicitarRecuperacaoSenha = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => emailSchema.parse(input))
+  .validator((input: unknown) => emailSchema.parse(input))
   .handler(async ({ data }) => {
+    exigirDentroDoLimite("recuperacaoSenha");
     const usuario = await getPrisma().usuario.findFirst({
       where: { email: data.email, ativo: true },
       select: { id: true, nome: true, email: true },
@@ -118,7 +151,7 @@ export const solicitarRecuperacaoSenha = createServerFn({ method: "POST" })
   });
 
 export const validarTokenRecuperacaoSenha = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => tokenSchema.safeParse(input))
+  .validator((input: unknown) => tokenSchema.safeParse(input))
   .handler(async ({ data }) => {
     if (!data.success) return { valido: false };
     const registro = await getPrisma().tokenRecuperacaoSenha.findFirst({
@@ -134,7 +167,7 @@ export const validarTokenRecuperacaoSenha = createServerFn({ method: "GET" })
   });
 
 export const redefinirSenha = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => novaSenhaSchema.parse(input))
+  .validator((input: unknown) => novaSenhaSchema.parse(input))
   .handler(async ({ data }) => {
     const hashDoToken = tokenHash(data.token);
     const registro = await getPrisma().tokenRecuperacaoSenha.findFirst({
@@ -144,9 +177,14 @@ export const redefinirSenha = createServerFn({ method: "POST" })
         expiraEm: { gt: new Date() },
         usuario: { ativo: true },
       },
-      select: { id: true, usuarioId: true },
+      select: { id: true, usuarioId: true, usuario: { select: { role: true } } },
     });
     if (!registro) throw new Error("Link inválido ou expirado.");
+    const minimo =
+      registro.usuario.role === "ADMIN" ? TAMANHO_MINIMO_SENHA_ADMIN : TAMANHO_MINIMO_SENHA_CLIENTE;
+    if (data.senha.length < minimo) {
+      throw new Error(`A nova senha precisa ter pelo menos ${minimo} caracteres.`);
+    }
 
     const senhaHash = await hashPassword(data.senha);
     await getPrisma().$transaction(async (tx) => {
@@ -158,7 +196,12 @@ export const redefinirSenha = createServerFn({ method: "POST" })
 
       await tx.usuario.update({
         where: { id: registro.usuarioId },
-        data: { senhaHash, sessaoVersao: { increment: 1 } },
+        data: {
+          senhaHash,
+          sessaoVersao: { increment: 1 },
+          tentativasLogin: 0,
+          bloqueadoAte: null,
+        },
       });
       await tx.tokenRecuperacaoSenha.updateMany({
         where: { usuarioId: registro.usuarioId, usadoEm: null },
@@ -180,9 +223,7 @@ export const currentUser = createServerFn({ method: "GET" }).handler(async () =>
 });
 
 export const autorizarAdmin = createServerFn({ method: "GET" })
-  .inputValidator((value: unknown) =>
-    z.object({ pathname: z.string().min(1).max(300) }).parse(value),
-  )
+  .validator((value: unknown) => z.object({ pathname: z.string().min(1).max(300) }).parse(value))
   .handler(async ({ data }) => {
     const auth = await getAuthContext();
     if (!auth) return { status: "unauthenticated" as const };

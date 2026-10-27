@@ -12,26 +12,19 @@ import {
   excluirCliente,
   obterCliente,
 } from "@/features/clientes/server-functions";
-import { listarContratos } from "@/features/contratos/server-functions";
 import { listarOrcamentos } from "@/features/orcamentos/server-functions";
 import { listarPagamentos } from "@/features/pagamentos/server-functions";
+import { useConfirmar } from "@/lib/confirmacao";
 import { formatBRL, formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/clientes/$id")({
   loader: async ({ params }) => {
-    const [cliente, orcamentos, contratos, pagamentos] = await Promise.all([
+    const [cliente, orcamentos, pagamentos] = await Promise.all([
       obterCliente({ data: { id: params.id } }),
-      listarOrcamentos({ data: { page: 1, pageSize: 100 } }),
-      listarContratos({ data: { page: 1, pageSize: 100 } }),
-      listarPagamentos({ data: { page: 1, pageSize: 100 } }),
+      listarOrcamentos({ data: { page: 1, pageSize: 100, clienteId: params.id } }),
+      listarPagamentos({ data: { page: 1, pageSize: 100, clienteId: params.id } }),
     ]);
-    const eventos = new Set(cliente.eventos.map((evento) => evento.id));
-    return {
-      cliente,
-      orcamentos: orcamentos.items.filter((item) => eventos.has(item.eventoId)),
-      contratos: contratos.items.filter((item) => eventos.has(item.eventoId)),
-      pagamentos: pagamentos.items.filter((item) => eventos.has(item.contrato.eventoId)),
-    };
+    return { cliente, orcamentos: orcamentos.items, pagamentos: pagamentos.items };
   },
   component: DetalheCliente,
 });
@@ -71,15 +64,22 @@ function valoresDoCliente(cliente: {
 }
 
 function DetalheCliente() {
-  const { cliente, orcamentos, contratos, pagamentos } = Route.useLoaderData();
+  const { cliente, orcamentos, pagamentos } = Route.useLoaderData();
   const navigate = useNavigate();
   const router = useRouter();
   const atualizar = useServerFn(atualizarCliente);
   const excluir = useServerFn(excluirCliente);
   const [salvando, setSalvando] = useState(false);
+  const confirmar = useConfirmar();
 
   async function remover() {
-    if (!window.confirm(`Excluir o cliente ${cliente.nome}?`)) return;
+    const ok = await confirmar({
+      titulo: `Excluir o cliente ${cliente.nome}?`,
+      descricao: "Essa ação não pode ser desfeita.",
+      textoConfirmar: "Excluir cliente",
+      perigoso: true,
+    });
+    if (!ok) return;
     try {
       await excluir({ data: { id: cliente.id } });
       toast.success("Cliente excluído.");
@@ -126,27 +126,6 @@ function DetalheCliente() {
           }
         }}
       />
-      <Panel className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
-        <div>
-          <p className="text-muted-foreground text-xs">E-mail</p>
-          <p>{cliente.email ?? "—"}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground text-xs">Telefone</p>
-          <p>{cliente.telefone ?? "—"}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground text-xs">WhatsApp</p>
-          <p>{cliente.whatsapp ?? "—"}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground text-xs">Cidade</p>
-          <p>
-            {cliente.cidade ?? "—"}
-            {cliente.estado ? `/${cliente.estado}` : ""}
-          </p>
-        </div>
-      </Panel>
       <div className="grid gap-4 xl:grid-cols-2">
         <Panel className="p-5">
           <h2 className="font-display font-semibold">Eventos</h2>
@@ -162,22 +141,54 @@ function DetalheCliente() {
           </ul>
         </Panel>
         <Panel className="p-5">
-          <h2 className="font-display font-semibold">Comercial</h2>
-          <p className="text-muted-foreground mt-2 text-sm">
-            {orcamentos.length} orçamento(s) · {contratos.length} contrato(s)
-          </p>
+          <h2 className="font-display font-semibold">Orçamentos</h2>
+          <p className="text-muted-foreground mt-1 text-sm">{orcamentos.length} orçamento(s)</p>
+          {orcamentos.length ? (
+            <ul className="mt-3 divide-y divide-border">
+              {orcamentos.map((item) => (
+                <li key={item.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+                  <div className="min-w-0">
+                    <Link
+                      to="/admin/orcamentos/$id"
+                      params={{ id: item.id }}
+                      className="font-medium hover:underline"
+                    >
+                      Orçamento #{item.numero.toString()}
+                      {item.versao > 1 ? ` · versão ${item.versao}` : ""}
+                    </Link>
+                    <p className="text-muted-foreground truncate text-xs">{item.evento.nome}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="font-medium">{formatBRL(Number(item.total))}</span>
+                    <StatusBadge status={item.status} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </Panel>
+      </div>
+      {pagamentos.length ? (
+        <Panel className="p-5">
+          <h2 className="font-display font-semibold">Parcelas</h2>
           <ul className="mt-3 divide-y divide-border">
             {pagamentos.map((item) => (
-              <li key={item.id} className="flex justify-between py-3 text-sm">
-                <span>Parcela {item.numeroParcela}</span>
-                <span>
-                  {formatBRL(Number(item.valor))} · {item.status}
-                </span>
+              <li key={item.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    Parcela {item.numeroParcela} · vence {formatDate(item.dataVencimento)}
+                  </p>
+                  <p className="text-muted-foreground truncate text-xs">{item.evento.nome}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="font-medium">{formatBRL(Number(item.valor))}</span>
+                  <StatusBadge status={item.status} />
+                </div>
               </li>
             ))}
           </ul>
         </Panel>
-      </div>
+      ) : null}
       {cliente.observacoes && (
         <Panel className="p-5">
           <h2 className="font-display font-semibold">Observações</h2>

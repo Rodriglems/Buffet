@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { pagination, registrarAtividade, serialize } from "@/lib/domain.server";
+import { pagination, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
 import { requireAuth, requirePermission } from "@/lib/session.server";
 
 export const listarNotificacoes = createServerFn({ method: "GET" })
-  .inputValidator((value: unknown) =>
+  .validator((value: unknown) =>
     z
       .object({
         page: z.number().int().positive().default(1),
@@ -31,7 +31,7 @@ export const listarNotificacoes = createServerFn({ method: "GET" })
   });
 
 export const marcarNotificacaoLida = createServerFn({ method: "POST" })
-  .inputValidator((value: unknown) => z.object({ id: z.string().uuid() }).parse(value))
+  .validator((value: unknown) => z.object({ id: z.string().uuid() }).parse(value))
   .handler(async ({ data }) => {
     const auth = await requireAuth();
     const result = await getPrisma().notificacao.updateMany({
@@ -120,11 +120,6 @@ export const gerarLembretesOperacionais = createServerFn({ method: "POST" }).han
       return data;
     });
     if (novas.length) await tx.notificacao.createMany({ data: novas });
-    await registrarAtividade(tx, auth, {
-      tipo: "LEMBRETES_ATUALIZADOS",
-      descricao: "Lembretes de eventos e pagamentos foram atualizados.",
-      metadata: { eventos, pagamentos, notificacoes: novas.length },
-    });
     return { eventos, pagamentos, notificacoesCriadas: novas.length };
   });
 });
