@@ -3,6 +3,7 @@ import "./lib/error-capture";
 import { aplicarCabecalhosSeguranca } from "./lib/cabecalhos-seguranca";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { garantirInstalacaoInicial } from "./lib/instalacao-inicial.server";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -51,6 +52,7 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     let response: Response;
     try {
+      await garantirInstalacaoInicial();
       const handler = await getServerEntry();
       response = await normalizeCatastrophicSsrResponse(await handler.fetch(request, env, ctx));
     } catch (error) {

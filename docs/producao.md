@@ -22,15 +22,13 @@ docker compose ps              # app deve ficar "healthy"
 docker compose logs -f app
 ```
 
-Na primeira vez, crie a empresa e o administrador (a partir do host, com Node.js):
+Na primeira vez, com o banco vazio, o próprio servidor cria a empresa, o cardápio padrão e o
+administrador a partir de `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD` (mínimo de 12
+caracteres). Com dados já cadastrados ele não faz nada, então manter essas variáveis não
+sobrescreve o cardápio nem a senha alterada depois.
 
-```sh
-npm ci
-npm run db:seed
-```
-
-> ⚠️ Rode o seed **só na instalação inicial**. Ele recria o cardápio padrão e sobrescreve
-> preços, descrições e ordem dos itens que a equipe já tiver editado.
+> ⚠️ O `npm run db:seed` manual, ao contrário, recria o cardápio padrão e sobrescreve preços,
+> descrições e ordem dos itens que a equipe já tiver editado. Evite rodá-lo em produção.
 
 ## 3. Atualizar para uma nova versão
 
