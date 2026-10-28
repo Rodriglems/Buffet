@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { calcularDescontoOrcamento } from "@/features/orcamentos/calculos";
+import { valoresParaCliente } from "@/features/orcamentos/valores-cliente";
 import { notificar, pagination, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
 import { requireAuth, requirePermission } from "@/lib/session.server";
@@ -59,7 +60,8 @@ export const listarOrcamentos = createServerFn({ method: "GET" })
       }),
       getPrisma().orcamento.count({ where }),
     ]);
-    return serialize({ items, total });
+    const lista = serialize({ items, total });
+    return { ...lista, items: lista.items.map((entry) => valoresParaCliente(auth, entry)) };
   });
 
 export const obterOrcamento = createServerFn({ method: "GET" })
@@ -84,7 +86,7 @@ export const obterOrcamento = createServerFn({ method: "GET" })
         data: { status: "VISUALIZADO" },
       });
     }
-    return serialize(result);
+    return valoresParaCliente(auth, serialize(result));
   });
 
 export const criarOrcamento = createServerFn({ method: "POST" })
@@ -262,11 +264,17 @@ export const enviarOrcamento = createServerFn({ method: "POST" })
         where: { id: data.id, empresaId: auth.empresaId },
         include: { evento: { include: { cliente: true } } },
       });
-      if (!found || ["APROVADO", "REJEITADO", "EXPIRADO", "CANCELADO"].includes(found.status))
-        throw new Error("Orcamento nao pode ser enviado.");
-      if (["RASCUNHO", "EM_NEGOCIACAO"].includes(found.status)) {
-        await tx.orcamento.update({ where: { id: found.id }, data: { status: "ENVIADO" } });
-      }
+      // Aprovados podem ser reenviados (ex.: após uma edição); só os encerrados não.
+      if (!found || ["REJEITADO", "EXPIRADO", "CANCELADO"].includes(found.status))
+        throw new Error("Este orçamento não pode ser enviado.");
+      // A partir do primeiro envio o cliente passa a ver os valores, inclusive edições futuras.
+      await tx.orcamento.update({
+        where: { id: found.id },
+        data: {
+          enviadoEm: found.enviadoEm ?? new Date(),
+          ...(["RASCUNHO", "EM_NEGOCIACAO"].includes(found.status) ? { status: "ENVIADO" } : {}),
+        },
+      });
       if (found.evento.cliente.usuarioId) {
         await notificar(tx, found.evento.cliente.usuarioId, {
           tipo: "ORCAMENTO_ENVIADO",
@@ -349,6 +357,9 @@ export const aprovarOrcamento = createServerFn({ method: "POST" })
       // Aprovar é a primeira etapa: só vale enquanto o evento ainda está em "Orçamento".
       if (found && found.evento.status !== "ORCAMENTO") {
         throw new Error("Este evento já passou da etapa de aprovação.");
+      }
+      if (found && auth.role === "CLIENT" && !found.enviadoEm) {
+        throw new Error("Seu orçamento ainda está sendo preparado pela nossa equipe.");
       }
       // A equipe pode aprovar direto do rascunho (pedidos do formulário público nascem assim).
       const aprovaveis = ["ENVIADO", "VISUALIZADO", "AGUARDANDO_APROVACAO", "EM_NEGOCIACAO"];

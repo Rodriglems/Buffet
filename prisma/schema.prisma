@@ -323,6 +323,8 @@ model Orcamento {
   total         Decimal               @default(0) @db.Decimal(14, 2)
   observacoes   String?
   createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// Quando a equipe enviou o orçamento ao cliente; antes disso o cliente não vê valores.
+  enviadoEm     DateTime?             @map("enviado_em") @db.Timestamptz(6)
   updatedAt     DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   empresa       Empresa               @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   evento        Evento                @relation(fields: [empresaId, eventoId], references: [empresaId, id], onDelete: Restrict)

@@ -15,12 +15,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { baixarPdfDoEvento, STATUS_COM_PDF } from "@/features/documentos/eventos-pdf";
+import {
+  baixarPdfDoEvento,
+  STATUS_COM_PDF,
+  STATUS_COM_PDF_ORCAMENTO,
+} from "@/features/documentos/eventos-pdf";
 import { AlterarStatusEvento } from "@/features/eventos/alterar-status-evento";
 import { confirmarEvento, finalizarEvento, obterEvento } from "@/features/eventos/server-functions";
 import { DescontoOrcamento } from "@/features/orcamentos/desconto-orcamento";
 import { EditarOrcamentoDialog } from "@/features/orcamentos/editar-orcamento-dialog";
-import { aprovarOrcamento } from "@/features/orcamentos/server-functions";
+import { aprovarOrcamento, enviarOrcamento } from "@/features/orcamentos/server-functions";
 import { GerarParcelasDialog } from "@/features/pagamentos/gerar-parcelas-dialog";
 import { FORMAS_PAGAMENTO } from "@/features/pagamentos/parcelas";
 import {
@@ -57,6 +61,28 @@ function DetalheEvento() {
     .reduce((soma, item) => soma + Number(item.valor), 0);
   const [editando, setEditando] = useState(false);
   const encerrado = ["CANCELADO", "FINALIZADO"].includes(evento.status);
+  const botaoWhatsApp = evento.cliente.whatsapp ? (
+    <Button
+      variant="outline"
+      className="shrink-0"
+      onClick={() => {
+        try {
+          window.open(
+            createWhatsAppUrl(
+              evento.cliente.whatsapp!,
+              `Olá ${evento.cliente.nome}, estamos entrando em contato sobre o seu evento em ${formatDate(evento.dataEvento)}.`,
+            ),
+            "_blank",
+            "noopener,noreferrer",
+          );
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "WhatsApp inválido.");
+        }
+      }}
+    >
+      <MessageCircle className="size-4" /> WhatsApp
+    </Button>
+  ) : null;
 
   return (
     // Espaço extra no fim para a barra fixa de etapas não cobrir o conteúdo.
@@ -64,29 +90,7 @@ function DetalheEvento() {
       <PageHeader
         title={evento.nome}
         subtitle={`${evento.tipo} · ${formatDate(evento.dataEvento)} · ${evento.localNome ?? "Local a definir"}`}
-        actions={
-          evento.cliente.whatsapp ? (
-            <Button
-              variant="outline"
-              onClick={() => {
-                try {
-                  window.open(
-                    createWhatsAppUrl(
-                      evento.cliente.whatsapp!,
-                      `Olá ${evento.cliente.nome}, estamos entrando em contato sobre o seu evento em ${formatDate(evento.dataEvento)}.`,
-                    ),
-                    "_blank",
-                    "noopener,noreferrer",
-                  );
-                } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "WhatsApp inválido.");
-                }
-              }}
-            >
-              <MessageCircle className="size-4" /> WhatsApp
-            </Button>
-          ) : null
-        }
+        actions={orcamentoAtual ? null : botaoWhatsApp}
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label="Valor do evento" value={formatBRL(valorEvento)} />
@@ -192,6 +196,9 @@ function DetalheEvento() {
                 <p className="mt-1 whitespace-pre-wrap text-sm">{orcamentoAtual.observacoes}</p>
               </div>
             ) : null}
+            {["REJEITADO", "EXPIRADO", "CANCELADO"].includes(orcamentoAtual.status) ? null : (
+              <EnviarOrcamentoAoCliente evento={evento} orcamento={orcamentoAtual} />
+            )}
             <EditarOrcamentoDialog
               key={orcamentoAtual.id}
               aberto={editando}
@@ -259,6 +266,85 @@ function DetalheEvento() {
         </Panel>
       ) : null}
       <BarraDeEtapas evento={evento} valorEvento={valorEvento} />
+    </div>
+  );
+}
+
+/**
+ * Envia o orçamento ao cliente: a partir daí o portal dele mostra os valores (e as edições
+ * seguintes) e o WhatsApp abre com a mensagem pronta e o link de acesso.
+ */
+function EnviarOrcamentoAoCliente({
+  evento,
+  orcamento,
+}: {
+  evento: EventoDetalhe;
+  orcamento: EventoDetalhe["orcamentos"][number];
+}) {
+  const router = useRouter();
+  const enviar = useServerFn(enviarOrcamento);
+  const [enviando, setEnviando] = useState(false);
+  const whatsapp = evento.cliente.whatsapp;
+
+  async function enviarAoCliente() {
+    // A aba é aberta já no clique para o navegador não bloquear o pop-up após a espera.
+    const janela = whatsapp ? window.open("", "_blank") : null;
+    setEnviando(true);
+    try {
+      await enviar({ data: { id: orcamento.id } });
+      if (whatsapp) {
+        const primeiroNome = evento.cliente.nome.trim().split(/\s+/)[0];
+        const mensagem = [
+          `Olá, ${primeiroNome}! O orçamento do seu evento "${evento.nome}" (${formatDate(evento.dataEvento)}) já está pronto.`,
+          `Para ver os itens e o valor, acesse ${window.location.origin}/ e entre com o seu e-mail${evento.cliente.email ? ` (${evento.cliente.email})` : ""} e a senha que você cadastrou.`,
+          "Qualquer dúvida, é só responder esta mensagem.",
+        ].join("\n\n");
+        const url = createWhatsAppUrl(whatsapp, mensagem);
+        if (janela) {
+          janela.opener = null;
+          janela.location.href = url;
+        } else {
+          window.open(url, "_blank", "noopener,noreferrer");
+        }
+        toast.success("Orçamento liberado para o cliente.");
+      } else {
+        toast.success("Orçamento liberado no portal do cliente.", {
+          description: "O cliente não tem WhatsApp cadastrado. Avise por outro canal.",
+        });
+      }
+      await router.invalidate();
+    } catch (error) {
+      janela?.close();
+      toast.error(error instanceof Error ? error.message : "Não foi possível enviar o orçamento.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 flex flex-col items-stretch gap-1.5 sm:items-end">
+      <Button
+        variant={orcamento.enviadoEm ? "outline" : "default"}
+        className="min-w-60 shrink-0"
+        disabled={enviando}
+        onClick={() => void enviarAoCliente()}
+      >
+        {enviando ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <MessageCircle className="size-4" />
+        )}
+        {whatsapp
+          ? orcamento.enviadoEm
+            ? "Reenviar no WhatsApp"
+            : "Enviar orçamento no WhatsApp"
+          : "Liberar orçamento ao cliente"}
+      </Button>
+      <p className="text-muted-foreground text-center text-xs sm:min-w-60">
+        {orcamento.enviadoEm
+          ? `Enviado ao cliente em ${formatDate(orcamento.enviadoEm)}.`
+          : "O cliente ainda não vê os valores deste orçamento."}
+      </p>
     </div>
   );
 }
@@ -459,7 +545,12 @@ function BarraDeEtapas({ evento, valorEvento }: { evento: EventoDetalhe; valorEv
   const [definindoPagamento, setDefinindoPagamento] = useState(false);
   const etapa = acaoDaEtapa(evento.status);
   const orcamento = evento.orcamentos[0];
-  const pdfDisponivel = (STATUS_COM_PDF as readonly string[]).includes(evento.status);
+  // Antes da confirmação o PDF sai como orçamento, para a equipe enviar ao cliente.
+  const pdfComoOrcamento =
+    (STATUS_COM_PDF_ORCAMENTO as readonly string[]).includes(evento.status) &&
+    !!orcamento?.itens.length;
+  const pdfDisponivel =
+    (STATUS_COM_PDF as readonly string[]).includes(evento.status) || pdfComoOrcamento;
   const indiceAtual = ETAPAS_EVENTO.indexOf(evento.status as (typeof ETAPAS_EVENTO)[number]);
   const parcelado = evento.pagamentos
     .filter((item) => item.status !== "CANCELADO")
@@ -560,7 +651,15 @@ function BarraDeEtapas({ evento, valorEvento }: { evento: EventoDetalhe; valorEv
         <Button
           variant="outline"
           disabled={!pdfDisponivel || processando !== null}
-          title={pdfDisponivel ? undefined : "Disponível depois que o evento for confirmado"}
+          title={
+            pdfDisponivel
+              ? pdfComoOrcamento
+                ? "Baixar o orçamento em PDF para enviar ao cliente"
+                : undefined
+              : evento.status === "CANCELADO"
+                ? "Evento cancelado"
+                : "Crie o orçamento do evento para gerar o PDF"
+          }
           onClick={() => void executar("pdf", () => baixarPdfDoEvento(evento.id))}
         >
           {processando === "pdf" ? (
@@ -568,7 +667,7 @@ function BarraDeEtapas({ evento, valorEvento }: { evento: EventoDetalhe; valorEv
           ) : (
             <FileText className="size-4" />
           )}
-          PDF
+          {pdfComoOrcamento ? "PDF do orçamento" : "PDF"}
         </Button>
         {etapa ? (
           <Button

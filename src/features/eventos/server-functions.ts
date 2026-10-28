@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { valoresParaCliente } from "@/features/orcamentos/valores-cliente";
 import { pagination, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
 import { STATUS_EVENTO } from "@/lib/status-evento";
@@ -72,7 +73,14 @@ export const listarEventos = createServerFn({ method: "GET" })
         include: {
           cliente: { select: { nome: true, whatsapp: true, telefone: true, email: true } },
           orcamentos: {
-            select: { id: true, numero: true, versao: true, status: true, total: true },
+            select: {
+              id: true,
+              numero: true,
+              versao: true,
+              status: true,
+              total: true,
+              enviadoEm: true,
+            },
             orderBy: [{ numero: "desc" }, { versao: "desc" }],
             take: 1,
           },
@@ -81,7 +89,14 @@ export const listarEventos = createServerFn({ method: "GET" })
       }),
       getPrisma().evento.count({ where }),
     ]);
-    return serialize({ items, total });
+    const lista = serialize({ items, total });
+    return {
+      ...lista,
+      items: lista.items.map((evento) => ({
+        ...evento,
+        orcamentos: evento.orcamentos.map((entry) => valoresParaCliente(auth, entry)),
+      })),
+    };
   });
 
 export const obterEvento = createServerFn({ method: "GET" })
@@ -106,7 +121,14 @@ export const obterEvento = createServerFn({ method: "GET" })
       },
     });
     if (!result) throw new Error("Evento nao encontrado.");
-    return serialize(result);
+    const evento = serialize(result);
+    if (auth.role !== "CLIENT") return evento;
+    // Custos são internos do buffet; valores do orçamento só depois do envio.
+    return {
+      ...evento,
+      custos: [],
+      orcamentos: evento.orcamentos.map((entry) => valoresParaCliente(auth, entry)),
+    };
   });
 
 export const criarEvento = createServerFn({ method: "POST" })
