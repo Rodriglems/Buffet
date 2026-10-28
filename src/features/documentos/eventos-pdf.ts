@@ -15,6 +15,8 @@ import { TAMANHO_MAXIMO_IMAGEM } from "@/lib/storage.server";
 
 /** O PDF do evento fica disponível a partir da confirmação (todas as parcelas pagas). */
 export const STATUS_COM_PDF = ["CONFIRMADO", "FINALIZADO"] as const;
+/** Antes da confirmação, só a equipe baixa o PDF, como orçamento para enviar ao cliente. */
+export const STATUS_COM_PDF_ORCAMENTO = ["ORCAMENTO", "APROVADO", "PAGAMENTO"] as const;
 
 const ORCAMENTO_DO_PDF = {
   orderBy: [{ numero: "desc" }, { versao: "desc" }],
@@ -93,7 +95,12 @@ async function dadosPdfDoEvento(auth: Autenticacao, id: string, logos: CacheLogo
     },
   });
   if (!evento) throw new Error("Evento não encontrado.");
-  if (!(STATUS_COM_PDF as readonly string[]).includes(evento.status)) {
+  const confirmado = (STATUS_COM_PDF as readonly string[]).includes(evento.status);
+  // O cliente só recebe o PDF depois da confirmação, quando os valores já foram combinados.
+  const comoOrcamento =
+    auth.role !== "CLIENT" &&
+    (STATUS_COM_PDF_ORCAMENTO as readonly string[]).includes(evento.status);
+  if (!confirmado && !comoOrcamento) {
     throw new Error(
       `O PDF de ${evento.cliente.nome} fica disponível quando o evento estiver confirmado.`,
     );
@@ -104,6 +111,9 @@ async function dadosPdfDoEvento(auth: Autenticacao, id: string, logos: CacheLogo
       where: { eventoId: evento.id, empresaId: auth.empresaId },
       ...ORCAMENTO_DO_PDF,
     }));
+  if (comoOrcamento && !orcamento?.itens.length) {
+    throw new Error("Crie o orçamento do evento antes de gerar o PDF.");
+  }
   const { empresa } = evento;
   // A logo é a mesma para todos os eventos da empresa: baixa uma vez só.
   const urlLogo = empresa.logoOrcamentoUrl ?? empresa.logoUrl ?? "";
@@ -124,12 +134,15 @@ async function dadosPdfDoEvento(auth: Autenticacao, id: string, logos: CacheLogo
     horario: evento.horaInicio,
     endereco: montarEndereco(evento),
     itens: orcamento?.itens.map((item) => item.descricao) ?? [],
+    formatoServico: evento.formatoServico,
+    servicosAdicionais: evento.servicosAdicionais,
     subtotal: Number(orcamento?.subtotal ?? 0),
     desconto: Number(orcamento?.desconto ?? 0),
     total: Number(orcamento?.total ?? 0),
   };
   const dataArquivo = evento.dataEvento.toISOString().slice(0, 10);
-  const nomeArquivo = `evento-${dataArquivo}-${evento.cliente.nome}`
+  const prefixo = comoOrcamento ? "orcamento" : "evento";
+  const nomeArquivo = `${prefixo}-${dataArquivo}-${evento.cliente.nome}`
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-zA-Z0-9-]+/g, "-")

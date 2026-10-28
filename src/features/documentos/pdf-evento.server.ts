@@ -29,6 +29,10 @@ export type DadosPdfEvento = {
   horario: Date | null;
   endereco: string | null;
   itens: string[];
+  /** Formato do serviço escolhido no pedido, ex.: "Jantar". */
+  formatoServico: string | null;
+  /** Serviços adicionais contratados, ex.: "Serviço de garçom". */
+  servicosAdicionais: string[];
   subtotal: number;
   desconto: number;
   total: number;
@@ -36,6 +40,12 @@ export type DadosPdfEvento = {
 
 const A4 = { largura: 595.28, altura: 841.89 };
 const MARGEM = 56;
+/** Fonte do corpo do cardápio; cardápios longos diminuem só o necessário para caber na página. */
+const TAMANHO_FONTE = 17;
+const TAMANHO_FONTE_MINIMO = 14;
+/** Espaço entre linhas em relação ao tamanho da fonte. */
+const PROPORCAO_ENTRELINHA = 1.3;
+const ENTRELINHA = TAMANHO_FONTE * PROPORCAO_ENTRELINHA;
 const COR_TEXTO = rgb(0.1, 0.1, 0.1);
 const COR_LINHA = rgb(0.35, 0.35, 0.35);
 // Caracteres fora da codificação WinAnsi das fontes padrão do PDF quebrariam a geração.
@@ -137,8 +147,8 @@ function desenharEvento({ pdf, negrito, italico, logo }: Recursos, dados: DadosP
   const xTexto = MARGEM + 6;
   const larguraTexto = larguraUtil - 6;
   // Ajustados depois do cabeçalho para o cardápio caber em uma página (ver "Cabe em uma página").
-  let tamanho = 13;
-  let entrelinha = 22;
+  let tamanho = TAMANHO_FONTE;
+  let entrelinha = ENTRELINHA;
 
   let pagina: PDFPage = pdf.addPage([A4.largura, A4.altura]);
   let y = A4.altura - 40;
@@ -221,15 +231,24 @@ function desenharEvento({ pdf, negrito, italico, logo }: Recursos, dados: DadosP
   y -= 14;
   topoLinhaVertical = y + 16;
 
-  // Cabe em uma página: cardápios longos ganham fonte e espaçamento menores para não deixar
-  // só o total ou as linhas de fechamento sozinhos na página seguinte (desperdício na impressão).
-  const linhasDoCorpo = 4 + 2 + dados.itens.length + 1 + (dados.desconto > 0 ? 3 : 1);
+  // Cabe em uma página: cardápios longos ganham fonte e espaçamento menores, até o mínimo
+  // legível (TAMANHO_FONTE_MINIMO). Abaixo disso o cardápio continua na página seguinte.
+  const servicosContratados = [
+    ...(dados.formatoServico ? [`Formato: ${dados.formatoServico}`] : []),
+    ...dados.servicosAdicionais,
+  ];
+  const linhasServicos = servicosContratados.length ? servicosContratados.length + 2 : 0;
+  const linhasDoCorpo =
+    4 + 2 + dados.itens.length + linhasServicos + 1 + (dados.desconto > 0 ? 3 : 1);
   // Espaço das linhas de fechamento (garantirEspaco(48) lá embaixo) com uma pequena folga.
   const alturaFechamento = 52;
   const espacoDisponivel = y - 60 - alturaFechamento;
   if (linhasDoCorpo * entrelinha > espacoDisponivel) {
-    entrelinha = Math.max(13, espacoDisponivel / linhasDoCorpo);
-    tamanho = Math.max(9, Math.min(13, entrelinha * 0.6));
+    tamanho = Math.max(
+      TAMANHO_FONTE_MINIMO,
+      Math.min(TAMANHO_FONTE, espacoDisponivel / linhasDoCorpo / PROPORCAO_ENTRELINHA),
+    );
+    entrelinha = tamanho * PROPORCAO_ENTRELINHA;
   }
 
   // Dados do evento
@@ -255,6 +274,12 @@ function desenharEvento({ pdf, negrito, italico, logo }: Recursos, dados: DadosP
   linha("MENU");
   for (const item of dados.itens) linha(item);
   y -= entrelinha;
+
+  if (servicosContratados.length) {
+    linha("SERVIÇOS CONTRATADOS");
+    for (const servico of servicosContratados) linha(servico);
+    y -= entrelinha;
+  }
 
   if (dados.desconto > 0) {
     linha(`SUBTOTAL ${formatarMoeda(dados.subtotal)}`);
