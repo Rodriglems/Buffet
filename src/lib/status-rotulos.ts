@@ -14,6 +14,8 @@ const ROTULOS: Record<string, string> = {
   PENDENTE: "Pendente",
   PAGO: "Pago",
   ATRASADO: "Atrasado",
+  // Compromissos da agenda
+  CONCLUIDO: "Concluído",
   // Clientes
   ATIVO: "Ativo",
   INATIVO: "Inativo",

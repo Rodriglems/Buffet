@@ -116,6 +116,7 @@ model Empresa {
   pagamentos         Pagamento[]
   custos             Custo[]
   documentos         Documento[]
+  compromissos       Compromisso[]
 
   @@map("empresas")
 }
@@ -322,9 +323,9 @@ model Orcamento {
   desconto      Decimal               @default(0) @db.Decimal(14, 2)
   total         Decimal               @default(0) @db.Decimal(14, 2)
   observacoes   String?
-  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   /// Quando a equipe enviou o orçamento ao cliente; antes disso o cliente não vê valores.
   enviadoEm     DateTime?             @map("enviado_em") @db.Timestamptz(6)
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   empresa       Empresa               @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   evento        Evento                @relation(fields: [empresaId, eventoId], references: [empresaId, id], onDelete: Restrict)
@@ -430,4 +431,22 @@ model Documento {
 
   @@index([empresaId, createdAt(sort: Desc)])
   @@map("documentos")
+}
+
+/// Compromisso livre da agenda (ex.: "Pagar boleto da fornecedora").
+model Compromisso {
+  id          String   @id @default(uuid()) @db.Uuid
+  empresaId   String   @map("empresa_id") @db.Uuid
+  titulo      String
+  data        DateTime @db.Date
+  /// Horário opcional no formato HH:MM.
+  hora        String?
+  observacoes String?
+  concluido   Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@index([empresaId, data])
+  @@map("compromissos")
 }

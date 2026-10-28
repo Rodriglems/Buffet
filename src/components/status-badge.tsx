@@ -58,6 +58,8 @@ const mapa: Record<string, Tone> = {
   PENDENTE: "amber",
   PAGO: "green",
   ATRASADO: "red",
+  // Compromissos da agenda
+  CONCLUIDO: "green",
   // Clientes
   ATIVO: "lime",
   INATIVO: "zinc",
