@@ -48,7 +48,7 @@ const ACAO_POR_STATUS: Partial<
   ORCAMENTO: {
     acao: "APROVAR",
     rotulo: "Aprovar",
-    descricao: "Aprove o orçamento para seguir para o pagamento.",
+    descricao: "",
   },
   APROVADO: {
     acao: "PAGAMENTO",
