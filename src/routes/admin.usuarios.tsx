@@ -2,7 +2,7 @@ import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouteContext } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Plus, Search } from "lucide-react";
+import { KeyRound, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -28,6 +28,10 @@ import {
 } from "@/components/ui/select";
 import { listarClientes } from "@/features/clientes/server-functions";
 import { PermissoesDialog } from "@/features/usuarios/permissoes-dialog";
+import {
+  RedefinirSenhaDialog,
+  type AlvoRedefinicao,
+} from "@/features/usuarios/redefinir-senha-dialog";
 import {
   createUsuario,
   listUsuarios,
@@ -59,6 +63,7 @@ function UsuariosPage() {
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState(false);
   const [permissoesDe, setPermissoesDe] = useState<Usuario | null>(null);
+  const [senhaDe, setSenhaDe] = useState<AlvoRedefinicao | null>(null);
   const [form, setForm] = useState<CreateUsuarioInput>(initialForm);
   const query = useQuery({ queryKey: ["usuarios"], queryFn: listUsuarios });
   const clientes = useQuery({
@@ -159,9 +164,28 @@ function UsuariosPage() {
                       <StatusBadge status={usuario.status} />
                     </td>
                     <td className="py-3 text-right">
-                      <Button size="sm" variant="outline" onClick={() => setPermissoesDe(usuario)}>
-                        Permissões
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setSenhaDe({
+                              usuarioId: usuario.id,
+                              nome: usuario.nome,
+                              perfil: usuario.perfil === "Cliente" ? "CLIENT" : "ADMIN",
+                            })
+                          }
+                        >
+                          <KeyRound className="size-4" /> Redefinir senha
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPermissoesDe(usuario)}
+                        >
+                          Permissões
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -280,6 +304,13 @@ function UsuariosPage() {
           </form>
         </DialogContent>
       </Dialog>
+      <RedefinirSenhaDialog
+        alvo={senhaDe}
+        onOpenChange={(aberto) => {
+          if (!aberto) setSenhaDe(null);
+        }}
+        onConcluido={() => queryClient.invalidateQueries({ queryKey: ["usuarios"] })}
+      />
       {permissoesDe ? (
         <PermissoesDialog
           aberto

@@ -8,6 +8,7 @@ import { exigirDentroDoLimite } from "@/lib/limite-taxa.server";
 import { getPrisma } from "@/lib/prisma.server";
 import { hasPermission, permissionForPath } from "@/lib/permissions";
 import { hashPassword, verifyPassword } from "@/lib/password.server";
+import { problemaNaSenha } from "@/lib/regras-senha";
 import { enviarEmailRecuperacaoSenha } from "@/lib/email.server";
 import { destroySession, getAuthContext, issueSession, requireAuth } from "@/lib/session.server";
 
@@ -42,8 +43,6 @@ const DURACAO_TOKEN_MS = 30 * 60 * 1000;
 const INTERVALO_SOLICITACAO_MS = 2 * 60 * 1000;
 const MAXIMO_TENTATIVAS_LOGIN = 5;
 const BLOQUEIO_LOGIN_MS = 15 * 60 * 1000;
-const TAMANHO_MINIMO_SENHA_CLIENTE = 4;
-const TAMANHO_MINIMO_SENHA_ADMIN = 12;
 
 function tokenHash(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -180,11 +179,8 @@ export const redefinirSenha = createServerFn({ method: "POST" })
       select: { id: true, usuarioId: true, usuario: { select: { role: true } } },
     });
     if (!registro) throw new Error("Link inválido ou expirado.");
-    const minimo =
-      registro.usuario.role === "ADMIN" ? TAMANHO_MINIMO_SENHA_ADMIN : TAMANHO_MINIMO_SENHA_CLIENTE;
-    if (data.senha.length < minimo) {
-      throw new Error(`A nova senha precisa ter pelo menos ${minimo} caracteres.`);
-    }
+    const problema = problemaNaSenha(registro.usuario.role, data.senha);
+    if (problema) throw new Error(problema);
 
     const senhaHash = await hashPassword(data.senha);
     await getPrisma().$transaction(async (tx) => {

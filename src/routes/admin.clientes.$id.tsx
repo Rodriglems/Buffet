@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -14,6 +15,10 @@ import {
 } from "@/features/clientes/server-functions";
 import { listarOrcamentos } from "@/features/orcamentos/server-functions";
 import { listarPagamentos } from "@/features/pagamentos/server-functions";
+import {
+  RedefinirSenhaDialog,
+  type AlvoRedefinicao,
+} from "@/features/usuarios/redefinir-senha-dialog";
 import { useConfirmar } from "@/lib/confirmacao";
 import { formatBRL, formatDate } from "@/lib/format";
 
@@ -70,6 +75,7 @@ function DetalheCliente() {
   const atualizar = useServerFn(atualizarCliente);
   const excluir = useServerFn(excluirCliente);
   const [salvando, setSalvando] = useState(false);
+  const [senhaAberta, setSenhaAberta] = useState<AlvoRedefinicao | null>(null);
   const confirmar = useConfirmar();
 
   async function remover() {
@@ -99,11 +105,37 @@ function DetalheCliente() {
             <Button variant="outline" onClick={() => void remover()}>
               Excluir
             </Button>
+            <Button
+              variant="outline"
+              title={
+                cliente.usuarioId
+                  ? "Definir uma nova senha de acesso ao portal"
+                  : "O cliente ainda não tem acesso ao portal"
+              }
+              onClick={() =>
+                setSenhaAberta({
+                  clienteId: cliente.id,
+                  nome: cliente.nome,
+                  perfil: "CLIENT",
+                  criarAcesso: !cliente.usuarioId,
+                })
+              }
+            >
+              <KeyRound className="size-4" />
+              {cliente.usuarioId ? "Redefinir senha" : "Criar acesso ao portal"}
+            </Button>
             <Button asChild>
               <Link to="/admin/eventos/novo">Criar evento</Link>
             </Button>
           </>
         }
+      />
+      <RedefinirSenhaDialog
+        alvo={senhaAberta}
+        onOpenChange={(aberto) => {
+          if (!aberto) setSenhaAberta(null);
+        }}
+        onConcluido={() => router.invalidate()}
       />
       <ClienteForm
         key={cliente.updatedAt}

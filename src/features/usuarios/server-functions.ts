@@ -11,7 +11,13 @@ import {
   type Permissoes,
 } from "@/lib/permissions";
 import { getPrisma } from "@/lib/prisma.server";
-import { requireAnyPermission, requireAuth, requirePermission } from "@/lib/session.server";
+import { problemaNaSenha } from "@/lib/regras-senha";
+import {
+  issueSession,
+  requireAnyPermission,
+  requireAuth,
+  requirePermission,
+} from "@/lib/session.server";
 
 const novoUsuario = z.object({
   nome: z.string().trim().min(2, "Informe o nome do usuário.").max(160),
@@ -134,6 +140,102 @@ export const atualizarUsuario = createServerFn({ method: "POST" })
         select: { id: true, nome: true, email: true, role: true, ativo: true, updatedAt: true },
       }),
     );
+  });
+
+/**
+ * Redefine a senha de um usuário da equipe ou de um cliente. Encerra as sessões abertas,
+ * desfaz o bloqueio por tentativas e invalida links de recuperação pendentes. Para um cliente
+ * que ainda não tem acesso ao portal, cria a conta com o e-mail do cadastro.
+ */
+export const redefinirSenhaUsuario = createServerFn({ method: "POST" })
+  .validator((value: unknown) =>
+    z
+      .object({
+        usuarioId: z.string().uuid().optional(),
+        clienteId: z.string().uuid().optional(),
+        senha: z.string().max(200),
+      })
+      .refine((alvo) => !!alvo.usuarioId !== !!alvo.clienteId, "Informe o usuário ou o cliente.")
+      .parse(value),
+  )
+  .handler(async ({ data }) => {
+    // Senha de cliente: quem cuida dos clientes ou dos usuários; da equipe: só usuários.
+    const auth = data.clienteId
+      ? await requireAnyPermission(["contatos", "usuarios"])
+      : await requirePermission("usuarios");
+    const senhaHash = await hashPassword(data.senha);
+    const resultado = await getPrisma().$transaction(async (tx) => {
+      let alvo = data.usuarioId
+        ? await tx.usuario.findFirst({
+            where: { id: data.usuarioId, empresaId: auth.empresaId },
+            select: { id: true, role: true, email: true },
+          })
+        : null;
+
+      if (data.clienteId) {
+        const cliente = await tx.cliente.findFirst({
+          where: { id: data.clienteId, empresaId: auth.empresaId },
+          select: {
+            id: true,
+            nome: true,
+            email: true,
+            usuario: { select: { id: true, role: true, email: true } },
+          },
+        });
+        if (!cliente) throw new Error("Cliente não encontrado.");
+        alvo = cliente.usuario;
+        if (!alvo) {
+          const email = cliente.email?.trim().toLowerCase();
+          if (!email)
+            throw new Error("Cadastre o e-mail do cliente para criar o acesso ao portal.");
+          const problema = problemaNaSenha("CLIENT", data.senha);
+          if (problema) throw new Error(problema);
+          const emUso = await tx.usuario.count({ where: { empresaId: auth.empresaId, email } });
+          if (emUso) throw new Error("Este e-mail já é usado por outro usuário do sistema.");
+          const criado = await tx.usuario.create({
+            data: {
+              empresaId: auth.empresaId,
+              nome: cliente.nome,
+              email,
+              senhaHash,
+              role: "CLIENT",
+            },
+            select: { id: true },
+          });
+          await tx.cliente.update({ where: { id: cliente.id }, data: { usuarioId: criado.id } });
+          return { email, acessoCriado: true, sessaoPropria: null };
+        }
+      }
+
+      if (!alvo) throw new Error("Usuário não encontrado.");
+      const problema = problemaNaSenha(alvo.role, data.senha);
+      if (problema) throw new Error(problema);
+      const atualizado = await tx.usuario.update({
+        where: { id: alvo.id },
+        data: {
+          senhaHash,
+          // Derruba as sessões abertas com a senha antiga.
+          sessaoVersao: { increment: 1 },
+          tentativasLogin: 0,
+          bloqueadoAte: null,
+        },
+        select: { id: true, sessaoVersao: true },
+      });
+      await tx.tokenRecuperacaoSenha.updateMany({
+        where: { usuarioId: alvo.id, usadoEm: null },
+        data: { usadoEm: new Date() },
+      });
+      return {
+        email: alvo.email,
+        acessoCriado: false,
+        sessaoPropria: atualizado.id === auth.usuarioId ? atualizado : null,
+      };
+    });
+    // Quem trocou a própria senha continua conectado neste navegador.
+    if (resultado.sessaoPropria) {
+      issueSession(resultado.sessaoPropria.id, resultado.sessaoPropria.sessaoVersao);
+    }
+    return { email: resultado.email, acessoCriado: resultado.acessoCriado };
   });
 
 export const excluirUsuario = createServerFn({ method: "POST" })
