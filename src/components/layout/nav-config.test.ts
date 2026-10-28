@@ -75,4 +75,9 @@ describe("trilha de navegação", () => {
     expect(trilhaDoCaminho("/admin/servicos")).toEqual(["Painel", "Cardápio"]);
     expect(trilhaDoCaminho("/admin/configuracoes")[1]).toBe("Configurações");
   });
+
+  it("chama os pagamentos de 'A receber' só no painel da equipe", () => {
+    expect(trilhaDoCaminho("/admin/pagamentos")).toEqual(["Painel", "A receber"]);
+    expect(trilhaDoCaminho("/cliente/pagamentos")).toEqual(["Meu portal", "Pagamentos"]);
+  });
 });

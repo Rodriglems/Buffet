@@ -79,6 +79,71 @@ export const listarPagamentos = createServerFn({ method: "GET" })
     return serialize({ items, total });
   });
 
+/**
+ * Contas a receber: todas as parcelas em aberto dos clientes (sem o limite da paginação),
+ * o que já foi recebido no mês e os eventos que ainda podem ganhar parcelas.
+ */
+export const listarContasAReceber = createServerFn({ method: "GET" }).handler(async () => {
+  const auth = await requirePermission("pagamentos");
+  const prisma = getPrisma();
+  const agora = new Date();
+  const inicioDoMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
+  const [pendentes, recebidoNoMes, eventos] = await Promise.all([
+    prisma.pagamento.findMany({
+      where: {
+        empresaId: auth.empresaId,
+        status: { in: ["PENDENTE", "ATRASADO"] },
+        evento: { status: { not: "CANCELADO" } },
+      },
+      include: {
+        evento: {
+          select: {
+            id: true,
+            nome: true,
+            dataEvento: true,
+            cliente: { select: { id: true, nome: true, whatsapp: true, telefone: true } },
+          },
+        },
+      },
+      orderBy: [{ dataVencimento: "asc" }, { numeroParcela: "asc" }],
+      take: 5000,
+    }),
+    prisma.pagamento.aggregate({
+      where: { empresaId: auth.empresaId, status: "PAGO", dataPagamento: { gte: inicioDoMes } },
+      _sum: { valor: true },
+    }),
+    // Mesma regra do servidor: parcelas só depois da aprovação e antes da confirmação.
+    prisma.evento.findMany({
+      where: { empresaId: auth.empresaId, status: { in: ["APROVADO", "PAGAMENTO"] } },
+      select: {
+        id: true,
+        nome: true,
+        cliente: { select: { nome: true } },
+        orcamentos: {
+          select: { total: true },
+          orderBy: [{ numero: "desc" }, { versao: "desc" }],
+          take: 1,
+        },
+        pagamentos: { where: { status: { not: "CANCELADO" } }, select: { valor: true } },
+      },
+      orderBy: { dataEvento: "asc" },
+      take: 500,
+    }),
+  ]);
+  return serialize({
+    pendentes,
+    recebidoNoMes: Number(recebidoNoMes._sum.valor ?? 0),
+    eventosParaParcelas: eventos.map((evento) => ({
+      id: evento.id,
+      nome: evento.nome,
+      cliente: evento.cliente.nome,
+      saldo:
+        Number(evento.orcamentos[0]?.total ?? 0) -
+        evento.pagamentos.reduce((soma, parcela) => soma + Number(parcela.valor), 0),
+    })),
+  });
+});
+
 export const criarPagamento = createServerFn({ method: "POST" })
   .validator((value: unknown) => pagamento.parse(value))
   .handler(async ({ data }) => {

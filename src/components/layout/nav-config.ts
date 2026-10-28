@@ -142,6 +142,11 @@ const ROTULOS_DO_CAMINHO: Record<string, string> = {
   usuarios: "Usuários",
 };
 
+// Seções que no painel da equipe têm outro nome que no portal do cliente.
+const ROTULOS_DO_PAINEL: Record<string, string> = {
+  pagamentos: "A receber",
+};
+
 // Nome mostrado no lugar do identificador interno (UUID), conforme a seção anterior do caminho.
 const ROTULOS_DE_REGISTRO: Record<string, string> = {
   clientes: "Cadastro do cliente",
@@ -159,7 +164,8 @@ export function trilhaDoCaminho(pathname: string): string[] {
     const anterior = partes[indice - 1] ?? "";
     return UUID.test(texto)
       ? (ROTULOS_DE_REGISTRO[anterior] ?? "Detalhes")
-      : (ROTULOS_DO_CAMINHO[texto] ??
+      : ((anterior === "admin" ? ROTULOS_DO_PAINEL[texto] : undefined) ??
+          ROTULOS_DO_CAMINHO[texto] ??
           texto.replace(/-/g, " ").replace(/^\p{L}/u, (letra) => letra.toUpperCase()));
   });
 }

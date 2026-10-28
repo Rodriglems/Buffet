@@ -1,12 +1,14 @@
-import { useState } from "react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { Check, MessageCircle, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { FinanceiroTabs } from "@/components/layout/section-nav";
 import { PageHeader, Panel, StatCard } from "@/components/panel";
-import { StatusBadge } from "@/components/status-badge";
+import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -14,93 +16,86 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { listarEventos } from "@/features/eventos/server-functions";
 import {
-  GerarParcelasDialog,
-  type EventoParaParcelas,
-} from "@/features/pagamentos/gerar-parcelas-dialog";
-import { listarPagamentos, registrarPagamento } from "@/features/pagamentos/server-functions";
+  agruparPorCliente,
+  descreverPrazo,
+  hojeIso,
+  mensagemCobranca,
+  ROTULOS_SITUACAO,
+  situacaoDaParcela,
+  type SituacaoParcela,
+} from "@/features/pagamentos/a-receber";
+import { GerarParcelasDialog } from "@/features/pagamentos/gerar-parcelas-dialog";
+import { listarContasAReceber, registrarPagamento } from "@/features/pagamentos/server-functions";
+import { useConfirmar } from "@/lib/confirmacao";
 import { formatBRL, formatBRLShort, formatDate } from "@/lib/format";
-import { rotuloStatus } from "@/lib/status-rotulos";
+import { pageMeta } from "@/lib/meta";
+import { createWhatsAppUrl } from "@/lib/sharing";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/pagamentos")({
-  head: () => ({
-    meta: [
-      { title: "Pagamentos — Mesly Buffet & Eventos" },
-      {
-        name: "description",
-        content: "Controle de parcelas, vencimentos e recebimentos dos eventos.",
-      },
-      { property: "og:title", content: "Pagamentos — Mesly Buffet & Eventos" },
-      { property: "og:description", content: "Parcelas, vencimentos e status de recebimento." },
-    ],
-  }),
-  loader: async () => {
-    const [pagamentos, eventos] = await Promise.all([
-      listarPagamentos({ data: { page: 1, pageSize: 100 } }),
-      listarEventos({ data: { page: 1, pageSize: 100 } }),
-    ]);
-    return {
-      pagamentos,
-      // Mesma regra do servidor: parcelas só depois da aprovação e antes da confirmação.
-      eventos: eventos.items.filter((item) => ["APROVADO", "PAGAMENTO"].includes(item.status)),
-    };
-  },
-  component: Pagamentos,
+  head: () => pageMeta("A receber", "Todas as parcelas em aberto dos clientes, por vencimento."),
+  loader: () => listarContasAReceber(),
+  component: AReceber,
 });
 
-const TODOS = "todos";
+type Filtro = "TODAS" | SituacaoParcela;
+type Parcela = Awaited<ReturnType<typeof listarContasAReceber>>["pendentes"][number];
 
-function Pagamentos() {
-  const { pagamentos, eventos } = Route.useLoaderData();
-  const parcelas = pagamentos.items;
-  const confirmar = useServerFn(registrarPagamento);
+const CORES_SITUACAO: Record<SituacaoParcela, string> = {
+  ATRASADA: "text-destructive",
+  VENCE_HOJE: "text-warning-foreground font-medium",
+  PROXIMOS_7_DIAS: "text-foreground",
+  A_VENCER: "text-muted-foreground",
+};
+
+function AReceber() {
+  const { pendentes, recebidoNoMes, eventosParaParcelas } = Route.useLoaderData();
   const router = useRouter();
-  const [status, setStatus] = useState(TODOS);
   const [aberto, setAberto] = useState(false);
-  const opcoesEventos: EventoParaParcelas[] = eventos.map((evento) => ({
-    id: evento.id,
-    nome: evento.nome,
-    cliente: evento.cliente.nome,
-    saldo:
-      Number(evento.orcamentos[0]?.total ?? 0) -
-      parcelas
-        .filter((parcela) => parcela.eventoId === evento.id && parcela.status !== "CANCELADO")
-        .reduce((soma, parcela) => soma + Number(parcela.valor), 0),
+  const [busca, setBusca] = useState("");
+  const [filtro, setFiltro] = useState<Filtro>("TODAS");
+  const hoje = hojeIso();
+
+  const comSituacao = pendentes.map((parcela) => ({
+    ...parcela,
+    ...situacaoDaParcela(parcela.dataVencimento, hoje),
   }));
-  const lista = parcelas.filter((p) => status === TODOS || p.status === status);
+  const soma = (lista: { valor: string }[]) =>
+    lista.reduce((total, parcela) => total + Number(parcela.valor), 0);
+  const atrasadas = comSituacao.filter((p) => p.situacao === "ATRASADA");
+  const proximas = comSituacao.filter((p) => p.dias >= 0 && p.dias <= 7);
 
-  const pago = parcelas.filter((p) => p.status === "PAGO").reduce((a, p) => a + Number(p.valor), 0);
-  const pendente = parcelas
-    .filter((p) => p.status === "PENDENTE")
-    .reduce((a, p) => a + Number(p.valor), 0);
-  const atrasado = parcelas
-    .filter((p) => p.status === "ATRASADO")
-    .reduce((a, p) => a + Number(p.valor), 0);
-
-  async function marcarPago(id: string) {
-    try {
-      await confirmar({
-        data: { id, dataPagamento: new Date(), formaPagamento: "Informado pelo administrador" },
-      });
-      toast.success("Pagamento registrado.");
-      await router.invalidate();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Falha ao registrar pagamento.");
-    }
-  }
+  const termo = busca.trim().toLocaleLowerCase("pt-BR");
+  const filtradas = comSituacao.filter(
+    (p) =>
+      (filtro === "TODAS" ||
+        p.situacao === filtro ||
+        (filtro === "PROXIMOS_7_DIAS" && p.situacao === "VENCE_HOJE")) &&
+      (!termo ||
+        p.evento.cliente.nome.toLocaleLowerCase("pt-BR").includes(termo) ||
+        p.evento.nome.toLocaleLowerCase("pt-BR").includes(termo)),
+  );
+  const grupos = useMemo(() => agruparPorCliente(filtradas, hoje), [filtradas, hoje]);
+  const totalClientes = new Set(pendentes.map((p) => p.evento.cliente.id)).size;
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Pagamentos"
-        subtitle={`${parcelas.length} parcelas lançadas`}
+        title="A receber"
+        subtitle={
+          pendentes.length
+            ? `${formatBRL(soma(pendentes))} em ${pendentes.length} parcela${pendentes.length === 1 ? "" : "s"} de ${totalClientes} cliente${totalClientes === 1 ? "" : "s"}`
+            : "Nenhuma parcela em aberto"
+        }
         actions={
           <Button
             onClick={() => setAberto(true)}
-            disabled={!opcoesEventos.length}
+            disabled={!eventosParaParcelas.length}
             title={
-              !opcoesEventos.length ? "Nenhum evento aprovado aguardando pagamento" : undefined
+              !eventosParaParcelas.length
+                ? "Nenhum evento aprovado aguardando pagamento"
+                : undefined
             }
           >
             Gerar parcelas
@@ -109,80 +104,208 @@ function Pagamentos() {
       />
       <FinanceiroTabs />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Recebido" value={formatBRLShort(pago)} />
-        <StatCard label="A receber" value={formatBRLShort(pendente)} badgeTone="info" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Total a receber" value={formatBRLShort(soma(pendentes))} />
         <StatCard
           label="Em atraso"
-          value={formatBRLShort(atrasado)}
-          badge="1 título"
+          value={formatBRLShort(soma(atrasadas))}
+          badge={
+            atrasadas.length
+              ? `${atrasadas.length} parcela${atrasadas.length === 1 ? "" : "s"}`
+              : undefined
+          }
           badgeTone="danger"
         />
+        <StatCard
+          label="Vence em 7 dias"
+          value={formatBRLShort(soma(proximas))}
+          badge={
+            proximas.length
+              ? `${proximas.length} parcela${proximas.length === 1 ? "" : "s"}`
+              : undefined
+          }
+          badgeTone="warning"
+        />
+        <StatCard label="Recebido este mês" value={formatBRLShort(recebidoNoMes)} />
       </div>
 
-      <Panel className="p-5">
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="bg-surface w-full max-w-xs border-0 ring-1 ring-black/5">
-            <SelectValue placeholder="Status" />
+      <Panel className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+          <Input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar cliente ou evento"
+            className="pl-9"
+            aria-label="Buscar cliente ou evento"
+          />
+        </div>
+        <Select value={filtro} onValueChange={(valor) => setFiltro(valor as Filtro)}>
+          <SelectTrigger className="w-full sm:w-56" aria-label="Situação">
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={TODOS}>Todos os status</SelectItem>
-            {["PENDENTE", "PAGO", "ATRASADO", "CANCELADO"].map((s) => (
-              <SelectItem key={s} value={s}>
-                {rotuloStatus(s)}
-              </SelectItem>
-            ))}
+            <SelectItem value="TODAS">Todas em aberto</SelectItem>
+            <SelectItem value="ATRASADA">{ROTULOS_SITUACAO.ATRASADA}</SelectItem>
+            <SelectItem value="VENCE_HOJE">{ROTULOS_SITUACAO.VENCE_HOJE}</SelectItem>
+            <SelectItem value="PROXIMOS_7_DIAS">{ROTULOS_SITUACAO.PROXIMOS_7_DIAS}</SelectItem>
+            <SelectItem value="A_VENCER">{ROTULOS_SITUACAO.A_VENCER}</SelectItem>
           </SelectContent>
         </Select>
-
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[700px] text-left text-sm">
-            <thead>
-              <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
-                <th className="pb-2 font-medium">Cliente</th>
-                <th className="pb-2 font-medium">Evento</th>
-                <th className="pb-2 font-medium">Parcela</th>
-                <th className="pb-2 font-medium">Vencimento</th>
-                <th className="pb-2 font-medium">Valor</th>
-                <th className="pb-2 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {lista.map((p) => (
-                <tr key={p.id}>
-                  <td className="py-3 pr-3 font-medium">{p.evento.cliente.nome}</td>
-                  <td className="text-muted-foreground py-3 pr-3">{p.evento.nome}</td>
-                  <td className="py-3 pr-3">{p.numeroParcela}</td>
-                  <td className="text-muted-foreground py-3 pr-3">
-                    {formatDate(p.dataVencimento)}
-                  </td>
-                  <td className="py-3 pr-3 font-medium">{formatBRL(Number(p.valor))}</td>
-                  <td className="py-3">
-                    <StatusBadge status={p.status} />
-                    {["PENDENTE", "ATRASADO"].includes(p.status) && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="ml-2"
-                        onClick={() => void marcarPago(p.id)}
-                      >
-                        Marcar pago
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </Panel>
+
+      {grupos.length ? (
+        grupos.map((grupo) => <ContaDoCliente key={grupo.cliente.id} grupo={grupo} hoje={hoje} />)
+      ) : (
+        <Panel className="p-5">
+          <EmptyState
+            title={pendentes.length ? "Nada encontrado" : "Nenhuma parcela em aberto"}
+            description={
+              pendentes.length
+                ? "Ajuste a busca ou a situação para ver outras parcelas."
+                : "Quando houver parcelas pendentes dos clientes, elas aparecem aqui."
+            }
+          />
+        </Panel>
+      )}
 
       <GerarParcelasDialog
         aberto={aberto}
         onOpenChange={setAberto}
-        eventos={opcoesEventos}
+        eventos={eventosParaParcelas}
         onSalvo={() => router.invalidate()}
       />
     </div>
+  );
+}
+
+function ContaDoCliente({
+  grupo,
+  hoje,
+}: {
+  grupo: ReturnType<
+    typeof agruparPorCliente<Parcela & { dias: number; situacao: SituacaoParcela }>
+  >[number];
+  hoje: string;
+}) {
+  const router = useRouter();
+  const registrar = useServerFn(registrarPagamento);
+  const confirmar = useConfirmar();
+  const [processando, setProcessando] = useState<string | null>(null);
+  const { cliente } = grupo;
+
+  async function marcarRecebido(parcela: (typeof grupo.parcelas)[number]) {
+    const ok = await confirmar({
+      titulo: `Confirmar o recebimento de ${formatBRL(Number(parcela.valor))}?`,
+      descricao: `${cliente.nome} · ${parcela.evento.nome} · parcela ${parcela.numeroParcela}. A data de hoje fica registrada como data do pagamento.`,
+      textoConfirmar: "Marcar como recebido",
+    });
+    if (!ok) return;
+    setProcessando(parcela.id);
+    try {
+      // Sem forma de pagamento: mantém a que foi definida ao gerar as parcelas.
+      await registrar({ data: { id: parcela.id, dataPagamento: new Date() } });
+      toast.success("Recebimento registrado.");
+      await router.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao registrar o recebimento.");
+    } finally {
+      setProcessando(null);
+    }
+  }
+
+  function cobrar() {
+    try {
+      const url = createWhatsAppUrl(
+        cliente.whatsapp ?? cliente.telefone ?? "",
+        mensagemCobranca(cliente.nome, grupo.parcelas, hoje),
+      );
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "WhatsApp inválido.");
+    }
+  }
+
+  return (
+    <Panel className="p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-display font-semibold">{cliente.nome}</p>
+          <p className="text-muted-foreground text-xs">
+            {grupo.parcelas.length} parcela{grupo.parcelas.length === 1 ? "" : "s"} em aberto
+            {grupo.emAtraso > 0 ? (
+              <span className="text-destructive font-medium">
+                {" "}
+                · {formatBRL(grupo.emAtraso)} em atraso
+              </span>
+            ) : null}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <p className="font-display text-lg font-semibold">{formatBRL(grupo.total)}</p>
+          {cliente.whatsapp || cliente.telefone ? (
+            <Button size="sm" variant="outline" onClick={cobrar}>
+              <MessageCircle className="size-4" /> Cobrar no WhatsApp
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[720px] text-left text-sm">
+          <thead>
+            <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
+              <th className="pb-2 font-medium">Evento</th>
+              <th className="pb-2 font-medium">Parcela</th>
+              <th className="pb-2 font-medium">Vencimento</th>
+              <th className="pb-2 font-medium">Forma</th>
+              <th className="pb-2 font-medium">Valor</th>
+              <th className="pb-2 font-medium text-right">Ação</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {grupo.parcelas.map((parcela) => (
+              <tr key={parcela.id}>
+                <td className="py-3 pr-3">
+                  <Link
+                    to="/admin/eventos/$id"
+                    params={{ id: parcela.evento.id }}
+                    className="font-medium hover:underline"
+                  >
+                    {parcela.evento.nome}
+                  </Link>
+                  <p className="text-muted-foreground text-xs">
+                    Evento em {formatDate(parcela.evento.dataEvento)}
+                  </p>
+                </td>
+                <td className="py-3 pr-3">
+                  #{parcela.numeroParcela}
+                  {parcela.descricao ? (
+                    <p className="text-muted-foreground text-xs">{parcela.descricao}</p>
+                  ) : null}
+                </td>
+                <td className="py-3 pr-3">
+                  {formatDate(parcela.dataVencimento)}
+                  <p className={cn("text-xs", CORES_SITUACAO[parcela.situacao])}>
+                    {descreverPrazo(parcela.dias)}
+                  </p>
+                </td>
+                <td className="text-muted-foreground py-3 pr-3">{parcela.formaPagamento ?? "—"}</td>
+                <td className="py-3 pr-3 font-medium">{formatBRL(Number(parcela.valor))}</td>
+                <td className="py-3 text-right">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={processando !== null}
+                    onClick={() => void marcarRecebido(parcela)}
+                  >
+                    <Check className="size-4" /> Recebido
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
   );
 }

@@ -38,7 +38,7 @@ const abasFinanceiro: {
   permission: "financeiro" | "pagamentos" | "custos";
 }[] = [
   { label: "Visão geral", to: "/admin/financeiro", permission: "financeiro" },
-  { label: "Pagamentos", to: "/admin/pagamentos", permission: "pagamentos" },
+  { label: "A receber", to: "/admin/pagamentos", permission: "pagamentos" },
   { label: "Custos", to: "/admin/custos", permission: "custos" },
 ];
 
