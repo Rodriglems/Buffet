@@ -127,6 +127,12 @@
   --swatch-vinho: oklch(0.45 0.14 20);
   --swatch-ambar: oklch(0.46 0.12 70);
   --swatch-violeta: oklch(0.48 0.16 295);
+  --swatch-laranja: oklch(0.58 0.19 40);
+  --swatch-vermelho: oklch(0.53 0.2 27);
+  --swatch-rosa: oklch(0.55 0.19 355);
+  --swatch-marinho: oklch(0.36 0.1 260);
+  --swatch-oliva: oklch(0.5 0.1 120);
+  --swatch-marrom: oklch(0.42 0.08 50);
 }
 
 :root[data-accent="teal"] {
@@ -181,6 +187,60 @@
   --chart-1: var(--swatch-violeta);
   --sidebar-primary: var(--swatch-violeta);
   --sidebar-ring: oklch(0.48 0.16 295 / 40%);
+}
+
+:root[data-accent="laranja"] {
+  --brand: var(--swatch-laranja);
+  --primary: var(--swatch-laranja);
+  --ring: oklch(0.58 0.19 40 / 40%);
+  --chart-1: var(--swatch-laranja);
+  --sidebar-primary: var(--swatch-laranja);
+  --sidebar-ring: oklch(0.58 0.19 40 / 40%);
+}
+
+:root[data-accent="vermelho"] {
+  --brand: var(--swatch-vermelho);
+  --primary: var(--swatch-vermelho);
+  --ring: oklch(0.53 0.2 27 / 40%);
+  --chart-1: var(--swatch-vermelho);
+  --sidebar-primary: var(--swatch-vermelho);
+  --sidebar-ring: oklch(0.53 0.2 27 / 40%);
+}
+
+:root[data-accent="rosa"] {
+  --brand: var(--swatch-rosa);
+  --primary: var(--swatch-rosa);
+  --ring: oklch(0.55 0.19 355 / 40%);
+  --chart-1: var(--swatch-rosa);
+  --sidebar-primary: var(--swatch-rosa);
+  --sidebar-ring: oklch(0.55 0.19 355 / 40%);
+}
+
+:root[data-accent="marinho"] {
+  --brand: var(--swatch-marinho);
+  --primary: var(--swatch-marinho);
+  --ring: oklch(0.36 0.1 260 / 40%);
+  --chart-1: var(--swatch-marinho);
+  --sidebar-primary: var(--swatch-marinho);
+  --sidebar-ring: oklch(0.36 0.1 260 / 40%);
+}
+
+:root[data-accent="oliva"] {
+  --brand: var(--swatch-oliva);
+  --primary: var(--swatch-oliva);
+  --ring: oklch(0.5 0.1 120 / 40%);
+  --chart-1: var(--swatch-oliva);
+  --sidebar-primary: var(--swatch-oliva);
+  --sidebar-ring: oklch(0.5 0.1 120 / 40%);
+}
+
+:root[data-accent="marrom"] {
+  --brand: var(--swatch-marrom);
+  --primary: var(--swatch-marrom);
+  --ring: oklch(0.42 0.08 50 / 40%);
+  --chart-1: var(--swatch-marrom);
+  --sidebar-primary: var(--swatch-marrom);
+  --sidebar-ring: oklch(0.42 0.08 50 / 40%);
 }
 
 @layer base {
