@@ -36,19 +36,6 @@ const eventoBase = z.object({
   status: z.enum(STATUS_EVENTO).default("ORCAMENTO"),
   observacoes: z.string().trim().max(4000).nullable().optional(),
 });
-const evento = eventoBase.refine(
-  (data) => !data.horaInicio || !data.horaFim || data.horaFim > data.horaInicio,
-  { message: "Hora final deve ser posterior a inicial.", path: ["horaFim"] },
-);
-
-function lerEvento(value: unknown) {
-  const result = evento.safeParse(value);
-  if (!result.success) {
-    throw new Error(result.error.issues[0]?.message ?? "Dados do evento inválidos.");
-  }
-  return result.data;
-}
-
 const id = z.object({ id: z.string().uuid() });
 
 export const listarEventos = createServerFn({ method: "GET" })
@@ -131,19 +118,7 @@ export const obterEvento = createServerFn({ method: "GET" })
     };
   });
 
-export const criarEvento = createServerFn({ method: "POST" })
-  .validator((value: unknown) => lerEvento(value))
-  .handler(async ({ data }) => {
-    const auth = await requirePermission("eventos");
-    const cliente = await getPrisma().cliente.findFirst({
-      where: { id: data.clienteId, empresaId: auth.empresaId },
-    });
-    if (!cliente) throw new Error("Cliente invalido.");
-    return getPrisma().$transaction(async (tx) => {
-      const result = await tx.evento.create({ data: { ...data, empresaId: auth.empresaId } });
-      return serialize(result);
-    });
-  });
+// Eventos nascem só pelo formulário público de orçamento (solicitacao-publica.ts).
 
 export const atualizarEvento = createServerFn({ method: "POST" })
   .validator((value: unknown) => id.extend({ dados: eventoBase.partial() }).parse(value))

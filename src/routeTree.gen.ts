@@ -35,7 +35,6 @@ import { Route as AdminClientesIdRouteImport } from './routes/admin.clientes.$id
 import { Route as AdminClientesNovoRouteImport } from './routes/admin.clientes.novo'
 import { Route as AdminEventosIndexRouteImport } from './routes/admin.eventos.index'
 import { Route as AdminEventosIdRouteImport } from './routes/admin.eventos.$id'
-import { Route as AdminEventosNovoRouteImport } from './routes/admin.eventos.novo'
 import { Route as AdminOrcamentosIndexRouteImport } from './routes/admin.orcamentos.index'
 import { Route as AdminOrcamentosIdRouteImport } from './routes/admin.orcamentos.$id'
 import { Route as AdminOrcamentosNovoRouteImport } from './routes/admin.orcamentos.novo'
@@ -172,11 +171,6 @@ const AdminEventosIdRoute = AdminEventosIdRouteImport.update({
   path: '/eventos/$id',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminEventosNovoRoute = AdminEventosNovoRouteImport.update({
-  id: '/eventos/novo',
-  path: '/eventos/novo',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminOrcamentosIndexRoute = AdminOrcamentosIndexRouteImport.update({
   id: '/orcamentos/',
   path: '/orcamentos/',
@@ -228,7 +222,6 @@ export interface FileRoutesByFullPath {
   '/admin/clientes/$id': typeof AdminClientesIdRoute
   '/admin/clientes/novo': typeof AdminClientesNovoRoute
   '/admin/eventos/$id': typeof AdminEventosIdRoute
-  '/admin/eventos/novo': typeof AdminEventosNovoRoute
   '/admin/orcamentos/$id': typeof AdminOrcamentosIdRoute
   '/admin/orcamentos/novo': typeof AdminOrcamentosNovoRoute
   '/cliente/orcamentos/$id': typeof ClienteOrcamentosIdRoute
@@ -260,7 +253,6 @@ export interface FileRoutesByTo {
   '/admin/clientes/$id': typeof AdminClientesIdRoute
   '/admin/clientes/novo': typeof AdminClientesNovoRoute
   '/admin/eventos/$id': typeof AdminEventosIdRoute
-  '/admin/eventos/novo': typeof AdminEventosNovoRoute
   '/admin/orcamentos/$id': typeof AdminOrcamentosIdRoute
   '/admin/orcamentos/novo': typeof AdminOrcamentosNovoRoute
   '/cliente/orcamentos/$id': typeof ClienteOrcamentosIdRoute
@@ -295,7 +287,6 @@ export interface FileRoutesById {
   '/admin/clientes/$id': typeof AdminClientesIdRoute
   '/admin/clientes/novo': typeof AdminClientesNovoRoute
   '/admin/eventos/$id': typeof AdminEventosIdRoute
-  '/admin/eventos/novo': typeof AdminEventosNovoRoute
   '/admin/orcamentos/$id': typeof AdminOrcamentosIdRoute
   '/admin/orcamentos/novo': typeof AdminOrcamentosNovoRoute
   '/cliente/orcamentos/$id': typeof ClienteOrcamentosIdRoute
@@ -331,7 +322,6 @@ export interface FileRouteTypes {
     | '/admin/clientes/$id'
     | '/admin/clientes/novo'
     | '/admin/eventos/$id'
-    | '/admin/eventos/novo'
     | '/admin/orcamentos/$id'
     | '/admin/orcamentos/novo'
     | '/cliente/orcamentos/$id'
@@ -363,7 +353,6 @@ export interface FileRouteTypes {
     | '/admin/clientes/$id'
     | '/admin/clientes/novo'
     | '/admin/eventos/$id'
-    | '/admin/eventos/novo'
     | '/admin/orcamentos/$id'
     | '/admin/orcamentos/novo'
     | '/cliente/orcamentos/$id'
@@ -397,7 +386,6 @@ export interface FileRouteTypes {
     | '/admin/clientes/$id'
     | '/admin/clientes/novo'
     | '/admin/eventos/$id'
-    | '/admin/eventos/novo'
     | '/admin/orcamentos/$id'
     | '/admin/orcamentos/novo'
     | '/cliente/orcamentos/$id'
@@ -600,13 +588,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventosIdRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/eventos/novo': {
-      id: '/admin/eventos/novo'
-      path: '/eventos/novo'
-      fullPath: '/admin/eventos/novo'
-      preLoaderRoute: typeof AdminEventosNovoRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/orcamentos/': {
       id: '/admin/orcamentos/'
       path: '/orcamentos'
@@ -659,7 +640,6 @@ interface AdminRouteChildren {
   AdminClientesIdRoute: typeof AdminClientesIdRoute
   AdminClientesNovoRoute: typeof AdminClientesNovoRoute
   AdminEventosIdRoute: typeof AdminEventosIdRoute
-  AdminEventosNovoRoute: typeof AdminEventosNovoRoute
   AdminOrcamentosIdRoute: typeof AdminOrcamentosIdRoute
   AdminOrcamentosNovoRoute: typeof AdminOrcamentosNovoRoute
   AdminClientesIndexRoute: typeof AdminClientesIndexRoute
@@ -681,7 +661,6 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminClientesIdRoute: AdminClientesIdRoute,
   AdminClientesNovoRoute: AdminClientesNovoRoute,
   AdminEventosIdRoute: AdminEventosIdRoute,
-  AdminEventosNovoRoute: AdminEventosNovoRoute,
   AdminOrcamentosIdRoute: AdminOrcamentosIdRoute,
   AdminOrcamentosNovoRoute: AdminOrcamentosNovoRoute,
   AdminClientesIndexRoute: AdminClientesIndexRoute,
