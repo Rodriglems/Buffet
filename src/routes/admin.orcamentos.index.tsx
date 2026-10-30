@@ -18,6 +18,8 @@ import {
 import { listarOrcamentos } from "@/features/orcamentos/server-functions";
 import { obterLinkFormularioOrcamento } from "@/features/orcamentos/solicitacao-publica";
 import { formatBRL, formatDate } from "@/lib/format";
+import { usePlaceholderBusca } from "@/lib/placeholder-busca";
+import { copiarTexto } from "@/lib/copiar-texto";
 
 export const Route = createFileRoute("/admin/orcamentos/")({
   head: () => ({
@@ -45,6 +47,7 @@ export const Route = createFileRoute("/admin/orcamentos/")({
 const TODOS = "todos";
 
 function OrcamentosPage() {
+  const placeholderBusca = usePlaceholderBusca("Buscar por código ou cliente");
   const { orcamentos: resultado, formulario } = Route.useLoaderData();
   const orcamentos = resultado.items;
   const [busca, setBusca] = useState("");
@@ -69,7 +72,7 @@ function OrcamentosPage() {
               variant="outline"
               onClick={() => {
                 const link = `${window.location.origin}/solicitar-orcamento/${formulario.token}`;
-                void navigator.clipboard.writeText(link).then(
+                void copiarTexto(link).then(
                   () => toast.success("Link copiado. Envie-o ao cliente para preencher os dados."),
                   () => toast.error("Não foi possível copiar o link."),
                 );
@@ -97,7 +100,7 @@ function OrcamentosPage() {
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por código ou cliente"
+            placeholder={placeholderBusca}
             className="bg-surface border-0 ring-1 ring-black/5"
           />
           <Select value={status} onValueChange={setStatus}>
@@ -122,16 +125,16 @@ function OrcamentosPage() {
           />
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[880px] text-left text-sm">
+            <table className="w-full sm:min-w-[880px] text-left text-sm">
               <thead>
                 <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                   <th className="pb-2 font-medium">Código</th>
-                  <th className="pb-2 font-medium">Cliente</th>
-                  <th className="pb-2 font-medium">Evento</th>
-                  <th className="pb-2 font-medium">Data</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Cliente</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Evento</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Data</th>
                   <th className="pb-2 font-medium">Valor</th>
-                  <th className="pb-2 font-medium">Versão</th>
-                  <th className="pb-2 font-medium">Validade</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Versão</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Validade</th>
                   <th className="pb-2 font-medium">Status</th>
                 </tr>
               </thead>
@@ -146,13 +149,24 @@ function OrcamentosPage() {
                       >
                         #{o.numero.toString()}
                       </Link>
+                      <p className="text-muted-foreground text-xs sm:hidden">
+                        {o.evento.cliente.nome} · {formatDate(o.createdAt)}
+                      </p>
                     </td>
-                    <td className="text-muted-foreground py-3 pr-3">{o.evento.cliente.nome}</td>
-                    <td className="text-muted-foreground py-3 pr-3">{o.evento.nome}</td>
-                    <td className="text-muted-foreground py-3 pr-3">{formatDate(o.createdAt)}</td>
-                    <td className="py-3 pr-3 font-medium">{formatBRL(Number(o.total))}</td>
-                    <td className="py-3 pr-3">v{o.versao}</td>
-                    <td className="text-muted-foreground py-3 pr-3">
+                    <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                      {o.evento.cliente.nome}
+                    </td>
+                    <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                      {o.evento.nome}
+                    </td>
+                    <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                      {formatDate(o.createdAt)}
+                    </td>
+                    <td className="py-3 pr-3 font-medium whitespace-nowrap">
+                      {formatBRL(Number(o.total))}
+                    </td>
+                    <td className="py-3 pr-3 max-sm:hidden">v{o.versao}</td>
+                    <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
                       {o.validade ? formatDate(o.validade) : "—"}
                     </td>
                     <td className="py-3">

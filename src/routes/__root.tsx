@@ -11,6 +11,7 @@ import { type ReactNode } from "react";
 
 import { ConfirmacaoProvider } from "@/components/confirmacao-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { useRotulosDeTabelas } from "@/lib/rotulos-tabela";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
@@ -128,6 +129,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useRotulosDeTabelas();
 
   return (
     <QueryClientProvider client={queryClient}>

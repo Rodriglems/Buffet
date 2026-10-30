@@ -44,7 +44,10 @@ export function PageHeader({
         </h1>
         {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && (
+        // ml-auto: quando os botões descem de linha (celular), continuam alinhados à direita.
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{actions}</div>
+      )}
     </div>
   );
 }

@@ -234,7 +234,7 @@ function NovoOrcamento() {
           }
         />
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="tabela-formulario w-full min-w-[900px] text-left text-sm">
             <thead>
               <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                 <th className="pb-2 font-medium">Serviço/produto</th>
@@ -358,8 +358,10 @@ function NovoOrcamento() {
               <span className="text-muted-foreground">Subtotal</span>
               <span className="font-medium">{formatBRL(subtotal)}</span>
             </div>
-            <div className="grid grid-cols-[1fr_9rem_8rem] items-end gap-3">
-              <span className="text-muted-foreground pb-2">Desconto</span>
+            <div className="grid grid-cols-2 items-end gap-3 sm:grid-cols-[1fr_9rem_8rem]">
+              <span className="text-muted-foreground col-span-2 sm:col-span-1 sm:pb-2">
+                Desconto
+              </span>
               <Select
                 value={tipoDesconto}
                 onValueChange={(valor) => setTipoDesconto(valor as TipoDesconto)}

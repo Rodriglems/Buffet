@@ -151,7 +151,7 @@ function Agenda() {
               compromisso:
                 "[&_button]:underline [&_button]:decoration-info [&_button]:decoration-2 [&_button]:underline-offset-4",
             }}
-            className="w-full rounded-xl bg-surface p-3 ring-1 ring-black/5 [--cell-size:2.6rem]"
+            className="w-full rounded-xl bg-surface p-3 ring-1 ring-black/5 [--cell-size:min(2.6rem,calc((100vw_-_7rem)/7))]"
           />
         </div>
         <div className="min-w-0">

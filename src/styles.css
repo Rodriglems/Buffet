@@ -271,6 +271,60 @@
   backdrop-filter: blur(24px);
 }
 
+/*
+ * Formulários em tabela (itens do orçamento, parcelas) no celular: cada linha vira um bloco
+ * com o nome da coluna acima de cada campo (data-label, copiado do cabeçalho por
+ * src/lib/rotulos-tabela.ts). Listas comuns continuam como tabela, com menos colunas.
+ */
+@media (max-width: 639px) {
+  table.tabela-formulario {
+    min-width: 0;
+  }
+
+  .tabela-formulario thead {
+    display: none;
+  }
+
+  .tabela-formulario,
+  .tabela-formulario tbody,
+  .tabela-formulario tr {
+    display: block;
+    width: 100%;
+  }
+
+  .tabela-formulario tr {
+    padding-block: 0.75rem;
+  }
+
+  .tabela-formulario td {
+    display: grid;
+    gap: 0.25rem;
+    width: 100%;
+    padding: 0.25rem 0 !important;
+    text-align: left;
+  }
+
+  .tabela-formulario td::before {
+    content: attr(data-label);
+    color: var(--color-muted-foreground);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+
+  .tabela-formulario td:is(:not([data-label]), [data-label=""], [data-label="Ações"])::before {
+    content: none;
+  }
+
+  .tabela-formulario td:is(:not([data-label]), [data-label=""], [data-label="Ações"]) {
+    justify-items: end;
+  }
+
+  .tabela-formulario td :is(input, textarea, [role="combobox"]) {
+    width: 100%;
+  }
+}
+
 @media print {
   aside,
   header,

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, FileText, Loader2, MessageCircle, Pencil, Plus } from "lucide-react";
+import { Check, FileText, Loader2, MessageCircle, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel, PanelHeader, StatCard } from "@/components/panel";
@@ -37,8 +37,15 @@ import { formatBRL, formatDate } from "@/lib/format";
 import { createWhatsAppUrl } from "@/lib/sharing";
 import { acaoDaEtapa, ETAPAS_EVENTO, rotuloStatusEvento } from "@/lib/status-evento";
 import { cn } from "@/lib/utils";
+import { telefoneDe } from "@/lib/empresa-cabecalho";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const Route = createFileRoute("/admin/eventos/$id")({
+  // Endereço que não é de um evento (ex.: o antigo /admin/eventos/novo) volta para a lista.
+  beforeLoad: ({ params }) => {
+    if (!UUID.test(params.id)) throw redirect({ to: "/admin/eventos" });
+  },
   loader: ({ params }) => obterEvento({ data: { id: params.id } }),
   component: DetalheEvento,
 });
@@ -135,26 +142,32 @@ function DetalheEvento() {
         {orcamentoAtual ? (
           <>
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[620px] text-left text-sm">
+              <table className="w-full sm:min-w-[620px] text-left text-sm">
                 <thead>
                   <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                     <th className="pb-2 font-medium">Item</th>
-                    <th className="pb-2 font-medium">Quantidade</th>
-                    <th className="pb-2 font-medium">Valor unitário</th>
+                    <th className="pb-2 font-medium max-sm:hidden">Quantidade</th>
+                    <th className="pb-2 font-medium max-sm:hidden">Valor unitário</th>
                     <th className="pb-2 font-medium text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {orcamentoAtual.itens.map((item) => (
                     <tr key={item.id}>
-                      <td className="py-3 pr-3 font-medium">{item.descricao}</td>
-                      <td className="text-muted-foreground py-3 pr-3">
+                      <td className="py-3 pr-3 font-medium">
+                        {item.descricao}
+                        <p className="text-muted-foreground text-xs font-normal sm:hidden">
+                          {Number(item.quantidade)} {item.unidade} ×{" "}
+                          {formatBRL(Number(item.valorUnitario))}
+                        </p>
+                      </td>
+                      <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
                         {Number(item.quantidade)} {item.unidade}
                       </td>
-                      <td className="text-muted-foreground py-3 pr-3">
+                      <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
                         {formatBRL(Number(item.valorUnitario))}
                       </td>
-                      <td className="py-3 text-right font-medium">
+                      <td className="py-3 text-right font-medium whitespace-nowrap">
                         {formatBRL(Number(item.valorTotal))}
                       </td>
                     </tr>
@@ -238,12 +251,12 @@ function DetalheEvento() {
           {[
             ["Nome", evento.cliente.nome],
             ["E-mail", evento.cliente.email],
-            ["Telefone", evento.cliente.telefone],
-            ["WhatsApp", evento.cliente.whatsapp],
+            ["Telefone", telefoneDe(evento.cliente.telefone)],
+            ["WhatsApp", telefoneDe(evento.cliente.whatsapp)],
           ].map(([rotulo, valor]) => (
             <div key={rotulo}>
               <dt className="text-muted-foreground text-[11px] uppercase">{rotulo}</dt>
-              <dd className="mt-1 text-sm font-medium">
+              <dd className="mt-1 text-sm font-medium [overflow-wrap:anywhere]">
                 {valor?.trim() ? valor : "Não informado"}
               </dd>
             </div>
@@ -400,14 +413,14 @@ function PagamentosDoEvento({
       </div>
       {parcelas.length ? (
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <table className="w-full sm:min-w-[760px] text-left text-sm">
             <thead>
               <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                 <th className="pb-2 font-medium">Parcela</th>
-                <th className="pb-2 font-medium">Vencimento</th>
+                <th className="pb-2 font-medium max-sm:hidden">Vencimento</th>
                 <th className="pb-2 font-medium">Valor</th>
-                <th className="pb-2 font-medium">Forma de pagamento</th>
-                <th className="pb-2 font-medium">Status</th>
+                <th className="pb-2 font-medium max-sm:hidden">Forma de pagamento</th>
+                <th className="pb-2 font-medium max-sm:hidden">Status</th>
                 <th className="pb-2 font-medium text-right">Ações</th>
               </tr>
             </thead>
@@ -417,6 +430,34 @@ function PagamentosDoEvento({
                 if (parcela.formaPagamento && !formas.includes(parcela.formaPagamento)) {
                   formas.push(parcela.formaPagamento);
                 }
+                // No celular a forma de pagamento fica dentro da célula da parcela.
+                const seletorForma = (classe: string) => (
+                  <Select
+                    value={parcela.formaPagamento ?? ""}
+                    disabled={processando !== null}
+                    onValueChange={(forma) =>
+                      void executar(
+                        parcela.id,
+                        () => trocarForma({ data: { id: parcela.id, formaPagamento: forma } }),
+                        "Forma de pagamento alterada.",
+                      )
+                    }
+                  >
+                    <SelectTrigger
+                      className={classe}
+                      aria-label={`Forma de pagamento da parcela ${parcela.numeroParcela}`}
+                    >
+                      <SelectValue placeholder="Definir" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {formas.map((forma) => (
+                        <SelectItem key={forma} value={forma}>
+                          {forma}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
                 return (
                   <tr key={parcela.id}>
                     <td className="py-3 pr-3">
@@ -424,51 +465,36 @@ function PagamentosDoEvento({
                       {parcela.descricao ? (
                         <p className="text-muted-foreground text-xs">{parcela.descricao}</p>
                       ) : null}
+                      <div className="mt-1 grid gap-1.5 sm:hidden">
+                        <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+                          Vence {formatDate(parcela.dataVencimento)}
+                          <StatusBadge status={parcela.status} />
+                        </p>
+                        {seletorForma("h-8 w-full max-w-44")}
+                      </div>
                     </td>
-                    <td className="text-muted-foreground py-3 pr-3">
+                    <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
                       {formatDate(parcela.dataVencimento)}
                       {parcela.dataPagamento ? (
                         <p className="text-xs">Pago em {formatDate(parcela.dataPagamento)}</p>
                       ) : null}
                     </td>
-                    <td className="py-3 pr-3 font-medium">{formatBRL(Number(parcela.valor))}</td>
-                    <td className="py-3 pr-3">
-                      <Select
-                        value={parcela.formaPagamento ?? ""}
-                        disabled={processando !== null}
-                        onValueChange={(forma) =>
-                          void executar(
-                            parcela.id,
-                            () => trocarForma({ data: { id: parcela.id, formaPagamento: forma } }),
-                            "Forma de pagamento alterada.",
-                          )
-                        }
-                      >
-                        <SelectTrigger
-                          className="h-8 w-44"
-                          aria-label={`Forma de pagamento da parcela ${parcela.numeroParcela}`}
-                        >
-                          <SelectValue placeholder="Definir" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {formas.map((forma) => (
-                            <SelectItem key={forma} value={forma}>
-                              {forma}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <td className="py-3 pr-3 align-top font-medium whitespace-nowrap sm:align-middle">
+                      {formatBRL(Number(parcela.valor))}
                     </td>
-                    <td className="py-3 pr-3">
+                    <td className="py-3 pr-3 max-sm:hidden">{seletorForma("h-8 w-44")}</td>
+                    <td className="py-3 pr-3 max-sm:hidden">
                       <StatusBadge status={parcela.status} />
                     </td>
-                    <td className="py-3 text-right">
+                    <td className="py-3 text-right align-top sm:align-middle">
                       {parcela.status === "PAGO" ? null : (
                         <div className="flex justify-end gap-1">
                           <Button
                             size="sm"
                             variant="outline"
                             disabled={processando !== null}
+                            aria-label={`Marcar parcela ${parcela.numeroParcela} como paga`}
+                            title="Marcar pago"
                             onClick={() =>
                               void executar(
                                 parcela.id,
@@ -480,12 +506,15 @@ function PagamentosDoEvento({
                               )
                             }
                           >
-                            Marcar pago
+                            <Check className="size-4 sm:hidden" />
+                            <span className="hidden sm:inline">Marcar pago</span>
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
                             disabled={processando !== null}
+                            aria-label={`Excluir a parcela ${parcela.numeroParcela}`}
+                            title="Excluir"
                             onClick={async () => {
                               const ok = await pedirConfirmacao({
                                 titulo: `Excluir a parcela #${parcela.numeroParcela}?`,
@@ -501,7 +530,8 @@ function PagamentosDoEvento({
                               );
                             }}
                           >
-                            Excluir
+                            <Trash2 className="size-4 sm:hidden" />
+                            <span className="hidden sm:inline">Excluir</span>
                           </Button>
                         </div>
                       )}
@@ -614,35 +644,48 @@ function BarraDeEtapas({ evento, valorEvento }: { evento: EventoDetalhe; valorEv
   }
 
   return (
-    <div className="panel sticky bottom-3 z-10 flex flex-col gap-3 p-3 shadow-xl sm:flex-row sm:items-center sm:justify-between sm:p-4">
+    <div className="panel sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-2 p-2.5 shadow-xl sm:flex-nowrap sm:gap-3 sm:p-4">
       <ol className="flex flex-wrap items-center gap-1 text-xs" aria-label="Etapas do evento">
         {evento.status === "CANCELADO" ? (
           <li className="text-destructive font-semibold">Evento cancelado</li>
         ) : (
-          ETAPAS_EVENTO.map((item, indice) => {
-            const concluida = indice < indiceAtual;
-            const atual = indice === indiceAtual;
-            return (
-              <li key={item} className="flex items-center gap-1">
-                {indice > 0 ? <span className="bg-border h-px w-3" aria-hidden /> : null}
-                <span
-                  aria-current={atual ? "step" : undefined}
-                  className={cn(
-                    "flex items-center gap-1 rounded-full px-2.5 py-1",
-                    atual && "bg-primary text-primary-foreground font-semibold",
-                    concluida && "bg-primary/10 text-primary",
-                    !atual && !concluida && "text-muted-foreground",
-                  )}
-                >
-                  {concluida ? <Check className="size-3" /> : null}
-                  {rotuloStatusEvento(item)}
-                </span>
+          <>
+            {/* No celular só a etapa atual aparece, para a barra não cobrir a tela. */}
+            {indiceAtual >= 0 ? (
+              <li className="text-muted-foreground pr-1 sm:hidden">
+                Etapa {indiceAtual + 1} de {ETAPAS_EVENTO.length}
               </li>
-            );
-          })
+            ) : null}
+            {ETAPAS_EVENTO.map((item, indice) => {
+              const concluida = indice < indiceAtual;
+              const atual = indice === indiceAtual;
+              return (
+                <li
+                  key={item}
+                  className={cn("flex items-center gap-1", !atual && "hidden sm:flex")}
+                >
+                  {indice > 0 ? (
+                    <span className="bg-border hidden h-px w-3 sm:block" aria-hidden />
+                  ) : null}
+                  <span
+                    aria-current={atual ? "step" : undefined}
+                    className={cn(
+                      "flex items-center gap-1 rounded-full px-2.5 py-1",
+                      atual && "bg-primary text-primary-foreground font-semibold",
+                      concluida && "bg-primary/10 text-primary",
+                      !atual && !concluida && "text-muted-foreground",
+                    )}
+                  >
+                    {concluida ? <Check className="size-3" /> : null}
+                    {rotuloStatusEvento(item)}
+                  </span>
+                </li>
+              );
+            })}
+          </>
         )}
       </ol>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
         {etapa ? (
           <p className="text-muted-foreground hidden max-w-56 text-xs lg:block">
             {etapa.descricao}
@@ -667,13 +710,16 @@ function BarraDeEtapas({ evento, valorEvento }: { evento: EventoDetalhe; valorEv
           ) : (
             <FileText className="size-4" />
           )}
-          {pdfComoOrcamento ? "PDF do orçamento" : "PDF"}
+          PDF
+          {pdfComoOrcamento ? (
+            <span className="hidden min-[400px]:inline">do orçamento</span>
+          ) : null}
         </Button>
         {etapa ? (
           <Button
             disabled={processando !== null}
             onClick={() => void avancar()}
-            className="min-w-32"
+            className="sm:min-w-32"
           >
             {processando === "etapa" ? <Loader2 className="size-4 animate-spin" /> : null}
             {etapa.rotulo}

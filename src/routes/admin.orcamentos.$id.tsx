@@ -28,6 +28,7 @@ import {
 } from "@/features/orcamentos/server-functions";
 import { formatBRL, formatDate } from "@/lib/format";
 import { createWhatsAppUrl } from "@/lib/sharing";
+import { telefoneDe } from "@/lib/empresa-cabecalho";
 
 export const Route = createFileRoute("/admin/orcamentos/$id")({
   head: () => ({
@@ -183,7 +184,7 @@ function DetalheOrcamento() {
                   <p className="font-display text-sm font-semibold">{empresa.nome}</p>
                   <p className="text-muted-foreground text-[11px]">CNPJ {empresa.cnpj}</p>
                   <p className="text-muted-foreground text-[11px]">
-                    {empresa.telefone} · {empresa.email}
+                    {telefoneDe(empresa.telefone)} · {empresa.email}
                   </p>
                 </div>
               </div>
@@ -204,7 +205,7 @@ function DetalheOrcamento() {
                 <p className="mt-1 text-sm font-medium">{cliente?.nome}</p>
                 <p className="text-muted-foreground text-xs">{cliente?.documento}</p>
                 <p className="text-muted-foreground text-xs">{cliente?.email}</p>
-                <p className="text-muted-foreground text-xs">{cliente?.telefone}</p>
+                <p className="text-muted-foreground text-xs">{telefoneDe(cliente?.telefone)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground text-[11px] tracking-wide uppercase">Evento</p>
@@ -219,13 +220,13 @@ function DetalheOrcamento() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] text-left text-sm">
+              <table className="w-full sm:min-w-[620px] text-left text-sm">
                 <thead>
                   <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                     <th className="pb-2 font-medium">Serviço</th>
-                    <th className="pb-2 font-medium">Qtd.</th>
-                    <th className="pb-2 font-medium">Unidade</th>
-                    <th className="pb-2 font-medium">Valor unit.</th>
+                    <th className="pb-2 font-medium max-sm:hidden">Qtd.</th>
+                    <th className="pb-2 font-medium max-sm:hidden">Unidade</th>
+                    <th className="pb-2 font-medium max-sm:hidden">Valor unit.</th>
                     <th className="pb-2 font-medium text-right">Total</th>
                   </tr>
                 </thead>
@@ -235,13 +236,18 @@ function DetalheOrcamento() {
                       <td className="py-3 pr-3">
                         <p className="font-medium">{i.servico}</p>
                         <p className="text-muted-foreground text-[11px]">{i.descricao}</p>
+                        <p className="text-muted-foreground text-xs sm:hidden">
+                          {i.quantidade} {i.unidade} × {formatBRL(i.valorUnitario)}
+                        </p>
                       </td>
-                      <td className="text-muted-foreground py-3 pr-3">{i.quantidade}</td>
-                      <td className="text-muted-foreground py-3 pr-3">{i.unidade}</td>
-                      <td className="text-muted-foreground py-3 pr-3">
+                      <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                        {i.quantidade}
+                      </td>
+                      <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">{i.unidade}</td>
+                      <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
                         {formatBRL(i.valorUnitario)}
                       </td>
-                      <td className="py-3 text-right font-medium">
+                      <td className="py-3 text-right font-medium whitespace-nowrap">
                         {formatBRL(i.quantidade * i.valorUnitario - i.desconto)}
                       </td>
                     </tr>

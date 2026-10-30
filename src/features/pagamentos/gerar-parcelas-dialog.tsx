@@ -289,7 +289,7 @@ export function GerarParcelasDialog({
 
           {parcelas.length ? (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[420px] text-left text-sm">
+              <table className="tabela-formulario w-full min-w-[420px] text-left text-sm">
                 <thead>
                   <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                     <th className="pb-2 font-medium">Parcela</th>

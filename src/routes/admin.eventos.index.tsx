@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, Copy, ExternalLink, List, Plus } from "lucide-react";
+import { CalendarDays, Copy, ExternalLink, List } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -20,6 +20,8 @@ import { listarEventos } from "@/features/eventos/server-functions";
 import { obterLinkFormularioOrcamento } from "@/features/orcamentos/solicitacao-publica";
 import { formatBRL, formatDate } from "@/lib/format";
 import { rotuloStatusEvento } from "@/lib/status-evento";
+import { usePlaceholderBusca } from "@/lib/placeholder-busca";
+import { copiarTexto } from "@/lib/copiar-texto";
 
 export const Route = createFileRoute("/admin/eventos/")({
   head: () => ({
@@ -49,6 +51,7 @@ const MAIS_RECENTES = "recentes";
 const MAIS_ANTIGOS = "antigos";
 
 function EventosPage() {
+  const placeholderBusca = usePlaceholderBusca("Buscar por evento ou cliente");
   const { eventos: resultado, formulario } = Route.useLoaderData();
   const eventos = resultado.items;
   const [busca, setBusca] = useState("");
@@ -89,11 +92,14 @@ function EventosPage() {
         subtitle={`${eventos.length} eventos cadastrados`}
         actions={
           <>
+            {/* No celular o botão de copiar mostra só o ícone; o do formulário é o principal. */}
             <Button
               variant="outline"
+              aria-label="Copiar link do formulário de orçamento"
+              title="Copiar link do formulário"
               onClick={() => {
                 const link = `${window.location.origin}/solicitar-orcamento/${formulario.token}`;
-                void navigator.clipboard.writeText(link).then(
+                void copiarTexto(link).then(
                   () =>
                     toast.success("Link do formulário copiado!", {
                       description: "Cole no WhatsApp ou e-mail para enviar ao cliente.",
@@ -102,18 +108,14 @@ function EventosPage() {
                 );
               }}
             >
-              <Copy className="size-4" /> Link para orçamento
-            </Button>
-            <Button variant="outline" asChild>
-              <a href={`/solicitar-orcamento/${formulario.token}`} target="_blank" rel="noreferrer">
-                <ExternalLink className="size-4" /> Abrir formulário
-              </a>
+              <Copy className="size-4" />
+              <span className="hidden sm:inline">Copiar link</span>
             </Button>
             <Button asChild>
-              <Link to="/admin/eventos/novo">
-                <Plus className="size-4" />
-                Novo evento
-              </Link>
+              <a href={`/solicitar-orcamento/${formulario.token}`} target="_blank" rel="noreferrer">
+                <ExternalLink className="size-4" />
+                Abrir formulário
+              </a>
             </Button>
           </>
         }
@@ -123,7 +125,7 @@ function EventosPage() {
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por evento ou cliente"
+            placeholder={placeholderBusca}
             className="bg-surface border-0 ring-1 ring-black/5"
           />
           <Select value={tipo} onValueChange={setTipo}>
@@ -189,16 +191,16 @@ function EventosPage() {
               />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[840px] text-left text-sm">
+                <table className="w-full sm:min-w-[840px] text-left text-sm">
                   <thead>
                     <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                       <th className="pb-2 font-medium">Evento</th>
-                      <th className="pb-2 font-medium">Cliente</th>
-                      <th className="pb-2 font-medium">Data</th>
-                      <th className="pb-2 font-medium">Local</th>
-                      <th className="pb-2 font-medium">Convidados</th>
-                      <th className="pb-2 font-medium">Valor</th>
-                      <th className="pb-2 font-medium">Status</th>
+                      <th className="pb-2 font-medium max-sm:hidden">Cliente</th>
+                      <th className="pb-2 font-medium max-sm:hidden">Data</th>
+                      <th className="pb-2 font-medium max-sm:hidden">Local</th>
+                      <th className="pb-2 font-medium max-sm:hidden">Convidados</th>
+                      <th className="pb-2 font-medium max-sm:hidden">Valor</th>
+                      <th className="pb-2 font-medium text-right sm:text-left">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -213,19 +215,33 @@ function EventosPage() {
                             {e.tipo}
                           </Link>
                           {e.formatoServico ? (
-                            <p className="text-muted-foreground text-[11px]">{e.formatoServico}</p>
+                            <p className="text-muted-foreground text-[11px] max-sm:hidden">
+                              {e.formatoServico}
+                            </p>
+                          ) : null}
+                          <p className="text-muted-foreground text-xs sm:hidden">
+                            {e.cliente.nome} · {formatDate(e.dataEvento)}
+                          </p>
+                          {e.orcamentos[0] ? (
+                            <p className="text-xs font-medium sm:hidden">
+                              {formatBRL(Number(e.orcamentos[0].total))}
+                            </p>
                           ) : null}
                         </td>
-                        <td className="text-muted-foreground py-3 pr-3">{e.cliente.nome}</td>
-                        <td className="text-muted-foreground py-3 pr-3">
+                        <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                          {e.cliente.nome}
+                        </td>
+                        <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
                           {formatDate(e.dataEvento)}
                         </td>
-                        <td className="text-muted-foreground py-3 pr-3">{e.localNome ?? "—"}</td>
-                        <td className="py-3 pr-3">{e.quantidadeConvidados}</td>
-                        <td className="py-3 pr-3 font-medium">
+                        <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                          {e.localNome ?? "—"}
+                        </td>
+                        <td className="py-3 pr-3 max-sm:hidden">{e.quantidadeConvidados}</td>
+                        <td className="py-3 pr-3 font-medium whitespace-nowrap max-sm:hidden">
                           {e.orcamentos[0] ? formatBRL(Number(e.orcamentos[0].total)) : "—"}
                         </td>
-                        <td className="py-3">
+                        <td className="py-3 text-right sm:text-left">
                           <StatusBadge status={e.status} />
                         </td>
                       </tr>

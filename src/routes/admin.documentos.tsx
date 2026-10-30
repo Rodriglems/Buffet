@@ -29,6 +29,7 @@ import {
 } from "@/features/documentos/eventos-pdf";
 import { formatBRL, formatDate } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
+import { usePlaceholderBusca } from "@/lib/placeholder-busca";
 
 export const Route = createFileRoute("/admin/documentos")({
   head: () => pageMeta("Documentos", "PDFs dos eventos confirmados."),
@@ -71,6 +72,7 @@ function formatarRecebimento(iso: string) {
 }
 
 function DocumentosPage() {
+  const placeholderBusca = usePlaceholderBusca("Buscar por evento ou cliente");
   const eventos = Route.useLoaderData();
   const [busca, setBusca] = useState("");
   const [baixando, setBaixando] = useState<string | null>(null);
@@ -178,7 +180,7 @@ function DocumentosPage() {
             <Input
               value={busca}
               onChange={(event) => setBusca(event.target.value)}
-              placeholder="Buscar por evento ou cliente"
+              placeholder={placeholderBusca}
               className="bg-surface border-0 pl-9 ring-1 ring-black/5"
             />
           </div>
@@ -256,7 +258,7 @@ function DocumentosPage() {
           />
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-sm">
+            <table className="w-full sm:min-w-[860px] text-left text-sm">
               <thead>
                 <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                   {selecionando ? (
@@ -269,10 +271,10 @@ function DocumentosPage() {
                     </th>
                   ) : null}
                   <th className="pb-2 font-medium">Evento</th>
-                  <th className="pb-2 font-medium">Cliente</th>
-                  <th className="pb-2 font-medium">Data do evento</th>
-                  <th className="pb-2 font-medium">Valor</th>
-                  <th className="pb-2 font-medium">Recebido em</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Cliente</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Data do evento</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Valor</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Recebido em</th>
                   <th className="pb-2 font-medium">Status</th>
                   {selecionando ? null : <th className="pb-2 font-medium text-right">PDF</th>}
                 </tr>
@@ -302,15 +304,20 @@ function DocumentosPage() {
                         >
                           {evento.tipo}
                         </Link>
+                        <p className="text-muted-foreground text-xs font-normal sm:hidden">
+                          {evento.cliente.nome} · {formatDate(evento.dataEvento)}
+                        </p>
                       </td>
-                      <td className="text-muted-foreground py-3 pr-3">{evento.cliente.nome}</td>
-                      <td className="text-muted-foreground py-3 pr-3">
+                      <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                        {evento.cliente.nome}
+                      </td>
+                      <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
                         {formatDate(evento.dataEvento)}
                       </td>
-                      <td className="py-3 pr-3">
+                      <td className="py-3 pr-3 max-sm:hidden">
                         {evento.orcamentos[0] ? formatBRL(Number(evento.orcamentos[0].total)) : "—"}
                       </td>
-                      <td className="text-muted-foreground py-3 pr-3 whitespace-nowrap">
+                      <td className="text-muted-foreground py-3 pr-3 whitespace-nowrap max-sm:hidden">
                         {formatarRecebimento(evento.createdAt)}
                       </td>
                       <td className="py-3 pr-3">
@@ -322,6 +329,8 @@ function DocumentosPage() {
                             size="sm"
                             variant="outline"
                             disabled={baixando !== null}
+                            aria-label={`Baixar PDF de ${evento.tipo} de ${evento.cliente.nome}`}
+                            title="Baixar PDF"
                             onClick={() => void baixar(evento.id)}
                           >
                             {baixando === evento.id ? (
@@ -329,7 +338,7 @@ function DocumentosPage() {
                             ) : (
                               <Download className="size-4" />
                             )}
-                            Baixar PDF
+                            <span className="hidden sm:inline">Baixar PDF</span>
                           </Button>
                         </td>
                       )}

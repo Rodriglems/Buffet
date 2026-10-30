@@ -10,7 +10,6 @@ import {
   CreditCard,
   FileText,
   Gem,
-  Plus,
   Users,
   Wallet,
 } from "lucide-react";
@@ -219,13 +218,6 @@ function Dashboard() {
             <h1 className="font-display text-3xl font-bold tracking-tight">Seu dia, organizado</h1>
             <p className="text-muted-foreground mt-1 text-sm">{dataHoje}</p>
           </div>
-          <div className="flex gap-2">
-            <Button asChild className="h-11 rounded-xl px-5">
-              <Link to="/admin/eventos/novo">
-                <Plus className="size-4" /> Adicionar evento
-              </Link>
-            </Button>
-          </div>
         </div>
 
         <Panel className="p-5">
@@ -271,12 +263,12 @@ function Dashboard() {
             </Link>
           </div>
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[600px] text-left text-sm">
+            <table className="w-full sm:min-w-[600px] text-left text-sm">
               <thead>
                 <tr className="text-muted-foreground border-b border-border text-[10px] tracking-wider uppercase">
                   <th className="py-2 font-medium">Evento</th>
-                  <th className="py-2 font-medium">Data</th>
-                  <th className="py-2 font-medium">Convidados</th>
+                  <th className="py-2 font-medium max-sm:hidden">Data</th>
+                  <th className="py-2 font-medium max-sm:hidden">Convidados</th>
                   <th className="py-2 font-medium">Próxima ação</th>
                 </tr>
               </thead>
@@ -290,17 +282,22 @@ function Dashboard() {
                     >
                       <td className="py-3 pr-3">
                         <div className="flex items-center gap-3">
-                          <IconBox icon={Icon} />
-                          <div>
+                          <span className="hidden sm:contents">
+                            <IconBox icon={Icon} />
+                          </span>
+                          <div className="min-w-0">
                             <p className="font-medium">{e.nome}</p>
-                            <p className="text-muted-foreground text-xs">
+                            <p className="text-muted-foreground text-xs max-sm:hidden">
                               {nomeCliente(e.clienteId)}
+                            </p>
+                            <p className="text-muted-foreground text-xs sm:hidden">
+                              {curta(e.data)} · {e.convidados} convidados
                             </p>
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 pr-3">{curta(e.data)}</td>
-                      <td className="py-3 pr-3">{e.convidados}</td>
+                      <td className="py-3 pr-3 max-sm:hidden">{curta(e.data)}</td>
+                      <td className="py-3 pr-3 max-sm:hidden">{e.convidados}</td>
                       <td className="py-3">
                         <Link
                           to="/admin/eventos/$id"
@@ -337,10 +334,15 @@ function Dashboard() {
                 key={k.label}
                 className="bg-surface flex items-center gap-3 rounded-xl p-3 ring-1 ring-black/5"
               >
-                <IconBox icon={k.icon} />
+                {/* No celular o ícone sai para o valor caber inteiro. */}
+                <span className="hidden sm:contents">
+                  <IconBox icon={k.icon} />
+                </span>
                 <div className="min-w-0">
                   <p className="text-muted-foreground text-[11px]">{k.label}</p>
-                  <p className="font-display truncate text-base font-bold">{formatBRLShort(k.v)}</p>
+                  <p className="font-display text-base leading-tight font-bold break-words">
+                    {formatBRLShort(k.v)}
+                  </p>
                 </div>
               </div>
             ))}
@@ -360,15 +362,23 @@ function Dashboard() {
           </div>
           <div className="mt-2 h-44">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={receitaMensal} barGap={4}>
+              {/* Margem no topo para o rótulo mais alto do eixo não ficar cortado. */}
+              <BarChart data={receitaMensal} barGap={4} margin={{ top: 10, right: 4 }}>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="mes" tickLine={false} axisLine={false} fontSize={11} />
                 <YAxis
                   tickLine={false}
                   axisLine={false}
                   fontSize={11}
-                  width={44}
-                  tickFormatter={(v) => `${v / 1000} mil`}
+                  width={48}
+                  allowDecimals={false}
+                  // Sem movimento ainda, a escala vai até R$ 1 mil em vez de 0,004 mil.
+                  domain={[0, (maior: number) => Math.max(maior, 1000)]}
+                  tickFormatter={(v: number) =>
+                    v >= 1000
+                      ? `${(v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil`
+                      : String(v)
+                  }
                 />
                 <Tooltip
                   cursor={{ fill: "var(--muted)" }}

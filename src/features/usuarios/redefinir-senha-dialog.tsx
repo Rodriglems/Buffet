@@ -21,6 +21,7 @@ import {
   TAMANHO_MINIMO_SENHA,
   type PerfilSenha,
 } from "@/lib/regras-senha";
+import { copiarTexto } from "@/lib/copiar-texto";
 
 export type AlvoRedefinicao = {
   nome: string;
@@ -87,7 +88,7 @@ export function RedefinirSenhaDialog({
   async function copiar() {
     if (!concluido) return;
     try {
-      await navigator.clipboard.writeText(`E-mail: ${concluido.email}\nSenha: ${concluido.senha}`);
+      await copiarTexto(`E-mail: ${concluido.email}\nSenha: ${concluido.senha}`);
       toast.success("Dados de acesso copiados.");
     } catch {
       toast.error("Não foi possível copiar. Anote os dados mostrados na tela.");

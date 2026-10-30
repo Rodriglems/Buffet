@@ -134,25 +134,32 @@ function Financeiro() {
       <Panel className="p-5">
         <PanelHeader title="Movimentações" subtitle="Entradas e saídas registradas" />
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[640px] text-left text-sm">
+          <table className="w-full sm:min-w-[640px] text-left text-sm">
             <thead>
               <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
-                <th className="pb-2 font-medium">Data</th>
+                <th className="pb-2 font-medium max-sm:hidden">Data</th>
                 <th className="pb-2 font-medium">Descrição</th>
-                <th className="pb-2 font-medium">Tipo</th>
+                <th className="pb-2 font-medium max-sm:hidden">Tipo</th>
                 <th className="pb-2 font-medium text-right">Valor</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {movimentacoes.map((m) => (
                 <tr key={m.id}>
-                  <td className="text-muted-foreground py-3 pr-3">{formatDate(m.data)}</td>
-                  <td className="py-3 pr-3">{m.descricao}</td>
+                  <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                    {formatDate(m.data)}
+                  </td>
                   <td className="py-3 pr-3">
+                    {m.descricao}
+                    <p className="text-muted-foreground text-xs sm:hidden">
+                      {formatDate(m.data)} · {m.tipo}
+                    </p>
+                  </td>
+                  <td className="py-3 pr-3 max-sm:hidden">
                     <StatusBadge status={m.tipo === "Entrada" ? "Pago" : "Pendente"} dot={false} />
                   </td>
                   <td
-                    className={`py-3 text-right font-medium ${m.tipo === "Saída" ? "text-destructive" : ""}`}
+                    className={`py-3 text-right font-medium whitespace-nowrap ${m.tipo === "Saída" ? "text-destructive" : ""}`}
                   >
                     {m.tipo === "Saída" ? "− " : ""}
                     {formatBRL(m.valor)}

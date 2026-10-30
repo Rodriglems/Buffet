@@ -32,6 +32,7 @@ import { formatBRL, formatBRLShort, formatDate } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
 import { createWhatsAppUrl } from "@/lib/sharing";
 import { cn } from "@/lib/utils";
+import { usePlaceholderBusca } from "@/lib/placeholder-busca";
 
 export const Route = createFileRoute("/admin/pagamentos")({
   head: () => pageMeta("A receber", "Todas as parcelas em aberto dos clientes, por vencimento."),
@@ -50,6 +51,7 @@ const CORES_SITUACAO: Record<SituacaoParcela, string> = {
 };
 
 function AReceber() {
+  const placeholderBusca = usePlaceholderBusca("Buscar cliente ou evento");
   const { pendentes, recebidoNoMes, eventosParaParcelas } = Route.useLoaderData();
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
@@ -135,7 +137,7 @@ function AReceber() {
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar cliente ou evento"
+            placeholder={placeholderBusca}
             className="pl-9"
             aria-label="Buscar cliente ou evento"
           />
@@ -241,7 +243,7 @@ function ContaDoCliente({
             ) : null}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <p className="font-display text-lg font-semibold">{formatBRL(grupo.total)}</p>
           {cliente.whatsapp || cliente.telefone ? (
             <Button size="sm" variant="outline" onClick={cobrar}>
@@ -251,13 +253,13 @@ function ContaDoCliente({
         </div>
       </div>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full sm:min-w-[720px] text-left text-sm">
           <thead>
             <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
               <th className="pb-2 font-medium">Evento</th>
-              <th className="pb-2 font-medium">Parcela</th>
-              <th className="pb-2 font-medium">Vencimento</th>
-              <th className="pb-2 font-medium">Forma</th>
+              <th className="pb-2 font-medium max-sm:hidden">Parcela</th>
+              <th className="pb-2 font-medium max-sm:hidden">Vencimento</th>
+              <th className="pb-2 font-medium max-sm:hidden">Forma</th>
               <th className="pb-2 font-medium">Valor</th>
               <th className="pb-2 font-medium text-right">Ação</th>
             </tr>
@@ -273,32 +275,45 @@ function ContaDoCliente({
                   >
                     {parcela.evento.nome}
                   </Link>
-                  <p className="text-muted-foreground text-xs">
+                  <p className="text-muted-foreground text-xs max-sm:hidden">
                     Evento em {formatDate(parcela.evento.dataEvento)}
                   </p>
+                  <p className="text-muted-foreground text-xs sm:hidden">
+                    Parcela {parcela.numeroParcela} · vence {formatDate(parcela.dataVencimento)}
+                  </p>
+                  <p className={cn("text-xs sm:hidden", CORES_SITUACAO[parcela.situacao])}>
+                    {descreverPrazo(parcela.dias)}
+                  </p>
                 </td>
-                <td className="py-3 pr-3">
+                <td className="py-3 pr-3 max-sm:hidden">
                   #{parcela.numeroParcela}
                   {parcela.descricao ? (
                     <p className="text-muted-foreground text-xs">{parcela.descricao}</p>
                   ) : null}
                 </td>
-                <td className="py-3 pr-3">
+                <td className="py-3 pr-3 max-sm:hidden">
                   {formatDate(parcela.dataVencimento)}
                   <p className={cn("text-xs", CORES_SITUACAO[parcela.situacao])}>
                     {descreverPrazo(parcela.dias)}
                   </p>
                 </td>
-                <td className="text-muted-foreground py-3 pr-3">{parcela.formaPagamento ?? "—"}</td>
-                <td className="py-3 pr-3 font-medium">{formatBRL(Number(parcela.valor))}</td>
+                <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                  {parcela.formaPagamento ?? "—"}
+                </td>
+                <td className="py-3 pr-3 font-medium whitespace-nowrap">
+                  {formatBRL(Number(parcela.valor))}
+                </td>
                 <td className="py-3 text-right">
                   <Button
                     size="sm"
                     variant="outline"
                     disabled={processando !== null}
+                    aria-label={`Marcar parcela ${parcela.numeroParcela} como recebida`}
+                    title="Marcar como recebido"
                     onClick={() => void marcarRecebido(parcela)}
                   >
-                    <Check className="size-4" /> Recebido
+                    <Check className="size-4" />
+                    <span className="hidden sm:inline">Recebido</span>
                   </Button>
                 </td>
               </tr>

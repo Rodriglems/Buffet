@@ -35,7 +35,7 @@ function Notificacoes() {
         title="Notificações"
         subtitle={naoLidas ? `${naoLidas} não lidas` : "Tudo em dia"}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={() => {

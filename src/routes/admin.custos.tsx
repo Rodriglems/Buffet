@@ -129,26 +129,35 @@ function Custos() {
       <Panel className="p-5">
         <PanelHeader title="Lançamentos" />
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[820px] text-left text-sm">
+          <table className="w-full sm:min-w-[820px] text-left text-sm">
             <thead>
               <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                 <th className="pb-2 font-medium">Evento</th>
-                <th className="pb-2 font-medium">Categoria</th>
-                <th className="pb-2 font-medium">Descrição</th>
-                <th className="pb-2 font-medium">Fornecedor</th>
-                <th className="pb-2 font-medium">Data</th>
+                <th className="pb-2 font-medium max-sm:hidden">Categoria</th>
+                <th className="pb-2 font-medium max-sm:hidden">Descrição</th>
+                <th className="pb-2 font-medium max-sm:hidden">Fornecedor</th>
+                <th className="pb-2 font-medium max-sm:hidden">Data</th>
                 <th className="pb-2 font-medium text-right">Valor</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {custos.map((c) => (
                 <tr key={c.id}>
-                  <td className="py-3 pr-3 font-medium">{c.evento.nome}</td>
-                  <td className="text-muted-foreground py-3 pr-3">{c.categoria}</td>
-                  <td className="text-muted-foreground py-3 pr-3">{c.descricao}</td>
-                  <td className="text-muted-foreground py-3 pr-3">{c.fornecedor}</td>
-                  <td className="text-muted-foreground py-3 pr-3">{formatDate(c.data)}</td>
-                  <td className="py-3 text-right font-medium">{formatBRL(Number(c.valor))}</td>
+                  <td className="py-3 pr-3 font-medium">
+                    {c.evento.nome}
+                    <p className="text-muted-foreground text-xs font-normal sm:hidden">
+                      {[c.categoria, c.descricao, formatDate(c.data)].filter(Boolean).join(" · ")}
+                    </p>
+                  </td>
+                  <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">{c.categoria}</td>
+                  <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">{c.descricao}</td>
+                  <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">{c.fornecedor}</td>
+                  <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                    {formatDate(c.data)}
+                  </td>
+                  <td className="py-3 text-right font-medium whitespace-nowrap">
+                    {formatBRL(Number(c.valor))}
+                  </td>
                 </tr>
               ))}
             </tbody>
