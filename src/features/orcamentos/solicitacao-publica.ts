@@ -9,7 +9,8 @@ import { notificarNovaSolicitacaoEmpresa } from "@/lib/empresa-notification.serv
 import { hashPassword } from "@/lib/password.server";
 import { exigirDentroDoLimite } from "@/lib/limite-taxa.server";
 import { getPrisma } from "@/lib/prisma.server";
-import { issueSession, requirePermission } from "@/lib/session.server";
+import { getAuthContext, issueSession, requirePermission } from "@/lib/session.server";
+import { telefoneDe } from "@/lib/empresa-cabecalho";
 
 const tokenSchema = z.object({ token: z.string().uuid() });
 
@@ -33,7 +34,8 @@ const solicitacaoSchema = tokenSchema.extend({
   // Opção escolhida para cada item que pede uma escolha (ex.: { massaId: recheioId }).
   escolhas: z.record(z.string().uuid(), z.string().uuid()).default({}),
   // Senha curta (a partir de 4 dígitos) é aceita porque o login bloqueia tentativas repetidas.
-  senha: z.string().min(4).max(200),
+  // Cliente já conectado não envia senha: o pedido vai para a conta da sessão.
+  senha: z.string().max(200).default(""),
   website: z.string().max(0).optional(),
 });
 
@@ -76,16 +78,10 @@ export const obterFormularioOrcamento = createServerFn({ method: "GET" })
             precoBase: true,
             precoVisivel: true,
             ordem: true,
-            sugestaoChef: true,
             opcoesRotulo: true,
             opcoes: { select: { opcaoId: true } },
           },
-          orderBy: [
-            { sugestaoChef: "asc" },
-            { ordem: "asc" },
-            { categoria: "asc" },
-            { nome: "asc" },
-          ],
+          orderBy: [{ ordem: "asc" }, { categoria: "asc" }, { nome: "asc" }],
         },
         categoriasCardapio: {
           select: { nome: true, ordem: true },
@@ -95,6 +91,28 @@ export const obterFormularioOrcamento = createServerFn({ method: "GET" })
     });
     if (!empresa) throw new Error("Link de orçamento inválido ou desativado.");
     return serialize(empresa);
+  });
+
+/**
+ * Cliente deste buffet já conectado neste navegador: o formulário mostra os dados dele e
+ * pula a parte de contato. A identidade vem só da sessão, nunca do que foi digitado.
+ */
+export const obterClienteConectado = createServerFn({ method: "GET" })
+  .validator((value: unknown) => tokenSchema.parse(value))
+  .handler(async ({ data }) => {
+    const auth = await getAuthContext();
+    if (!auth || auth.role !== "CLIENT" || !auth.clienteId) return null;
+    const cliente = await getPrisma().cliente.findFirst({
+      where: { id: auth.clienteId, empresa: { linkOrcamentoToken: data.token } },
+      select: { nome: true, email: true, telefone: true, whatsapp: true },
+    });
+    if (!cliente) return null;
+    return {
+      nome: cliente.nome,
+      email: cliente.email ?? auth.email,
+      telefone: telefoneDe(cliente.telefone) ?? "",
+      whatsapp: telefoneDe(cliente.whatsapp) ?? "",
+    };
   });
 
 export const obterLinkFormularioOrcamento = createServerFn({ method: "GET" }).handler(async () => {
@@ -117,12 +135,19 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
     if (data.dataEvento < inicioDeHoje) {
       throw new Error("Escolha uma data a partir de hoje.");
     }
-    const senhaHash = await hashPassword(data.senha);
     const empresa = await getPrisma().empresa.findUnique({
       where: { linkOrcamentoToken: data.token },
       select: { id: true, nomeFantasia: true, email: true, whatsapp: true },
     });
     if (!empresa) throw new Error("Link de orçamento inválido ou desativado.");
+    // Cliente conectado (sessão deste buffet): o pedido entra direto na conta dele.
+    const sessao = await getAuthContext();
+    const clienteConectadoId =
+      sessao?.role === "CLIENT" && sessao.empresaId === empresa.id ? sessao.clienteId : null;
+    if (!clienteConectadoId && data.senha.length < 4) {
+      throw new Error("Crie uma senha com pelo menos 4 caracteres.");
+    }
+    const senhaHash = clienteConectadoId ? null : await hashPassword(data.senha);
 
     const resultado = await getPrisma().$transaction(async (tx) => {
       const servicosIds = [...new Set(data.servicosIds)];
@@ -154,26 +179,34 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
 
       // O cliente é identificado só pelo e-mail: telefone/WhatsApp pode ser compartilhado
       // (família, empresa), e casar por ele juntava pedidos de pessoas diferentes.
-      const clienteExistente = await tx.cliente.findFirst({
-        where: { empresaId: empresa.id, email: { equals: data.email, mode: "insensitive" } },
-        orderBy: { updatedAt: "desc" },
-      });
+      const clienteConectado = clienteConectadoId
+        ? await tx.cliente.findFirst({ where: { id: clienteConectadoId, empresaId: empresa.id } })
+        : null;
+      if (clienteConectadoId && !clienteConectado)
+        throw new Error("Sessão inválida. Entre novamente.");
+      const clienteExistente =
+        clienteConectado ??
+        (await tx.cliente.findFirst({
+          where: { empresaId: empresa.id, email: { equals: data.email, mode: "insensitive" } },
+          orderBy: { updatedAt: "desc" },
+        }));
       // Formulário público não autentica quem envia: nunca sobrescreve dados de um cliente
       // existente, apenas completa campos vazios e registra divergências para a equipe.
-      const divergencias = clienteExistente
-        ? [
-            clienteExistente.nome !== data.nome ? `nome "${data.nome}"` : null,
-            clienteExistente.email && clienteExistente.email !== data.email
-              ? `e-mail "${data.email}"`
-              : null,
-            clienteExistente.telefone && clienteExistente.telefone !== data.telefone
-              ? `telefone "${data.telefone}"`
-              : null,
-            clienteExistente.whatsapp && clienteExistente.whatsapp !== data.whatsapp
-              ? `WhatsApp "${data.whatsapp}"`
-              : null,
-          ].filter((item) => item !== null)
-        : [];
+      const divergencias =
+        clienteExistente && !clienteConectado
+          ? [
+              clienteExistente.nome !== data.nome ? `nome "${data.nome}"` : null,
+              clienteExistente.email && clienteExistente.email !== data.email
+                ? `e-mail "${data.email}"`
+                : null,
+              clienteExistente.telefone && clienteExistente.telefone !== data.telefone
+                ? `telefone "${data.telefone}"`
+                : null,
+              clienteExistente.whatsapp && clienteExistente.whatsapp !== data.whatsapp
+                ? `WhatsApp "${data.whatsapp}"`
+                : null,
+            ].filter((item) => item !== null)
+          : [];
       const cliente = clienteExistente
         ? await tx.cliente.update({
             where: { id: clienteExistente.id },
@@ -197,9 +230,11 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
 
       // Cria a conta do cliente (novo ou já cadastrado com este e-mail) quando ele ainda não tem
       // acesso. Só fica indisponível se o e-mail já pertence a outro usuário (ex.: da equipe).
-      let acesso: "CRIADO" | "JA_EXISTE" | "INDISPONIVEL";
+      let acesso: "CRIADO" | "JA_EXISTE" | "INDISPONIVEL" | "CONECTADO";
       let usuarioCriado: { id: string; sessaoVersao: number } | null = null;
-      if (clienteExistente?.usuarioId) {
+      if (clienteConectado) {
+        acesso = "CONECTADO";
+      } else if (clienteExistente?.usuarioId) {
         acesso = "JA_EXISTE";
       } else {
         const emailEmUso = await tx.usuario.count({
@@ -208,6 +243,7 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
         if (emailEmUso) {
           acesso = "INDISPONIVEL";
         } else {
+          if (!senhaHash) throw new Error("Crie uma senha com pelo menos 4 caracteres.");
           const usuario = await tx.usuario.create({
             data: {
               empresaId: empresa.id,
@@ -227,7 +263,7 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
         data: {
           empresaId: empresa.id,
           clienteId: cliente.id,
-          nome: data.nome,
+          nome: clienteConectado ? cliente.nome : data.nome,
           tipo: data.tipoEvento,
           formatoServico: data.formatoServico,
           servicosAdicionais: data.servicosAdicionais,
@@ -330,7 +366,7 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
       orcamentoId: resultado.orcamentoId,
       nomeCliente: resultado.nomeCliente,
       acesso: resultado.acesso,
-      logado: Boolean(resultado.usuarioCriado),
+      logado: Boolean(resultado.usuarioCriado) || resultado.acesso === "CONECTADO",
       notificacoes,
     });
   });

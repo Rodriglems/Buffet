@@ -11,10 +11,10 @@ import {
   Info,
   ListChecks,
   Loader2,
+  LogIn,
   Search,
   Sparkles,
   Utensils,
-  WandSparkles,
   X,
   ChevronRight,
 } from "lucide-react";
@@ -40,9 +40,11 @@ import {
   type DadosFormularioOrcamento,
 } from "@/features/orcamentos/formulario-publico";
 import {
+  obterClienteConectado,
   obterFormularioOrcamento,
   enviarSolicitacaoOrcamento,
 } from "@/features/orcamentos/solicitacao-publica";
+import { login, logout } from "@/features/auth/server-functions";
 import {
   CARDAPIOS,
   CARDAPIOS_POR_FORMATO,
@@ -72,7 +74,8 @@ export const Route = createFileRoute("/solicitar-orcamento/$token")({
 });
 
 type ServicoPublico = Awaited<ReturnType<typeof obterFormularioOrcamento>>["servicos"][number];
-type Acesso = "CRIADO" | "JA_EXISTE" | "INDISPONIVEL";
+type Acesso = "CRIADO" | "JA_EXISTE" | "INDISPONIVEL" | "CONECTADO";
+type ClienteConectado = { nome: string; email: string; telefone: string; whatsapp: string };
 
 const idCategoria = (categoria: string) =>
   `categoria-${normalizarBusca(categoria).replace(/[^a-z0-9]+/g, "-")}`;
@@ -82,7 +85,15 @@ function SolicitarOrcamento() {
   const logo = empresa.logoOrcamentoUrl ?? empresa.logoUrl;
   const { token } = Route.useParams();
   const enviar = useServerFn(enviarSolicitacaoOrcamento);
+  const buscarConectado = useServerFn(obterClienteConectado);
+  const entrarComoCliente = useServerFn(login);
+  const sairDaConta = useServerFn(logout);
   const [dados, setDados] = useState<DadosFormularioOrcamento>(DADOS_INICIAIS_FORMULARIO);
+  // "Já sou cliente": entra com e-mail e senha e pula os dados pessoais.
+  const [modo, setModo] = useState<"novo" | "cliente">("novo");
+  const [conectado, setConectado] = useState<ClienteConectado | null>(null);
+  const [acessoCliente, setAcessoCliente] = useState({ email: "", senha: "" });
+  const [entrando, setEntrando] = useState(false);
   const [etapa, setEtapa] = useState<1 | 2 | 3>(1);
   const [enviando, setEnviando] = useState(false);
   const [concluido, setConcluido] = useState<null | { acesso: Acesso; logado: boolean }>(null);
@@ -140,13 +151,9 @@ function SolicitarOrcamento() {
     tiposEvento.length === 0 || tiposEvento.includes(tipoEventoSelecionado);
   const servicosDoCardapio = empresa.servicos.filter(
     (servico) =>
-      !servico.sugestaoChef &&
       !idsDeOpcoes.has(servico.id) &&
       aplicavelAoEvento(servico.tiposEvento) &&
       (cardapioAtivo ? servico.cardapios.includes(cardapioAtivo) : false),
-  );
-  const sugestoesChef = empresa.servicos.filter(
-    (servico) => servico.sugestaoChef && aplicavelAoEvento(servico.tiposEvento),
   );
   const termo = normalizarBusca(busca.trim());
   const servicosFiltrados = servicosDoCardapio
@@ -214,9 +221,70 @@ function SolicitarOrcamento() {
     else abrirCategoria(categoria);
   }
 
+  function usarClienteConectado(cliente: ClienteConectado) {
+    setConectado(cliente);
+    setDados((atuais) => ({
+      ...atuais,
+      nome: cliente.nome,
+      email: cliente.email,
+      telefone: cliente.telefone,
+      whatsapp: cliente.whatsapp,
+      senha: "",
+      confirmarSenha: "",
+    }));
+  }
+
+  // Quem já está conectado neste aparelho é reconhecido ao abrir o formulário.
+  useEffect(() => {
+    void buscarConectado({ data: { token } })
+      .then((cliente) => {
+        if (cliente) usarClienteConectado(cliente);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  async function entrar() {
+    if (!acessoCliente.email.trim() || !acessoCliente.senha) {
+      setErro("Informe seu e-mail e sua senha para entrar.");
+      return;
+    }
+    setEntrando(true);
+    setErro(null);
+    try {
+      await entrarComoCliente({
+        data: { email: acessoCliente.email.trim(), senha: acessoCliente.senha },
+      });
+      const cliente = await buscarConectado({ data: { token } });
+      if (!cliente) {
+        await sairDaConta();
+        setErro("Este acesso não é de um cliente deste buffet.");
+        return;
+      }
+      usarClienteConectado(cliente);
+      setAcessoCliente({ email: "", senha: "" });
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Não foi possível entrar.");
+    } finally {
+      setEntrando(false);
+    }
+  }
+
+  async function sair() {
+    await sairDaConta().catch(() => {});
+    setConectado(null);
+    setModo("cliente");
+    setDados((atuais) => ({ ...atuais, nome: "", email: "", telefone: "", whatsapp: "" }));
+  }
+
   function avancarParaCardapio(event: MouseEvent<HTMLButtonElement>) {
     const formulario = event.currentTarget.form;
-    if (dados.senha !== dados.confirmarSenha) {
+    if (!conectado && modo === "cliente") {
+      setErro("Entre com seu e-mail e senha ou escolha “É meu primeiro pedido”.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (!conectado && dados.senha !== dados.confirmarSenha) {
       setErro("As senhas informadas são diferentes.");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -275,7 +343,7 @@ function SolicitarOrcamento() {
           escolhas: Object.fromEntries(
             Object.entries(escolhas).filter(([id]) => servicosSelecionados.includes(id)),
           ),
-          senha: dados.senha,
+          senha: conectado ? "" : dados.senha,
           website,
         },
       });
@@ -326,7 +394,16 @@ function SolicitarOrcamento() {
               Vamos analisar o seu pedido e, em breve, entraremos em contato para apresentar o
               orçamento completo.
             </p>
-            {concluido.acesso === "CRIADO" ? (
+            {concluido.acesso === "CONECTADO" ? (
+              <>
+                <p className="text-muted-foreground mt-3 text-sm leading-6">
+                  O pedido foi registrado na sua conta. Você acompanha tudo pelo portal.
+                </p>
+                <Button asChild className="mt-6">
+                  <Link to="/cliente">Acompanhar meu pedido</Link>
+                </Button>
+              </>
+            ) : concluido.acesso === "CRIADO" ? (
               <>
                 <p className="text-muted-foreground mt-3 text-sm leading-6">
                   Sua conta foi criada{concluido.logado ? " e você já está conectado" : ""}. Nas
@@ -403,97 +480,241 @@ function SolicitarOrcamento() {
                   Primeiro contato
                 </p>
                 <h2 className="font-display mt-1 text-xl font-semibold">
-                  Conte um pouco sobre você
+                  {conectado
+                    ? `Olá, ${conectado.nome.trim().split(/\s+/)[0]}!`
+                    : "Conte um pouco sobre você"}
                 </h2>
                 <p className="text-muted-foreground mt-1 text-sm">
-                  Assim conseguimos retornar pelo canal certo.
+                  {conectado
+                    ? "Seus dados já estão salvos. Siga para os detalhes do evento."
+                    : "Assim conseguimos retornar pelo canal certo."}
                 </p>
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <Field
-                    label="Nome completo"
-                    name="nome"
-                    value={dados.nome}
-                    onChange={(e) => atualizar("nome", e.target.value)}
-                    required
-                  />
-                  <Field
-                    label="E-mail"
-                    name="email"
-                    type="email"
-                    value={dados.email}
-                    onChange={(e) => atualizar("email", e.target.value)}
-                    required
-                  />
-                  <Field
-                    label="Telefone"
-                    name="telefone"
-                    type="tel"
-                    inputMode="tel"
-                    value={dados.telefone}
-                    onChange={(e) => atualizar("telefone", e.target.value)}
-                    placeholder="(86) 99999-9999"
-                    required
-                  />
-                  <Field
-                    label="WhatsApp"
-                    name="whatsapp"
-                    type="tel"
-                    inputMode="tel"
-                    value={dados.whatsapp}
-                    onChange={(e) => atualizar("whatsapp", e.target.value)}
-                    placeholder="(86) 99999-9999"
-                    required
-                  />
-                </div>
-                <div className="bg-surface mt-5 rounded-xl p-4 ring-1 ring-black/5">
-                  <p className="text-sm font-semibold">Crie sua senha de acesso</p>
-                  <p className="text-muted-foreground mt-1 text-xs">
-                    Com o seu e-mail e esta senha você acompanha orçamento, pagamentos e documentos
-                    no portal.
-                  </p>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <Label htmlFor="senha" className="mb-1.5 block">
-                        Senha
-                      </Label>
-                      <InputSenha
-                        id="senha"
-                        name="senha"
-                        autoComplete="new-password"
-                        minLength={4}
-                        required
-                        value={dados.senha}
-                        onChange={(e) => atualizar("senha", e.target.value)}
-                        placeholder="Mínimo de 4 caracteres"
-                      />
+                {conectado ? (
+                  <div className="bg-surface mt-5 grid gap-3 rounded-xl p-4 ring-1 ring-black/5">
+                    <p className="flex items-center gap-2 text-sm font-semibold">
+                      <CheckCircle2 className="text-success size-4" /> Você está conectado
+                    </p>
+                    <div className="text-muted-foreground grid gap-1 text-sm sm:grid-cols-2">
+                      <p className="text-foreground font-medium">{conectado.nome}</p>
+                      <p className="break-all">{conectado.email}</p>
+                      {conectado.telefone ? <p>Telefone: {conectado.telefone}</p> : null}
+                      {conectado.whatsapp ? <p>WhatsApp: {conectado.whatsapp}</p> : null}
                     </div>
-                    <div>
-                      <Label htmlFor="confirmarSenha" className="mb-1.5 block">
-                        Confirme a senha
-                      </Label>
-                      <InputSenha
-                        id="confirmarSenha"
-                        name="confirmarSenha"
-                        autoComplete="new-password"
-                        minLength={4}
-                        required
-                        aria-invalid={senhasDiferentes}
-                        aria-describedby={senhasDiferentes ? "aviso-senhas" : undefined}
-                        value={dados.confirmarSenha}
-                        onChange={(e) => atualizar("confirmarSenha", e.target.value)}
-                      />
-                      {senhasDiferentes ? (
-                        <p id="aviso-senhas" className="text-destructive mt-1.5 text-xs">
-                          As senhas não são iguais.
-                        </p>
-                      ) : dados.confirmarSenha && dados.senha === dados.confirmarSenha ? (
-                        <p className="text-success mt-1.5 flex items-center gap-1 text-xs">
-                          <Check className="size-3" /> As senhas conferem.
-                        </p>
-                      ) : null}
-                    </div>
+                    {!conectado.telefone || !conectado.whatsapp ? (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        {!conectado.telefone ? (
+                          <Field
+                            label="Telefone"
+                            name="telefone"
+                            type="tel"
+                            inputMode="tel"
+                            value={dados.telefone}
+                            onChange={(e) => atualizar("telefone", e.target.value)}
+                            placeholder="(86) 99999-9999"
+                            required
+                          />
+                        ) : null}
+                        {!conectado.whatsapp ? (
+                          <Field
+                            label="WhatsApp"
+                            name="whatsapp"
+                            type="tel"
+                            inputMode="tel"
+                            value={dados.whatsapp}
+                            onChange={(e) => atualizar("whatsapp", e.target.value)}
+                            placeholder="(86) 99999-9999"
+                            required
+                          />
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void sair()}
+                      className="text-primary justify-self-start text-xs font-medium hover:underline"
+                    >
+                      Não é você? Sair
+                    </button>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div
+                      className="mt-5 grid grid-cols-2 gap-2"
+                      role="radiogroup"
+                      aria-label="Você já é nosso cliente?"
+                    >
+                      {(
+                        [
+                          ["novo", "É meu primeiro pedido"],
+                          ["cliente", "Já sou cliente"],
+                        ] as const
+                      ).map(([valor, rotulo]) => (
+                        <button
+                          key={valor}
+                          type="button"
+                          role="radio"
+                          aria-checked={modo === valor}
+                          onClick={() => {
+                            setModo(valor);
+                            setErro(null);
+                          }}
+                          className={cn(
+                            "rounded-xl px-3 py-3 text-sm font-medium ring-1 transition-colors",
+                            modo === valor
+                              ? "bg-primary text-primary-foreground ring-primary"
+                              : "bg-surface ring-black/5 hover:bg-secondary",
+                          )}
+                        >
+                          {rotulo}
+                        </button>
+                      ))}
+                    </div>
+                    {modo === "cliente" ? (
+                      <div className="bg-surface mt-5 grid gap-4 rounded-xl p-4 ring-1 ring-black/5 sm:grid-cols-2">
+                        <p className="text-muted-foreground text-xs sm:col-span-2">
+                          Use o e-mail e a senha criados no seu primeiro pedido.
+                        </p>
+                        <Field
+                          label="E-mail"
+                          name="acessoEmail"
+                          type="email"
+                          autoComplete="email"
+                          value={acessoCliente.email}
+                          onChange={(e) =>
+                            setAcessoCliente((atual) => ({ ...atual, email: e.target.value }))
+                          }
+                        />
+                        <div>
+                          <Label htmlFor="acessoSenha" className="mb-1.5 block">
+                            Senha
+                          </Label>
+                          <InputSenha
+                            id="acessoSenha"
+                            name="acessoSenha"
+                            autoComplete="current-password"
+                            value={acessoCliente.senha}
+                            onChange={(e) =>
+                              setAcessoCliente((atual) => ({ ...atual, senha: e.target.value }))
+                            }
+                            onKeyDown={(e) => {
+                              // Enter entra na conta em vez de enviar o formulário inteiro.
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                void entrar();
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-3 sm:col-span-2">
+                          <Link
+                            to="/recuperar-senha"
+                            search={{ email: acessoCliente.email.trim() }}
+                            className="text-primary text-xs font-medium hover:underline"
+                          >
+                            Esqueci minha senha
+                          </Link>
+                          <Button type="button" onClick={() => void entrar()} disabled={entrando}>
+                            {entrando ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <LogIn className="size-4" />
+                            )}
+                            Entrar
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                          <Field
+                            label="Nome completo"
+                            name="nome"
+                            value={dados.nome}
+                            onChange={(e) => atualizar("nome", e.target.value)}
+                            required
+                          />
+                          <Field
+                            label="E-mail"
+                            name="email"
+                            type="email"
+                            value={dados.email}
+                            onChange={(e) => atualizar("email", e.target.value)}
+                            required
+                          />
+                          <Field
+                            label="Telefone"
+                            name="telefone"
+                            type="tel"
+                            inputMode="tel"
+                            value={dados.telefone}
+                            onChange={(e) => atualizar("telefone", e.target.value)}
+                            placeholder="(86) 99999-9999"
+                            required
+                          />
+                          <Field
+                            label="WhatsApp"
+                            name="whatsapp"
+                            type="tel"
+                            inputMode="tel"
+                            value={dados.whatsapp}
+                            onChange={(e) => atualizar("whatsapp", e.target.value)}
+                            placeholder="(86) 99999-9999"
+                            required
+                          />
+                        </div>
+                        <div className="bg-surface mt-5 rounded-xl p-4 ring-1 ring-black/5">
+                          <p className="text-sm font-semibold">Crie sua senha de acesso</p>
+                          <p className="text-muted-foreground mt-1 text-xs">
+                            Com o seu e-mail e esta senha você acompanha orçamento, pagamentos e
+                            documentos no portal.
+                          </p>
+                          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <Label htmlFor="senha" className="mb-1.5 block">
+                                Senha
+                              </Label>
+                              <InputSenha
+                                id="senha"
+                                name="senha"
+                                autoComplete="new-password"
+                                minLength={4}
+                                required
+                                value={dados.senha}
+                                onChange={(e) => atualizar("senha", e.target.value)}
+                                placeholder="Mínimo de 4 caracteres"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="confirmarSenha" className="mb-1.5 block">
+                                Confirme a senha
+                              </Label>
+                              <InputSenha
+                                id="confirmarSenha"
+                                name="confirmarSenha"
+                                autoComplete="new-password"
+                                minLength={4}
+                                required
+                                aria-invalid={senhasDiferentes}
+                                aria-describedby={senhasDiferentes ? "aviso-senhas" : undefined}
+                                value={dados.confirmarSenha}
+                                onChange={(e) => atualizar("confirmarSenha", e.target.value)}
+                              />
+                              {senhasDiferentes ? (
+                                <p id="aviso-senhas" className="text-destructive mt-1.5 text-xs">
+                                  As senhas não são iguais.
+                                </p>
+                              ) : dados.confirmarSenha && dados.senha === dados.confirmarSenha ? (
+                                <p className="text-success mt-1.5 flex items-center gap-1 text-xs">
+                                  <Check className="size-3" /> As senhas conferem.
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
               </div>
 
               <div className="border-border border-t pt-7">
@@ -661,35 +882,6 @@ function SolicitarOrcamento() {
                   Os valores são personalizados para o seu evento e aparecem na proposta que
                   enviaremos.
                 </p>
-
-                {sugestoesChef.length ? (
-                  <div className="mt-5 rounded-2xl bg-amber-50 p-4 text-amber-950 ring-1 ring-amber-200">
-                    <div className="flex gap-3">
-                      <WandSparkles className="mt-0.5 size-5 shrink-0 text-amber-600" />
-                      <div>
-                        <p className="text-sm font-semibold">Sugestão do Chefe</p>
-                        <p className="mt-0.5 text-xs text-amber-800">
-                          Opções especiais preparadas para este tipo de evento.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      {sugestoesChef.map((sugestao) => (
-                        <CartaoItem
-                          key={sugestao.id}
-                          servico={sugestao}
-                          selecionado={servicosSelecionados.includes(sugestao.id)}
-                          opcoes={opcoesDe(sugestao)}
-                          escolha={escolhas[sugestao.id]}
-                          onAlternar={(marcado) => alternarServico(sugestao.id, marcado)}
-                          onEscolher={(opcaoId) =>
-                            setEscolhas((atuais) => ({ ...atuais, [sugestao.id]: opcaoId }))
-                          }
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
 
                 <div
                   className="mt-6 flex flex-wrap gap-2"
