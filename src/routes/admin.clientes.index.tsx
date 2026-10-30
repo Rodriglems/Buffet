@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { MoreHorizontal, Plus, Search } from "lucide-react";
+import { KeyRound, MoreHorizontal, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -16,8 +16,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { excluirCliente, listarClientes } from "@/features/clientes/server-functions";
+import {
+  RedefinirSenhaDialog,
+  type AlvoRedefinicao,
+} from "@/features/usuarios/redefinir-senha-dialog";
 import { useConfirmar } from "@/lib/confirmacao";
 import { formatDate } from "@/lib/format";
+import { telefoneDe } from "@/lib/empresa-cabecalho";
+import { usePlaceholderBusca } from "@/lib/placeholder-busca";
 
 export const Route = createFileRoute("/admin/clientes/")({
   head: () => ({
@@ -36,11 +42,14 @@ export const Route = createFileRoute("/admin/clientes/")({
 });
 
 function ClientesPage() {
+  const placeholderBusca = usePlaceholderBusca("Buscar por nome, documento ou e-mail");
   const router = useRouter();
+  const navigate = useNavigate();
   const excluir = useServerFn(excluirCliente);
   const [busca, setBusca] = useState("");
   const { items: clientes } = Route.useLoaderData();
   const confirmar = useConfirmar();
+  const [senhaDe, setSenhaDe] = useState<AlvoRedefinicao | null>(null);
 
   async function remover(id: string, nome: string) {
     const ok = await confirmar({
@@ -85,7 +94,7 @@ function ClientesPage() {
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por nome, documento ou e-mail"
+            placeholder={placeholderBusca}
             className="bg-surface border-0 pl-9 ring-1 ring-black/5"
           />
         </div>
@@ -102,22 +111,30 @@ function ClientesPage() {
           />
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-sm">
+            <table className="w-full sm:min-w-[860px] text-left text-sm">
               <thead>
                 <tr className="text-muted-foreground border-b border-border text-[11px] tracking-wide uppercase">
                   <th className="pb-2 font-medium">Cliente</th>
-                  <th className="pb-2 font-medium">CPF/CNPJ</th>
-                  <th className="pb-2 font-medium">Telefone</th>
-                  <th className="pb-2 font-medium">E-mail</th>
-                  <th className="pb-2 font-medium">Eventos</th>
-                  <th className="pb-2 font-medium">Cadastro</th>
+                  <th className="pb-2 font-medium max-sm:hidden">CPF/CNPJ</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Telefone</th>
+                  <th className="pb-2 font-medium max-sm:hidden">E-mail</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Eventos</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Cadastro</th>
                   <th className="pb-2 font-medium">Status</th>
                   <th className="pb-2 font-medium text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {lista.map((c) => (
-                  <tr key={c.id}>
+                  <tr
+                    key={c.id}
+                    // A linha inteira abre o cadastro; botões e links dentro dela seguem normais.
+                    className="hover:bg-accent/40 cursor-pointer"
+                    onClick={(evento) => {
+                      if ((evento.target as HTMLElement).closest("a, button, [role=menu]")) return;
+                      void navigate({ to: "/admin/clientes/$id", params: { id: c.id } });
+                    }}
+                  >
                     <td className="py-3 pr-3">
                       <Link
                         to="/admin/clientes/$id"
@@ -126,17 +143,31 @@ function ClientesPage() {
                       >
                         {c.nome}
                       </Link>
-                      <p className="text-muted-foreground text-[11px]">
+                      <p className="text-muted-foreground text-[11px] max-sm:hidden">
                         {c.tipoPessoa === "FISICA" ? "Pessoa física" : "Pessoa jurídica"}
                       </p>
+                      {/* No celular, telefone e e-mail aparecem um embaixo do outro. */}
+                      <div className="text-muted-foreground text-xs sm:hidden">
+                        {telefoneDe(c.telefone ?? c.whatsapp) ? (
+                          <p>{telefoneDe(c.telefone ?? c.whatsapp)}</p>
+                        ) : null}
+                        {c.email ? <p className="break-all">{c.email}</p> : null}
+                        {!c.telefone && !c.whatsapp && !c.email ? <p>Sem contato</p> : null}
+                      </div>
                     </td>
-                    <td className="text-muted-foreground py-3 pr-3">{c.cpfCnpj ?? "—"}</td>
-                    <td className="text-muted-foreground py-3 pr-3">
-                      {c.telefone ?? c.whatsapp ?? "—"}
+                    <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                      {c.cpfCnpj ?? "—"}
                     </td>
-                    <td className="text-muted-foreground py-3 pr-3">{c.email ?? "—"}</td>
-                    <td className="py-3 pr-3">{c._count.eventos}</td>
-                    <td className="text-muted-foreground py-3 pr-3">{formatDate(c.createdAt)}</td>
+                    <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                      {telefoneDe(c.telefone ?? c.whatsapp) ?? "—"}
+                    </td>
+                    <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                      {c.email ?? "—"}
+                    </td>
+                    <td className="py-3 pr-3 max-sm:hidden">{c._count.eventos}</td>
+                    <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                      {formatDate(c.createdAt)}
+                    </td>
                     <td className="py-3 pr-3">
                       <StatusBadge status="Ativo" />
                     </td>
@@ -148,16 +179,25 @@ function ClientesPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link to="/admin/clientes/$id" params={{ id: c.id }}>
-                              Editar
-                            </Link>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              setSenhaDe({
+                                clienteId: c.id,
+                                nome: c.nome,
+                                perfil: "CLIENT",
+                                criarAcesso: !c.usuarioId,
+                              })
+                            }
+                          >
+                            <KeyRound className="size-4" />
+                            {c.usuarioId ? "Redefinir senha" : "Criar acesso ao portal"}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => void remover(c.id, c.nome)}>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onSelect={() => void remover(c.id, c.nome)}
+                          >
+                            <Trash2 className="size-4" />
                             Excluir
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link to="/admin/eventos/novo">Criar evento</Link>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -169,6 +209,13 @@ function ClientesPage() {
           </div>
         )}
       </Panel>
+      <RedefinirSenhaDialog
+        alvo={senhaDe}
+        onOpenChange={(aberto) => {
+          if (!aberto) setSenhaDe(null);
+        }}
+        onConcluido={() => router.invalidate()}
+      />
     </div>
   );
 }

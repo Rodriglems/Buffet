@@ -40,7 +40,8 @@ export const listarUsuarios = createServerFn({ method: "GET" })
   )
   .handler(async ({ data }) => {
     const auth = await requireAnyPermission(["usuarios", "configuracoes"]);
-    const where = { empresaId: auth.empresaId };
+    // Só a equipe: o acesso dos clientes é cuidado pela lista de clientes.
+    const where = { empresaId: auth.empresaId, role: "ADMIN" as const };
     const [items, total] = await getPrisma().$transaction([
       getPrisma().usuario.findMany({
         where,

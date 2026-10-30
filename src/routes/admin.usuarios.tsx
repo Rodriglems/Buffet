@@ -1,8 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouteContext } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { KeyRound, Plus, Search } from "lucide-react";
+import { KeyRound, Plus, Search, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -26,7 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { listarClientes } from "@/features/clientes/server-functions";
 import { PermissoesDialog } from "@/features/usuarios/permissoes-dialog";
 import {
   RedefinirSenhaDialog,
@@ -37,10 +35,11 @@ import {
   listUsuarios,
   type CreateUsuarioInput,
   type Usuario,
-  type UsuarioPerfil,
   type UsuarioStatus,
 } from "@/features/usuarios/server-functions";
 import { pageMeta } from "@/lib/meta";
+import { usePlaceholderBusca } from "@/lib/placeholder-busca";
+import { InputSenha } from "@/components/input-senha";
 
 export const Route = createFileRoute("/admin/usuarios")({
   head: () => pageMeta("Usuários", "Gerencie os acessos e perfis da equipe."),
@@ -57,21 +56,15 @@ const initialForm: CreateUsuarioInput = {
 };
 
 function UsuariosPage() {
+  const placeholderBusca = usePlaceholderBusca("Buscar por nome, e-mail ou perfil");
   const { usuario: atual } = useRouteContext({ from: "/admin" });
   const queryClient = useQueryClient();
-  const carregarClientes = useServerFn(listarClientes);
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState(false);
   const [permissoesDe, setPermissoesDe] = useState<Usuario | null>(null);
   const [senhaDe, setSenhaDe] = useState<AlvoRedefinicao | null>(null);
   const [form, setForm] = useState<CreateUsuarioInput>(initialForm);
   const query = useQuery({ queryKey: ["usuarios"], queryFn: listUsuarios });
-  const clientes = useQuery({
-    queryKey: ["clientes-sem-usuario"],
-    queryFn: () => carregarClientes({ data: { page: 1, pageSize: 100, busca: "" } }),
-    enabled: aberto && form.perfil === "Cliente",
-  });
-  const clientesLivres = (clientes.data?.items ?? []).filter((cliente) => !cliente.usuarioId);
   const mutation = useMutation({
     mutationFn: createUsuario,
     onSuccess: async () => {
@@ -91,10 +84,6 @@ function UsuariosPage() {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (form.perfil === "Cliente" && !form.clienteId) {
-      toast.error("Selecione o cliente que este usuário poderá acessar.");
-      return;
-    }
     mutation.mutate(form);
   }
 
@@ -116,7 +105,7 @@ function UsuariosPage() {
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por nome, e-mail ou perfil"
+            placeholder={placeholderBusca}
             className="bg-surface border-0 pl-9 ring-1 ring-black/5"
           />
         </div>
@@ -132,13 +121,13 @@ function UsuariosPage() {
           />
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left text-sm">
+            <table className="w-full sm:min-w-[680px] text-left text-sm">
               <thead>
                 <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                   <th className="pb-2 font-medium">Usuário</th>
-                  <th className="pb-2 font-medium">Perfil</th>
-                  <th className="pb-2 font-medium">Último acesso</th>
-                  <th className="pb-2 font-medium">Status</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Perfil</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Último acesso</th>
+                  <th className="pb-2 font-medium max-sm:hidden">Status</th>
                   <th className="pb-2 font-medium text-right">Ações</th>
                 </tr>
               </thead>
@@ -147,12 +136,17 @@ function UsuariosPage() {
                   <tr key={usuario.id}>
                     <td className="py-3 pr-3 font-medium">
                       {usuario.nome}
-                      <p className="text-muted-foreground text-[11px] font-normal">
+                      <p className="text-muted-foreground text-[11px] font-normal break-all">
                         {usuario.email}
                       </p>
+                      <p className="text-muted-foreground text-xs font-normal sm:hidden">
+                        {usuario.perfil} · {usuario.status}
+                      </p>
                     </td>
-                    <td className="text-muted-foreground py-3 pr-3">{usuario.perfil}</td>
-                    <td className="text-muted-foreground py-3 pr-3">
+                    <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                      {usuario.perfil}
+                    </td>
+                    <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
                       {usuario.ultimoAcesso
                         ? new Intl.DateTimeFormat("pt-BR", {
                             dateStyle: "short",
@@ -160,7 +154,7 @@ function UsuariosPage() {
                           }).format(new Date(usuario.ultimoAcesso))
                         : "Ainda não acessou"}
                     </td>
-                    <td className="py-3">
+                    <td className="py-3 max-sm:hidden">
                       <StatusBadge status={usuario.status} />
                     </td>
                     <td className="py-3 text-right">
@@ -168,6 +162,8 @@ function UsuariosPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          aria-label={`Redefinir a senha de ${usuario.nome}`}
+                          title="Redefinir senha"
                           onClick={() =>
                             setSenhaDe({
                               usuarioId: usuario.id,
@@ -176,14 +172,18 @@ function UsuariosPage() {
                             })
                           }
                         >
-                          <KeyRound className="size-4" /> Redefinir senha
+                          <KeyRound className="size-4" />
+                          <span className="hidden sm:inline">Redefinir senha</span>
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
+                          aria-label={`Permissões de ${usuario.nome}`}
+                          title="Permissões"
                           onClick={() => setPermissoesDe(usuario)}
                         >
-                          Permissões
+                          <ShieldCheck className="size-4" />
+                          <span className="hidden sm:inline">Permissões</span>
                         </Button>
                       </div>
                     </td>
@@ -226,57 +226,15 @@ function UsuariosPage() {
               </div>
               <div className="grid gap-1.5 sm:col-span-2">
                 <Label htmlFor="usuario-senha">Senha</Label>
-                <Input
+                <InputSenha
                   id="usuario-senha"
-                  type="password"
+                  autoComplete="new-password"
                   minLength={12}
                   required
                   value={form.senha}
                   onChange={(e) => setForm({ ...form, senha: e.target.value })}
                 />
               </div>
-              <div className="grid gap-1.5">
-                <Label>Perfil</Label>
-                <Select
-                  value={form.perfil}
-                  onValueChange={(perfil) => setForm({ ...form, perfil: perfil as UsuarioPerfil })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Administrador">Administrador</SelectItem>
-                    <SelectItem value="Cliente">Cliente</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {form.perfil === "Cliente" ? (
-                <div className="grid gap-1.5 sm:col-span-2">
-                  <Label>Cliente vinculado</Label>
-                  <Select
-                    value={form.clienteId ?? undefined}
-                    onValueChange={(clienteId) => setForm({ ...form, clienteId })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um cliente sem acesso" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clientesLivres.map((cliente) => (
-                        <SelectItem key={cliente.id} value={cliente.id}>
-                          {cliente.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {clientes.isPending ? (
-                    <p className="text-muted-foreground text-xs">Carregando clientes…</p>
-                  ) : clientesLivres.length === 0 ? (
-                    <p className="text-muted-foreground text-xs">
-                      Cadastre um cliente antes de criar o acesso do portal.
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
               <div className="grid gap-1.5">
                 <Label>Status</Label>
                 <Select
