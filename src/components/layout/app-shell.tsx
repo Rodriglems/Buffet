@@ -22,6 +22,7 @@ import { logout } from "@/features/auth/server-functions";
 import { listarNotificacoes } from "@/features/notificacoes/server-functions";
 import { aplicarCor } from "@/lib/theme-accent";
 import { cn } from "@/lib/utils";
+import { LogoMesly } from "@/components/logo-mesly";
 import { rotaAtiva, trilhaDoCaminho, type NavGroup } from "./nav-config";
 
 interface ShellProps {
@@ -129,9 +130,7 @@ function IconRail({ nav }: { nav: NavGroup[] }) {
 function Brand() {
   return (
     <div className="flex items-center gap-2.5 px-2">
-      <div className="bg-brand text-primary-foreground grid size-9 place-items-center rounded-xl ring-1 ring-black/5">
-        <span className="font-display text-sm font-semibold">M</span>
-      </div>
+      <LogoMesly className="size-9" />
       <div className="leading-tight">
         <p className="font-display text-sm font-semibold">Mesly</p>
         <p className="text-muted-foreground text-[11px]">Buffet &amp; Eventos</p>
@@ -217,9 +216,9 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
             <Link
               to={area === "admin" ? "/admin" : "/cliente"}
               aria-label="Início"
-              className="bg-primary text-primary-foreground grid size-11 place-items-center rounded-full"
+              className="rounded-xl"
             >
-              <span className="font-display text-base font-bold">M</span>
+              <LogoMesly />
             </Link>
             <IconRail nav={nav} />
             <TooltipProvider delayDuration={100}>

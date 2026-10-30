@@ -19,6 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { currentUser, login } from "@/features/auth/server-functions";
+import { LogoMesly } from "@/components/logo-mesly";
 
 export const Route = createFileRoute("/")({
   // Quem já está conectado (ex.: abrindo o app instalado) vai direto para a sua área.
@@ -63,17 +64,10 @@ const destaques = [
 ];
 
 function Logo({ inverso = false }: { inverso?: boolean }) {
-  // O "M" é sempre branco dentro de um quadrado preto, em ambos os lados.
+  // Mesma marca do ícone do app, nos dois lados da tela de login.
   return (
     <div className="flex items-center gap-3">
-      <div
-        className={
-          "grid size-11 place-items-center rounded-xl bg-neutral-950 text-white " +
-          (inverso ? "ring-1 ring-white/15" : "ring-1 ring-black/10 shadow-md")
-        }
-      >
-        <span className="font-display text-lg font-semibold leading-none">M</span>
-      </div>
+      <LogoMesly className={inverso ? "" : "drop-shadow-md"} />
       <div className="leading-tight">
         <p
           className={`font-display text-lg font-semibold tracking-tight ${inverso ? "text-white" : ""}`}
