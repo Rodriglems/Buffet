@@ -1,19 +1,11 @@
-import { type ChangeEvent, type FormEvent, useMemo, useState } from "react";
+import { type ChangeEvent, type FormEvent, type ReactNode, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import {
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  FolderPlus,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-} from "lucide-react";
+import { ChevronRight, FolderPlus, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { ListaArrastavel } from "@/components/lista-arrastavel";
 import { PageHeader, Panel } from "@/components/panel";
 import { SeletorImagem } from "@/components/seletor-imagem";
 import { StatusBadge } from "@/components/status-badge";
@@ -63,15 +55,14 @@ import { limparNumeroDigitado } from "@/lib/numero";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/servicos")({
-  head: () => pageMeta("Cardápio", "Organize o cardápio por categorias e as sugestões do chefe."),
+  head: () => pageMeta("Cardápio", "Organize o cardápio por categorias."),
   component: CardapioPage,
 });
 
-type Secao = "cardapio" | "chef";
 type Categoria = { id: string; nome: string; ordem: number };
 const TODOS = "todos";
 
-function novoItem(sugestaoChef: boolean, categoria: string, ordem = 0): CreateServicoInput {
+function novoItem(categoria: string, ordem = 0): CreateServicoInput {
   return {
     nome: "",
     categoria,
@@ -82,7 +73,7 @@ function novoItem(sugestaoChef: boolean, categoria: string, ordem = 0): CreateSe
     valorBase: 0,
     precoVisivel: true,
     ordem,
-    sugestaoChef,
+    sugestaoChef: false,
     unidade: "por evento",
     status: "Ativo",
     opcoesRotulo: "",
@@ -97,10 +88,9 @@ function CardapioPage() {
   const queryClient = useQueryClient();
   const [busca, setBusca] = useState("");
   const [cardapioFiltro, setCardapioFiltro] = useState<string>(TODOS);
-  const [secao, setSecao] = useState<Secao>("cardapio");
   const [itemAberto, setItemAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
-  const [form, setForm] = useState<CreateServicoInput>(() => novoItem(false, "Outros"));
+  const [form, setForm] = useState<CreateServicoInput>(() => novoItem("Outros"));
   const [categoriaEditada, setCategoriaEditada] = useState<Categoria | "nova" | null>(null);
   const [abertas, setAbertas] = useState<Set<string>>(() => new Set());
   const alternarCategoria = (id: string) =>
@@ -144,15 +134,12 @@ function CardapioPage() {
     onError: () => toast.error("Não foi possível reorganizar os itens."),
   });
 
-  const sugestaoChef = secao === "chef";
   const termo = normalizarBusca(busca.trim());
   const visiveis = useMemo(
     () =>
       (itens.data ?? [])
-        .filter((item) => item.sugestaoChef === sugestaoChef)
         .filter(
           (item) =>
-            sugestaoChef ||
             cardapioFiltro === TODOS ||
             item.cardapios.includes(cardapioFiltro as Servico["cardapios"][number]),
         )
@@ -162,7 +149,7 @@ function CardapioPage() {
             : true,
         )
         .sort(ordenar),
-    [itens.data, sugestaoChef, cardapioFiltro, termo],
+    [itens.data, cardapioFiltro, termo],
   );
   const listaCategorias = categorias.data ?? [];
   const nomesCategorias = listaCategorias.map((categoria) => categoria.nome);
@@ -170,14 +157,14 @@ function CardapioPage() {
   function abrirNovo(categoria = nomesCategorias[0] ?? "Outros") {
     const maiorOrdem = Math.max(-1, ...(itens.data ?? []).map((item) => item.ordem));
     setEditandoId(null);
-    setForm(novoItem(sugestaoChef, sugestaoChef ? "Outros" : categoria, maiorOrdem + 1));
+    setForm(novoItem(categoria, maiorOrdem + 1));
     setItemAberto(true);
   }
 
   function abrirEdicao(item: Servico) {
     setEditandoId(item.id);
     const { id: _id, ...dados } = item;
-    setForm(dados);
+    setForm({ ...dados, sugestaoChef: false });
     setItemAberto(true);
   }
 
@@ -191,31 +178,21 @@ function CardapioPage() {
     if (ok) excluirMutation.mutate(item.id);
   }
 
-  /** Troca o item de posição com o vizinho dentro da mesma lista, preservando a ordem do resto. */
-  function mover(lista: Servico[], indice: number, deslocamento: -1 | 1) {
-    const atual = lista[indice];
-    const vizinho = lista[indice + deslocamento];
-    if (!atual || !vizinho) return;
-    const ids = (itens.data ?? [])
-      .filter((item) => item.sugestaoChef === sugestaoChef)
-      .sort(ordenar)
-      .map((item) => item.id);
-    const origem = ids.indexOf(atual.id);
-    const destino = ids.indexOf(vizinho.id);
-    [ids[origem], ids[destino]] = [ids[destino]!, ids[origem]!];
-    ordenarMutation.mutate(ids);
+  // Com busca ou filtro parte da lista fica oculta: a ordem só muda vendo a lista inteira.
+  const filtrando = Boolean(termo) || cardapioFiltro !== TODOS;
+
+  /** Salva a nova ordem dos itens de uma categoria (a ordem só vale dentro dela). */
+  async function reordenarItens(ids: string[]) {
+    await ordenarMutation.mutateAsync(ids);
   }
 
-  async function moverCategoria(indice: number, deslocamento: -1 | 1) {
-    const ids = listaCategorias.map((categoria) => categoria.id);
-    const destino = indice + deslocamento;
-    if (!ids[destino]) return;
-    [ids[indice], ids[destino]] = [ids[destino]!, ids[indice]!];
+  async function reordenarListaDeCategorias(ids: string[]) {
     try {
       await reordenar({ data: { ids } });
       await atualizarTudo();
-    } catch {
+    } catch (error) {
       toast.error("Não foi possível reorganizar as categorias.");
+      throw error;
     }
   }
 
@@ -237,18 +214,25 @@ function CardapioPage() {
   }
 
   function linhasDoItem(lista: Servico[]) {
-    return lista.map((item, indice) => (
-      <ItemLinha
-        key={item.id}
-        item={item}
-        primeiro={indice === 0}
-        ultimo={indice === lista.length - 1}
-        ocupado={ordenarMutation.isPending || excluirMutation.isPending}
-        onMover={(deslocamento) => mover(lista, indice, deslocamento)}
-        onEditar={() => abrirEdicao(item)}
-        onRemover={() => void remover(item)}
-      />
-    ));
+    return (
+      <ListaArrastavel
+        itens={lista}
+        onReordenar={reordenarItens}
+        desativado={filtrando}
+        rotuloDoItem={(item) => `o item ${item.nome}`}
+        className="grid gap-3"
+      >
+        {(item, alca) => (
+          <ItemLinha
+            item={item}
+            alca={alca}
+            ocupado={excluirMutation.isPending}
+            onEditar={() => abrirEdicao(item)}
+            onRemover={() => void remover(item)}
+          />
+        )}
+      </ListaArrastavel>
+    );
   }
 
   const carregando = itens.isPending || categorias.isPending;
@@ -260,42 +244,19 @@ function CardapioPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Cardápio"
-        subtitle="Organize os itens por categoria e configure a Sugestão do Chefe"
+        subtitle="Organize os itens por categoria"
         actions={
           <>
-            {sugestaoChef ? null : (
-              <Button variant="outline" onClick={() => setCategoriaEditada("nova")}>
-                <FolderPlus className="size-4" /> Nova categoria
-              </Button>
-            )}
+            <Button variant="outline" onClick={() => setCategoriaEditada("nova")}>
+              <FolderPlus className="size-4" /> Nova categoria
+            </Button>
             <Button onClick={() => abrirNovo()}>
               <Plus className="size-4" />
-              {sugestaoChef ? "Nova sugestão" : "Novo item"}
+              Novo item
             </Button>
           </>
         }
       />
-
-      <div className="flex gap-2" role="tablist" aria-label="Áreas do cardápio">
-        <Button
-          type="button"
-          role="tab"
-          aria-selected={secao === "cardapio"}
-          variant={secao === "cardapio" ? "default" : "outline"}
-          onClick={() => setSecao("cardapio")}
-        >
-          Itens do cardápio
-        </Button>
-        <Button
-          type="button"
-          role="tab"
-          aria-selected={secao === "chef"}
-          variant={secao === "chef" ? "default" : "outline"}
-          onClick={() => setSecao("chef")}
-        >
-          Sugestão do Chefe
-        </Button>
-      </div>
 
       <Panel className="flex flex-col gap-3 p-4 sm:flex-row">
         <div className="relative flex-1">
@@ -303,28 +264,26 @@ function CardapioPage() {
           <Input
             value={busca}
             onChange={(event) => setBusca(event.target.value)}
-            placeholder={sugestaoChef ? "Buscar sugestões" : "Buscar item ou categoria"}
+            placeholder="Buscar item ou categoria"
             className="bg-surface border-0 pl-9 ring-1 ring-black/5"
           />
         </div>
-        {sugestaoChef ? null : (
-          <Select value={cardapioFiltro} onValueChange={setCardapioFiltro}>
-            <SelectTrigger
-              className="bg-surface w-full border-0 ring-1 ring-black/5 sm:w-72"
-              aria-label="Filtrar por cardápio"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS}>Todos os cardápios</SelectItem>
-              {CARDAPIOS.map((cardapio) => (
-                <SelectItem key={cardapio} value={cardapio}>
-                  {cardapio}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+        <Select value={cardapioFiltro} onValueChange={setCardapioFiltro}>
+          <SelectTrigger
+            className="bg-surface w-full border-0 ring-1 ring-black/5 sm:w-72"
+            aria-label="Filtrar por cardápio"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS}>Todos os cardápios</SelectItem>
+            {CARDAPIOS.map((cardapio) => (
+              <SelectItem key={cardapio} value={cardapio}>
+                {cardapio}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </Panel>
 
       {carregando ? (
@@ -340,118 +299,109 @@ function CardapioPage() {
             }}
           />
         </Panel>
-      ) : sugestaoChef ? (
-        <Panel className="p-5">
-          {visiveis.length ? (
-            <div className="grid gap-3">{linhasDoItem(visiveis)}</div>
-          ) : (
-            <EmptyState
-              title="Nenhuma sugestão configurada"
-              description="Cadastre uma sugestão e defina para quais eventos ela aparecerá."
-              action={<Button onClick={() => abrirNovo()}>Cadastrar</Button>}
-            />
-          )}
-        </Panel>
       ) : (
         <div className="grid gap-4">
-          {listaCategorias.map((categoria, indice) => {
-            const doGrupo = visiveis.filter((item) => item.categoria === categoria.nome);
+          <ListaArrastavel
             // Durante uma busca ou filtro, categorias sem resultado ficam ocultas.
-            if ((termo || cardapioFiltro !== TODOS) && !doGrupo.length) return null;
-            // Começam recolhidas; a busca abre as categorias com resultado.
-            const aberta = Boolean(termo) || abertas.has(categoria.id);
-            return (
-              <Panel key={categoria.id} className="p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => alternarCategoria(categoria.id)}
-                    aria-expanded={aberta}
-                    aria-controls={`itens-${categoria.id}`}
-                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                  >
-                    <ChevronRight
-                      className={cn(
-                        "text-primary size-5 shrink-0 transition-transform",
-                        aberta && "rotate-90",
-                      )}
-                    />
-                    <span>
-                      <span className="font-display block text-lg font-semibold">
-                        {categoria.nome}
+            itens={listaCategorias.filter(
+              (categoria) =>
+                !filtrando || visiveis.some((item) => item.categoria === categoria.nome),
+            )}
+            onReordenar={reordenarListaDeCategorias}
+            desativado={filtrando}
+            rotuloDoItem={(categoria) => `a categoria ${categoria.nome}`}
+            className="grid gap-4"
+          >
+            {(categoria, alca) => {
+              const doGrupo = visiveis.filter((item) => item.categoria === categoria.nome);
+              // Começam recolhidas; a busca abre as categorias com resultado.
+              const aberta = Boolean(termo) || abertas.has(categoria.id);
+              return (
+                <Panel className="p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    {alca}
+                    <button
+                      type="button"
+                      onClick={() => alternarCategoria(categoria.id)}
+                      aria-expanded={aberta}
+                      aria-controls={`itens-${categoria.id}`}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
+                      <ChevronRight
+                        className={cn(
+                          "text-primary size-5 shrink-0 transition-transform",
+                          aberta && "rotate-90",
+                        )}
+                      />
+                      <span>
+                        <span className="font-display block text-lg font-semibold">
+                          {categoria.nome}
+                        </span>
+                        <span className="text-muted-foreground block text-xs">
+                          {doGrupo.length} item(ns)
+                        </span>
                       </span>
-                      <span className="text-muted-foreground block text-xs">
-                        {doGrupo.length} item(ns)
-                      </span>
-                    </span>
-                  </button>
-                  <div className="flex flex-wrap items-center gap-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      aria-label={`Subir a categoria ${categoria.nome}`}
-                      disabled={indice === 0}
-                      onClick={() => void moverCategoria(indice, -1)}
-                    >
-                      <ChevronUp className="size-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      aria-label={`Descer a categoria ${categoria.nome}`}
-                      disabled={indice === listaCategorias.length - 1}
-                      onClick={() => void moverCategoria(indice, 1)}
-                    >
-                      <ChevronDown className="size-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setCategoriaEditada(categoria)}
-                    >
-                      <Pencil className="size-4" /> Renomear
-                    </Button>
-                    {doGrupo.length ? null : (
+                    </button>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {/* No celular os botões mostram só o ícone; o nome fica no aria-label. */}
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => void removerCategoria(categoria)}
+                        aria-label={`Renomear a categoria ${categoria.nome}`}
+                        title="Renomear"
+                        onClick={() => setCategoriaEditada(categoria)}
                       >
-                        <Trash2 className="size-4" /> Excluir
+                        <Pencil className="size-4" />
+                        <span className="hidden sm:inline">Renomear</span>
                       </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setAbertas((atuais) => new Set(atuais).add(categoria.id));
-                        abrirNovo(categoria.nome);
-                      }}
-                    >
-                      <Plus className="size-4" /> Adicionar item
-                    </Button>
+                      {doGrupo.length ? null : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          aria-label={`Excluir a categoria ${categoria.nome}`}
+                          title="Excluir"
+                          onClick={() => void removerCategoria(categoria)}
+                        >
+                          <Trash2 className="size-4" />
+                          <span className="hidden sm:inline">Excluir</span>
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        aria-label={`Adicionar item em ${categoria.nome}`}
+                        title="Adicionar item"
+                        onClick={() => {
+                          setAbertas((atuais) => new Set(atuais).add(categoria.id));
+                          abrirNovo(categoria.nome);
+                        }}
+                      >
+                        <Plus className="size-4" />
+                        <span className="hidden sm:inline">Adicionar item</span>
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                {aberta ? (
-                  <div id={`itens-${categoria.id}`}>
-                    {doGrupo.length ? (
-                      <div className="mt-4 grid gap-3">{linhasDoItem(doGrupo)}</div>
-                    ) : (
-                      <p className="text-muted-foreground mt-3 text-sm">
-                        Nenhum item nesta categoria ainda.
-                      </p>
-                    )}
-                  </div>
-                ) : null}
-              </Panel>
-            );
-          })}
+                  {aberta ? (
+                    <div id={`itens-${categoria.id}`}>
+                      {doGrupo.length ? (
+                        <div className="mt-4">{linhasDoItem(doGrupo)}</div>
+                      ) : (
+                        <p className="text-muted-foreground mt-3 text-sm">
+                          Nenhum item nesta categoria ainda.
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+                </Panel>
+              );
+            }}
+          </ListaArrastavel>
           {semCategoria.length ? (
             <Panel className="p-5">
               <h2 className="font-display text-lg font-semibold">Sem categoria cadastrada</h2>
               <p className="text-muted-foreground text-xs">
                 Edite os itens abaixo e escolha uma categoria existente.
               </p>
-              <div className="mt-4 grid gap-3">{linhasDoItem(semCategoria)}</div>
+              <div className="mt-4">{linhasDoItem(semCategoria)}</div>
             </Panel>
           ) : null}
           {(termo || cardapioFiltro !== TODOS) && !visiveis.length ? (
@@ -486,77 +436,57 @@ function CardapioPage() {
 
 function ItemLinha({
   item,
-  primeiro,
-  ultimo,
+  alca,
   ocupado,
-  onMover,
   onEditar,
   onRemover,
 }: {
   item: Servico;
-  primeiro: boolean;
-  ultimo: boolean;
+  /** Alça de arrastar; ausente durante busca ou filtro. */
+  alca: ReactNode;
   ocupado: boolean;
-  onMover: (deslocamento: -1 | 1) => void;
   onEditar: () => void;
   onRemover: () => void;
 }) {
   return (
-    <article className="bg-surface flex flex-col gap-4 rounded-xl p-4 ring-1 ring-black/5 sm:flex-row sm:items-center">
-      {item.imagemUrl ? (
-        <img
-          src={item.imagemUrl}
-          alt=""
-          className="h-24 w-full rounded-lg object-cover sm:size-16"
-        />
-      ) : null}
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-medium">{item.nome}</h3>
-          <StatusBadge status={item.status} />
-          {!item.precoVisivel ? (
-            <span className="text-muted-foreground text-xs">Preço oculto</span>
-          ) : null}
-          {item.opcoesIds.length ? (
-            <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px]">
-              {item.opcoesIds.length} opção(ões) de {item.opcoesRotulo.toLowerCase() || "escolha"}
-            </span>
-          ) : null}
-        </div>
-        {item.descricao ? (
-          <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{item.descricao}</p>
+    <article className="bg-surface flex items-start gap-2 rounded-xl p-4 ring-1 ring-black/5 sm:items-center">
+      {alca}
+      <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center">
+        {item.imagemUrl ? (
+          <img
+            src={item.imagemUrl}
+            alt=""
+            className="h-24 w-full rounded-lg object-cover sm:size-16"
+          />
         ) : null}
-        <p className="mt-1 text-sm">
-          {item.valorBase > 0 ? `${formatBRL(item.valorBase)} · ${item.unidade}` : "Sob consulta"}
-        </p>
-      </div>
-      <div className="flex flex-wrap gap-1 sm:justify-end">
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          aria-label="Mover para cima"
-          disabled={primeiro || ocupado}
-          onClick={() => onMover(-1)}
-        >
-          <ChevronUp className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          aria-label="Mover para baixo"
-          disabled={ultimo || ocupado}
-          onClick={() => onMover(1)}
-        >
-          <ChevronDown className="size-4" />
-        </Button>
-        <Button type="button" size="sm" variant="outline" onClick={onEditar}>
-          <Pencil className="size-4" /> Editar
-        </Button>
-        <Button type="button" size="sm" variant="outline" disabled={ocupado} onClick={onRemover}>
-          <Trash2 className="size-4" /> Remover
-        </Button>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-medium">{item.nome}</h3>
+            <StatusBadge status={item.status} />
+            {!item.precoVisivel ? (
+              <span className="text-muted-foreground text-xs">Preço oculto</span>
+            ) : null}
+            {item.opcoesIds.length ? (
+              <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px]">
+                {item.opcoesIds.length} opção(ões) de {item.opcoesRotulo.toLowerCase() || "escolha"}
+              </span>
+            ) : null}
+          </div>
+          {item.descricao ? (
+            <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{item.descricao}</p>
+          ) : null}
+          <p className="mt-1 text-sm">
+            {item.valorBase > 0 ? `${formatBRL(item.valorBase)} · ${item.unidade}` : "Sob consulta"}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1 sm:justify-end">
+          <Button type="button" size="sm" variant="outline" onClick={onEditar}>
+            <Pencil className="size-4" /> Editar
+          </Button>
+          <Button type="button" size="sm" variant="outline" disabled={ocupado} onClick={onRemover}>
+            <Trash2 className="size-4" /> Remover
+          </Button>
+        </div>
       </div>
     </article>
   );
@@ -723,7 +653,7 @@ function ItemDialog({
 
   const termoOpcao = normalizarBusca(buscaOpcao.trim());
   const candidatas = todosItens
-    .filter((item) => item.id !== editandoId && !item.sugestaoChef)
+    .filter((item) => item.id !== editandoId)
     .filter(
       (item) =>
         form.opcoesIds.includes(item.id) ||
@@ -744,13 +674,9 @@ function ItemDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
-            <DialogTitle>
-              {editandoId ? "Editar" : "Cadastrar"} {form.sugestaoChef ? "sugestão" : "item"}
-            </DialogTitle>
+            <DialogTitle>{editandoId ? "Editar" : "Cadastrar"} item</DialogTitle>
             <DialogDescription>
-              {form.sugestaoChef
-                ? "A sugestão só será exibida quando estiver ativa e for aplicável ao tipo de evento."
-                : "O preço oculto continua disponível para os cálculos internos."}
+              O preço oculto continua disponível para os cálculos internos.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -764,26 +690,24 @@ function ItemDialog({
                 onChange={(event) => atualizar({ nome: event.target.value })}
               />
             </div>
-            {!form.sugestaoChef ? (
-              <div className="grid gap-1.5">
-                <Label htmlFor="item-categoria">Categoria</Label>
-                <Select
-                  value={form.categoria}
-                  onValueChange={(categoria) => atualizar({ categoria })}
-                >
-                  <SelectTrigger id="item-categoria">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {opcoesCategoria.map((categoria) => (
-                      <SelectItem key={categoria} value={categoria}>
-                        {categoria}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
+            <div className="grid gap-1.5">
+              <Label htmlFor="item-categoria">Categoria</Label>
+              <Select
+                value={form.categoria}
+                onValueChange={(categoria) => atualizar({ categoria })}
+              >
+                <SelectTrigger id="item-categoria">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {opcoesCategoria.map((categoria) => (
+                    <SelectItem key={categoria} value={categoria}>
+                      {categoria}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid gap-1.5">
               <Label htmlFor="item-status">Status</Label>
               <Select
@@ -866,53 +790,49 @@ function ItemDialog({
                 </div>
               ) : null}
             </div>
-            {!form.sugestaoChef ? (
-              <div className="grid gap-2 sm:col-span-2">
-                <div>
-                  <Label>Cardápios públicos</Label>
-                  <p className="text-muted-foreground text-xs">
-                    Selecione onde este item será apresentado.
-                  </p>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {CARDAPIOS.map((cardapio) => (
-                    <label key={cardapio} className="flex items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={form.cardapios.includes(cardapio)}
-                        onCheckedChange={(checked) =>
-                          atualizar({
-                            cardapios: checked
-                              ? [...form.cardapios, cardapio]
-                              : form.cardapios.filter((item) => item !== cardapio),
-                          })
-                        }
-                      />
-                      {cardapio}
-                    </label>
-                  ))}
-                </div>
+            <div className="grid gap-2 sm:col-span-2">
+              <div>
+                <Label>Cardápios públicos</Label>
+                <p className="text-muted-foreground text-xs">
+                  Selecione onde este item será apresentado.
+                </p>
               </div>
-            ) : null}
-            {!form.sugestaoChef ? (
-              <label className="flex items-start gap-2 text-sm sm:col-span-2">
-                <Checkbox
-                  className="mt-0.5"
-                  checked={comOpcoes}
-                  onCheckedChange={(checked) => {
-                    setComOpcoes(checked === true);
-                    // Desmarcar remove as opções: o item volta a ser uma escolha simples.
-                    if (checked !== true) atualizar({ opcoesIds: [], opcoesRotulo: "" });
-                  }}
-                />
-                <span>
-                  Este item tem opções para o cliente escolher
-                  <span className="text-muted-foreground block text-xs">
-                    Ex.: uma massa recheada em que o cliente escolhe o recheio.
-                  </span>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {CARDAPIOS.map((cardapio) => (
+                  <label key={cardapio} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={form.cardapios.includes(cardapio)}
+                      onCheckedChange={(checked) =>
+                        atualizar({
+                          cardapios: checked
+                            ? [...form.cardapios, cardapio]
+                            : form.cardapios.filter((item) => item !== cardapio),
+                        })
+                      }
+                    />
+                    {cardapio}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label className="flex items-start gap-2 text-sm sm:col-span-2">
+              <Checkbox
+                className="mt-0.5"
+                checked={comOpcoes}
+                onCheckedChange={(checked) => {
+                  setComOpcoes(checked === true);
+                  // Desmarcar remove as opções: o item volta a ser uma escolha simples.
+                  if (checked !== true) atualizar({ opcoesIds: [], opcoesRotulo: "" });
+                }}
+              />
+              <span>
+                Este item tem opções para o cliente escolher
+                <span className="text-muted-foreground block text-xs">
+                  Ex.: uma massa recheada em que o cliente escolhe o recheio.
                 </span>
-              </label>
-            ) : null}
-            {!form.sugestaoChef && comOpcoes ? (
+              </span>
+            </label>
+            {comOpcoes ? (
               <div className="bg-surface grid gap-3 rounded-xl p-4 ring-1 ring-black/5 sm:col-span-2">
                 <div>
                   <p className="text-sm font-semibold">Opções para o cliente escolher</p>
@@ -994,7 +914,7 @@ function ItemDialog({
               <div>
                 <Label>Tipos de evento</Label>
                 <p className="text-muted-foreground text-xs">
-                  Sem seleção, {form.sugestaoChef ? "a sugestão" : "o item"} será válido para todos.
+                  Sem seleção, o item será válido para todos.
                 </p>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
