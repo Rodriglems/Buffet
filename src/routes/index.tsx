@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   AlertCircle,
@@ -18,9 +18,14 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { login } from "@/features/auth/server-functions";
+import { currentUser, login } from "@/features/auth/server-functions";
 
 export const Route = createFileRoute("/")({
+  // Quem já está conectado (ex.: abrindo o app instalado) vai direto para a sua área.
+  beforeLoad: async () => {
+    const usuario = await currentUser();
+    if (usuario) throw redirect({ to: usuario.role === "ADMIN" ? "/admin" : "/cliente" });
+  },
   head: () => ({
     meta: [
       { title: "Entrar — Mesly" },
