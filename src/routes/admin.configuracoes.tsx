@@ -21,6 +21,7 @@ import {
 import { pageMeta } from "@/lib/meta";
 import { aplicarCor, CORES_SISTEMA, corValida, type CorSistema } from "@/lib/theme-accent";
 import { cn } from "@/lib/utils";
+import { telefoneDe } from "@/lib/empresa-cabecalho";
 
 export const Route = createFileRoute("/admin/configuracoes")({
   head: () => pageMeta("Configurações", "Dados da empresa, usuários e preferências do sistema."),
@@ -182,7 +183,7 @@ function Configuracoes() {
                 <Campo
                   label="WhatsApp (recebe os avisos de pedidos)"
                   name="whatsapp"
-                  value={empresa.whatsapp ?? ""}
+                  value={telefoneDe(empresa.whatsapp) ?? ""}
                 />
                 <Campo label="E-mail" name="email" value={empresa.email} />
                 <div className="flex flex-col gap-1.5">

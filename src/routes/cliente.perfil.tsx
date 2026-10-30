@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { atualizarMeuPerfil, obterMeuPerfil } from "@/features/usuarios/server-functions";
 import { pageMeta } from "@/lib/meta";
+import { telefoneDe } from "@/lib/empresa-cabecalho";
 
 export const Route = createFileRoute("/cliente/perfil")({
   head: () => pageMeta("Meu perfil", "Atualize seus dados de contato e endereço."),
@@ -23,8 +24,8 @@ function Perfil() {
   const campos: [string, string, string][] = [
     ["Nome", "nome", c.nome],
     ["E-mail", "email", c.email],
-    ["Telefone", "telefone", c.cliente?.telefone ?? ""],
-    ["WhatsApp", "whatsapp", c.cliente?.whatsapp ?? ""],
+    ["Telefone", "telefone", telefoneDe(c.cliente?.telefone) ?? ""],
+    ["WhatsApp", "whatsapp", telefoneDe(c.cliente?.whatsapp) ?? ""],
     ["CEP", "cep", c.cliente?.cep ?? ""],
     ["Estado", "estado", c.cliente?.estado ?? ""],
     ["Cidade", "cidade", c.cliente?.cidade ?? ""],

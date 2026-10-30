@@ -18,10 +18,19 @@ export function formatarCnpj(cnpj: string): string {
 }
 
 export function formatarTelefone(telefone: string): string {
-  const digitos = telefone.replace(/\D/g, "");
+  let digitos = telefone.replace(/\D/g, "");
+  // Os telefones são gravados como +55DDDNÚMERO; na tela e no PDF o código do país não aparece.
+  if ((digitos.length === 12 || digitos.length === 13) && digitos.startsWith("55")) {
+    digitos = digitos.slice(2);
+  }
   if (digitos.length === 11) return digitos.replace(/^(\d{2})(\d)(\d{4})(\d{4})$/, "($1) $2 $3-$4");
   if (digitos.length === 10) return digitos.replace(/^(\d{2})(\d{4})(\d{4})$/, "($1) $2-$3");
   return telefone;
+}
+
+/** Telefone pronto para exibir, sem o +55; null quando não há telefone. */
+export function telefoneDe(telefone: string | null | undefined): string | null {
+  return telefone?.trim() ? formatarTelefone(telefone) : null;
 }
 
 const juntar = (partes: (string | null | undefined)[], separador: string) =>
