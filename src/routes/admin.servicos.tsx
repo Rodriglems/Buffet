@@ -2,7 +2,7 @@ import { type ChangeEvent, type FormEvent, type ReactNode, useMemo, useState } f
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronRight, FolderPlus, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronRight, FolderPlus, ListTree, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { ListaArrastavel } from "@/components/lista-arrastavel";
@@ -46,8 +46,13 @@ import {
   type Servico,
   type ServicoStatus,
 } from "@/features/servicos/server-functions";
+import { CardapiosFormatosDialog } from "@/features/servicos/cardapios-formatos-dialog";
+import {
+  useCardapiosEFormatos,
+  type AbaCardapiosFormatos,
+} from "@/features/servicos/use-cardapios-formatos";
 import { uploadImagem } from "@/features/uploads/server-functions";
-import { CARDAPIOS, TIPOS_EVENTO, type TipoEvento } from "@/lib/catalogo";
+import { TIPOS_EVENTO, type TipoEvento } from "@/lib/catalogo";
 import { useConfirmar } from "@/lib/confirmacao";
 import { formatBRL } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
@@ -105,6 +110,10 @@ function CardapioPage() {
     queryKey: ["categorias-cardapio"],
     queryFn: () => carregarCategorias(),
   });
+  const cardapiosEFormatos = useCardapiosEFormatos();
+  const nomesCardapios = (cardapiosEFormatos.data?.cardapios ?? []).map((c) => c.nome);
+  // Painel "Cardápios e formatos": null fechado; senão, a aba que abre primeiro.
+  const [painelCardapios, setPainelCardapios] = useState<AbaCardapiosFormatos | null>(null);
   const reordenar = useServerFn(reordenarCategorias);
   const excluirCat = useServerFn(excluirCategoria);
   const confirmar = useConfirmar();
@@ -138,11 +147,7 @@ function CardapioPage() {
   const visiveis = useMemo(
     () =>
       (itens.data ?? [])
-        .filter(
-          (item) =>
-            cardapioFiltro === TODOS ||
-            item.cardapios.includes(cardapioFiltro as Servico["cardapios"][number]),
-        )
+        .filter((item) => cardapioFiltro === TODOS || item.cardapios.includes(cardapioFiltro))
         .filter((item) =>
           termo
             ? normalizarBusca(`${item.nome} ${item.categoria} ${item.descricao}`).includes(termo)
@@ -247,6 +252,9 @@ function CardapioPage() {
         subtitle="Organize os itens por categoria"
         actions={
           <>
+            <Button variant="outline" onClick={() => setPainelCardapios("formatos")}>
+              <ListTree className="size-4" /> Cardápios e formatos
+            </Button>
             <Button variant="outline" onClick={() => setCategoriaEditada("nova")}>
               <FolderPlus className="size-4" /> Nova categoria
             </Button>
@@ -277,7 +285,7 @@ function CardapioPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={TODOS}>Todos os cardápios</SelectItem>
-            {CARDAPIOS.map((cardapio) => (
+            {nomesCardapios.map((cardapio) => (
               <SelectItem key={cardapio} value={cardapio}>
                 {cardapio}
               </SelectItem>
@@ -422,8 +430,16 @@ function CardapioPage() {
         form={form}
         setForm={setForm}
         categorias={nomesCategorias}
+        cardapios={nomesCardapios}
+        onGerenciarCardapios={() => setPainelCardapios("cardapios")}
         todosItens={itens.data ?? []}
         onSalvo={atualizarTudo}
+      />
+      <CardapiosFormatosDialog
+        aberto={painelCardapios !== null}
+        onOpenChange={(aberto) => (aberto ? null : setPainelCardapios(null))}
+        abaInicial={painelCardapios ?? "formatos"}
+        itens={itens.data ?? []}
       />
       <CategoriaDialog
         categoria={categoriaEditada}
@@ -576,6 +592,8 @@ function ItemDialog({
   form,
   setForm,
   categorias,
+  cardapios,
+  onGerenciarCardapios,
   todosItens,
   onSalvo,
 }: {
@@ -585,6 +603,8 @@ function ItemDialog({
   form: CreateServicoInput;
   setForm: (atualizar: (atual: CreateServicoInput) => CreateServicoInput) => void;
   categorias: string[];
+  cardapios: string[];
+  onGerenciarCardapios: () => void;
   todosItens: Servico[];
   onSalvo: () => Promise<unknown>;
 }) {
@@ -791,14 +811,24 @@ function ItemDialog({
               ) : null}
             </div>
             <div className="grid gap-2 sm:col-span-2">
-              <div>
-                <Label>Cardápios públicos</Label>
-                <p className="text-muted-foreground text-xs">
-                  Selecione onde este item será apresentado.
-                </p>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <Label>Cardápios públicos</Label>
+                  <p className="text-muted-foreground text-xs">
+                    Abas do formulário de orçamento em que este item aparece. Sem seleção, o cliente
+                    não vê o item.
+                  </p>
+                </div>
+                <Button type="button" size="sm" variant="ghost" onClick={onGerenciarCardapios}>
+                  <ListTree className="size-4" /> Gerenciar cardápios
+                </Button>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
-                {CARDAPIOS.map((cardapio) => (
+                {[
+                  ...cardapios,
+                  // Cardápio que o item ainda tem, mas foi excluído: aparece para poder desmarcar.
+                  ...form.cardapios.filter((nome) => !cardapios.includes(nome)),
+                ].map((cardapio) => (
                   <label key={cardapio} className="flex items-center gap-2 text-sm">
                     <Checkbox
                       checked={form.cardapios.includes(cardapio)}

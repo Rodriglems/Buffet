@@ -3,7 +3,8 @@ import { z } from "zod";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { serialize } from "@/lib/domain.server";
-import { CARDAPIOS, TIPOS_EVENTO, type Cardapio, type TipoEvento } from "@/lib/catalogo";
+import { validarCardapios } from "@/features/servicos/cardapios-formatos";
+import { TIPOS_EVENTO, type TipoEvento } from "@/lib/catalogo";
 import { getPrisma } from "@/lib/prisma.server";
 import { requirePermission } from "@/lib/session.server";
 import { ehUrlDoArmazenamento, removerImagem } from "@/lib/storage.server";
@@ -12,7 +13,7 @@ const servico = z.object({
   nome: z.string().trim().min(2).max(160),
   categoria: z.string().trim().min(1).max(80),
   tiposEvento: z.array(z.enum(TIPOS_EVENTO)).max(TIPOS_EVENTO.length).default([]),
-  cardapios: z.array(z.enum(CARDAPIOS)).max(CARDAPIOS.length).default([]),
+  cardapios: z.array(z.string().trim().min(1).max(80)).max(100).default([]),
   descricao: z.string().trim().max(2000).nullable().optional(),
   // URL do R2; imagens antigas em base64 só são aceitas se não forem alteradas.
   imagemUrl: z.string().max(1_500_000).nullable().optional(),
@@ -92,6 +93,7 @@ export const criarServico = createServerFn({ method: "POST" })
     const { opcoesIds, ...dados } = data;
     return getPrisma().$transaction(async (tx) => {
       await validarCategoria(tx, auth.empresaId, dados.categoria);
+      await validarCardapios(tx, auth.empresaId, dados.cardapios);
       const criado = await tx.servico.create({ data: { ...dados, empresaId: auth.empresaId } });
       await salvarOpcoes(tx, auth.empresaId, criado.id, opcoesIds);
       return serialize(criado);
@@ -112,6 +114,12 @@ export const atualizarServico = createServerFn({ method: "POST" })
       if (dados.categoria !== found.categoria) {
         await validarCategoria(tx, auth.empresaId, dados.categoria);
       }
+      // Só os cardápios novos no item precisam existir; os que ele já tinha são mantidos.
+      await validarCardapios(
+        tx,
+        auth.empresaId,
+        dados.cardapios?.filter((nome) => !found.cardapios.includes(nome)),
+      );
       const salvo = await tx.servico.update({ where: { id: found.id }, data: dados });
       await salvarOpcoes(tx, auth.empresaId, found.id, opcoesIds);
       return salvo;
@@ -268,7 +276,7 @@ export interface Servico {
   nome: string;
   categoria: string;
   tiposEvento: TipoEvento[];
-  cardapios: Cardapio[];
+  cardapios: string[];
   descricao: string;
   imagemUrl: string;
   valorBase: number;
@@ -290,7 +298,7 @@ export async function listServicos(): Promise<Servico[]> {
     nome: entry.nome,
     categoria: entry.categoria,
     tiposEvento: entry.tiposEvento as TipoEvento[],
-    cardapios: entry.cardapios as Cardapio[],
+    cardapios: entry.cardapios,
     descricao: entry.descricao ?? "",
     imagemUrl: entry.imagemUrl ?? "",
     valorBase: Number(entry.precoBase),

@@ -112,6 +112,8 @@ model Empresa {
   eventos            Evento[]
   servicos           Servico[]
   categoriasCardapio CategoriaCardapio[]
+  cardapiosPublicos  CardapioPublico[]
+  formatosServico    FormatoServico[]
   orcamentos         Orcamento[]
   pagamentos         Pagamento[]
   custos             Custo[]
@@ -295,6 +297,38 @@ model CategoriaCardapio {
   @@unique([empresaId, nome])
   @@index([empresaId, ordem])
   @@map("categorias_cardapio")
+}
+
+/// Cardápios do formulário público (abas como "Botequim"). Servico.cardapios guarda os nomes.
+model CardapioPublico {
+  id        String   @id @default(uuid()) @db.Uuid
+  empresaId String   @map("empresa_id") @db.Uuid
+  nome      String
+  ordem     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, nome])
+  @@index([empresaId, ordem])
+  @@map("cardapios_publicos")
+}
+
+/// Formatos que o cliente escolhe no formulário ("Feijoada completa") e os cardápios que
+/// cada um abre (pelos nomes). Lista vazia: o formato mostra todos os cardápios.
+model FormatoServico {
+  id        String   @id @default(uuid()) @db.Uuid
+  empresaId String   @map("empresa_id") @db.Uuid
+  nome      String
+  ordem     Int      @default(0)
+  cardapios String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, nome])
+  @@index([empresaId, ordem])
+  @@map("formatos_servico")
 }
 
 /// Opções que o cliente escolhe para um item (ex.: os recheios possíveis de cada massa).

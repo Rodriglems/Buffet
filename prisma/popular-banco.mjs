@@ -1,4 +1,9 @@
-import { CATEGORIAS_CARDAPIO } from "../src/lib/catalogo.ts";
+import {
+  CARDAPIOS,
+  CARDAPIOS_POR_FORMATO,
+  CATEGORIAS_CARDAPIO,
+  FORMATOS_SERVICO,
+} from "../src/lib/catalogo.ts";
 import { consolidarCardapio } from "./catalogo-chef-ray.mjs";
 
 /**
@@ -162,6 +167,24 @@ export async function popularBanco(prisma, { email, senhaHash }) {
         where: { empresaId_nome: { empresaId: empresa.id, nome } },
         update: {},
         create: { empresaId: empresa.id, nome, ordem },
+      });
+    }
+
+    // Cardápios públicos e formatos padrão só entram na primeira vez: depois são da equipe,
+    // e recriá-los desfaria uma exclusão feita no painel.
+    if (!(await tx.cardapioPublico.count({ where: { empresaId: empresa.id } }))) {
+      await tx.cardapioPublico.createMany({
+        data: CARDAPIOS.map((nome, ordem) => ({ empresaId: empresa.id, nome, ordem })),
+      });
+    }
+    if (!(await tx.formatoServico.count({ where: { empresaId: empresa.id } }))) {
+      await tx.formatoServico.createMany({
+        data: FORMATOS_SERVICO.map((nome, ordem) => ({
+          empresaId: empresa.id,
+          nome,
+          ordem,
+          cardapios: CARDAPIOS_POR_FORMATO[nome],
+        })),
       });
     }
 

@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { descreverEscolha } from "@/features/orcamentos/formulario-publico";
 import { phoneSchema, whatsappSchema } from "@/features/shared/validation/primitives";
-import { FORMATOS_SERVICO, SERVICOS_ADICIONAIS } from "@/lib/catalogo";
+import { SERVICOS_ADICIONAIS } from "@/lib/catalogo";
 import { serialize } from "@/lib/domain.server";
 import { notificarNovaSolicitacaoEmpresa } from "@/lib/empresa-notification.server";
 import { hashPassword } from "@/lib/password.server";
@@ -20,7 +20,7 @@ const solicitacaoSchema = tokenSchema.extend({
   telefone: phoneSchema,
   whatsapp: whatsappSchema,
   tipoEvento: z.string().trim().min(2).max(100),
-  formatoServico: z.enum(FORMATOS_SERVICO),
+  formatoServico: z.string().trim().min(2).max(100),
   servicosAdicionais: z
     .array(z.enum(SERVICOS_ADICIONAIS))
     .max(SERVICOS_ADICIONAIS.length)
@@ -87,6 +87,14 @@ export const obterFormularioOrcamento = createServerFn({ method: "GET" })
           select: { nome: true, ordem: true },
           orderBy: [{ ordem: "asc" }, { nome: "asc" }],
         },
+        cardapiosPublicos: {
+          select: { nome: true },
+          orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+        },
+        formatosServico: {
+          select: { nome: true, cardapios: true },
+          orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+        },
       },
     });
     if (!empresa) throw new Error("Link de orçamento inválido ou desativado.");
@@ -140,6 +148,14 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
       select: { id: true, nomeFantasia: true, email: true, whatsapp: true },
     });
     if (!empresa) throw new Error("Link de orçamento inválido ou desativado.");
+    const formatoExiste = await getPrisma().formatoServico.count({
+      where: { empresaId: empresa.id, nome: data.formatoServico },
+    });
+    if (!formatoExiste) {
+      throw new Error(
+        "Este formato não está mais disponível. Recarregue a página e escolha outro.",
+      );
+    }
     // Cliente conectado (sessão deste buffet): o pedido entra direto na conta dele.
     const sessao = await getAuthContext();
     const clienteConectadoId =

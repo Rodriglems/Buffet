@@ -45,16 +45,7 @@ import {
   enviarSolicitacaoOrcamento,
 } from "@/features/orcamentos/solicitacao-publica";
 import { login, logout } from "@/features/auth/server-functions";
-import {
-  CARDAPIOS,
-  CARDAPIOS_POR_FORMATO,
-  FORMATOS_SERVICO,
-  SERVICOS_ADICIONAIS,
-  TIPOS_EVENTO,
-  type Cardapio,
-  type FormatoServico,
-  type ServicoAdicional,
-} from "@/lib/catalogo";
+import { SERVICOS_ADICIONAIS, TIPOS_EVENTO, type ServicoAdicional } from "@/lib/catalogo";
 import { formatBRL } from "@/lib/format";
 import { aplicarCor } from "@/lib/theme-accent";
 import { cn } from "@/lib/utils";
@@ -100,7 +91,7 @@ function SolicitarOrcamento() {
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   const [mostrarTodos, setMostrarTodos] = useState(false);
-  const [cardapioAtivo, setCardapioAtivo] = useState<Cardapio | "">("");
+  const [cardapioAtivo, setCardapioAtivo] = useState("");
   // A seleção vale para o pedido inteiro: trocar de cardápio ou categoria nunca a apaga.
   const [servicosSelecionados, setServicosSelecionados] = useState<string[]>([]);
   const [escolhas, setEscolhas] = useState<Record<string, string>>({});
@@ -109,14 +100,20 @@ function SolicitarOrcamento() {
   const [categoriaAberta, setCategoriaAberta] = useState<string | null>(null);
   const [adicionais, setAdicionais] = useState<ServicoAdicional[]>([]);
 
-  const formato = dados.formatoServico as FormatoServico | "";
+  const formato = dados.formatoServico;
+  const todosCardapios = useMemo(
+    () => empresa.cardapiosPublicos.map((cardapio) => cardapio.nome),
+    [empresa.cardapiosPublicos],
+  );
+  // Cada formato abre os cardápios escolhidos pela equipe (na ordem dos cardápios);
+  // formato sem cardápios definidos mostra todos.
   const cardapiosRecomendados = useMemo(() => {
-    if (dados.tipoEvento === "Aniversário infantil") {
-      return ["Café da manhã, coffee break e brunch", "Salgadinhos e finger foods"] as Cardapio[];
-    }
-    return formato ? CARDAPIOS_POR_FORMATO[formato] : [];
-  }, [dados.tipoEvento, formato]);
-  const cardapiosDisponiveis = mostrarTodos ? [...CARDAPIOS] : cardapiosRecomendados;
+    const doFormato = empresa.formatosServico.find((item) => item.nome === formato);
+    if (!doFormato) return [];
+    const indicados = todosCardapios.filter((nome) => doFormato.cardapios.includes(nome));
+    return indicados.length ? indicados : todosCardapios;
+  }, [empresa.formatosServico, formato, todosCardapios]);
+  const cardapiosDisponiveis = mostrarTodos ? todosCardapios : cardapiosRecomendados;
 
   useEffect(() => aplicarCor(empresa.corTema), [empresa.corTema]);
   useEffect(() => {
@@ -751,9 +748,9 @@ function SolicitarOrcamento() {
                     <option value="" disabled>
                       Selecione o formato
                     </option>
-                    {FORMATOS_SERVICO.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
+                    {empresa.formatosServico.map((item) => (
+                      <option key={item.nome} value={item.nome}>
+                        {item.nome}
                       </option>
                     ))}
                   </SelectField>

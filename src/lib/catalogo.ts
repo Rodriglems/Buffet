@@ -11,6 +11,7 @@ export const TIPOS_EVENTO = [
   "Outros",
 ] as const;
 
+/** Formatos e cardápios iniciais de uma empresa nova; depois a equipe edita no Cardápio. */
 export const FORMATOS_SERVICO = [
   "Café da manhã",
   "Coffee break",
@@ -96,5 +97,6 @@ export const CARDAPIOS_POR_FORMATO: Record<FormatoServico, Cardapio[]> = {
   Botequim: ["Botequim", "Sobremesas"],
   "Festival de massas": ["Massas e lasanhas", "Sobremesas"],
   "Comidas para congelamento": ["Congelados e encomendas"],
-  "Outro formato": [...CARDAPIOS],
+  // Sem cardápios: o formato mostra todos.
+  "Outro formato": [],
 };
