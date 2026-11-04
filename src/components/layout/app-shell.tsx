@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AmbientLight } from "@/components/ambient-light";
 import { logout } from "@/features/auth/server-functions";
+import { desativarPush, useSincronizarPush } from "@/features/notificacoes/push-cliente";
 import { listarNotificacoes } from "@/features/notificacoes/server-functions";
 import { aplicarCor } from "@/lib/theme-accent";
 import { cn } from "@/lib/utils";
@@ -179,6 +180,7 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
   const [naoLidas, setNaoLidas] = useState(0);
   const navigate = useNavigate();
   const sairNoServidor = useServerFn(logout);
+  useSincronizarPush();
   const carregarNotificacoes = useServerFn(listarNotificacoes);
 
   useEffect(() => {
@@ -196,6 +198,8 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
   }, [carregarNotificacoes]);
 
   async function sair() {
+    // Antes de encerrar a sessão: quem usar o aparelho depois não recebe avisos desta conta.
+    await desativarPush().catch(() => {});
     await sairNoServidor();
     await navigate({ to: "/" });
   }

@@ -226,6 +226,8 @@ export const redefinirSenhaUsuario = createServerFn({ method: "POST" })
         where: { usuarioId: alvo.id, usadoEm: null },
         data: { usadoEm: new Date() },
       });
+      // Aparelhos com a sessão antiga param de receber avisos até entrarem de novo.
+      await tx.pushInscricao.deleteMany({ where: { usuarioId: alvo.id } });
       return {
         email: alvo.email,
         acessoCriado: false,

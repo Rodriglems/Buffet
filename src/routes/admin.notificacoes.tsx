@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { PageHeader, Panel } from "@/components/panel";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
+import { AtivarPush } from "@/features/notificacoes/ativar-push";
 import {
   gerarLembretesOperacionais,
   listarNotificacoes,
@@ -63,6 +64,7 @@ function Notificacoes() {
           </div>
         }
       />
+      <AtivarPush />
       <Panel className="p-2">
         {lista.length === 0 ? (
           <EmptyState title="Sem notificações" description="Você será avisado aqui." />

@@ -43,7 +43,7 @@ export const Route = createFileRoute("/admin/custos")({
   loader: async () => {
     const [custos, eventos] = await Promise.all([
       listarCustos({ data: { page: 1, pageSize: 100 } }),
-      listarEventos({ data: { page: 1, pageSize: 100 } }),
+      listarEventos({ data: { page: 1, pageSize: 2000 } }),
     ]);
     return { custos, eventos: eventos.items };
   },

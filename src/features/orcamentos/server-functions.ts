@@ -5,6 +5,7 @@ import { calcularDescontoOrcamento } from "@/features/orcamentos/calculos";
 import { valoresParaCliente } from "@/features/orcamentos/valores-cliente";
 import { notificar, pagination, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
+import { enviarPush } from "@/lib/push.server";
 import { requireAuth, requirePermission } from "@/lib/session.server";
 
 const item = z
@@ -259,7 +260,7 @@ export const enviarOrcamento = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const auth = await requirePermission("orcamentos");
-    return getPrisma().$transaction(async (tx) => {
+    const resultado = await getPrisma().$transaction(async (tx) => {
       const found = await tx.orcamento.findFirst({
         where: { id: data.id, empresaId: auth.empresaId },
         include: { evento: { include: { cliente: true } } },
@@ -275,20 +276,30 @@ export const enviarOrcamento = createServerFn({ method: "POST" })
           ...(["RASCUNHO", "EM_NEGOCIACAO"].includes(found.status) ? { status: "ENVIADO" } : {}),
         },
       });
-      if (found.evento.cliente.usuarioId) {
-        await notificar(tx, found.evento.cliente.usuarioId, {
-          tipo: "ORCAMENTO_ENVIADO",
-          titulo: "Novo orcamento",
-          mensagem:
-            data.mensagem || `O orçamento ${found.numero.toString()} está disponível para análise.`,
-        });
+      const aviso = {
+        titulo: "Novo orçamento",
+        mensagem:
+          data.mensagem || `O orçamento ${found.numero.toString()} está disponível para análise.`,
+      };
+      const usuarioDoCliente = found.evento.cliente.usuarioId;
+      if (usuarioDoCliente) {
+        await notificar(tx, usuarioDoCliente, { tipo: "ORCAMENTO_ENVIADO", ...aviso });
       }
       return {
         ok: true,
         cliente: found.evento.cliente.nome,
         whatsapp: found.evento.cliente.whatsapp,
+        push: usuarioDoCliente
+          ? {
+              usuarioId: usuarioDoCliente,
+              aviso: { ...aviso, url: `/cliente/orcamentos/${found.id}` },
+            }
+          : null,
       };
     });
+    const { push, ...resposta } = resultado;
+    if (push) await enviarPush([push.usuarioId], push.aviso);
+    return resposta;
   });
 
 export const criarVersaoOrcamento = createServerFn({ method: "POST" })
@@ -345,14 +356,14 @@ export const aprovarOrcamento = createServerFn({ method: "POST" })
   .validator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
     const auth = await requireAuth();
-    return getPrisma().$transaction(async (tx) => {
+    const resultado = await getPrisma().$transaction(async (tx) => {
       const found = await tx.orcamento.findFirst({
         where: {
           id: data.id,
           empresaId: auth.empresaId,
           ...(auth.role === "CLIENT" ? { evento: { cliente: { usuarioId: auth.usuarioId } } } : {}),
         },
-        include: { evento: { select: { status: true } } },
+        include: { evento: { select: { status: true, cliente: { select: { nome: true } } } } },
       });
       // Aprovar é a primeira etapa: só vale enquanto o evento ainda está em "Orçamento".
       if (found && found.evento.status !== "ORCAMENTO") {
@@ -371,6 +382,39 @@ export const aprovarOrcamento = createServerFn({ method: "POST" })
         data: { status: "APROVADO" },
       });
       await tx.evento.update({ where: { id: found.eventoId }, data: { status: "APROVADO" } });
-      return serialize(aprovado);
+      // Quando quem aprova é o cliente, a equipe precisa saber para seguir com o pagamento.
+      const avisoEquipe =
+        auth.role === "CLIENT"
+          ? {
+              titulo: "Orçamento aprovado",
+              mensagem: `${found.evento.cliente.nome} aprovou o orçamento ${found.numero.toString()}.`,
+            }
+          : null;
+      const equipe = avisoEquipe
+        ? await tx.usuario.findMany({
+            where: { empresaId: auth.empresaId, role: "ADMIN", ativo: true },
+            select: { id: true },
+          })
+        : [];
+      if (avisoEquipe && equipe.length) {
+        await tx.notificacao.createMany({
+          data: equipe.map((usuario) => ({
+            usuarioId: usuario.id,
+            tipo: "ORCAMENTO_APROVADO_CLIENTE",
+            ...avisoEquipe,
+          })),
+        });
+      }
+      return {
+        aprovado: serialize(aprovado),
+        push: avisoEquipe
+          ? {
+              usuarioIds: equipe.map((usuario) => usuario.id),
+              aviso: { ...avisoEquipe, url: `/admin/eventos/${found.eventoId}` },
+            }
+          : null,
+      };
     });
+    if (resultado.push) await enviarPush(resultado.push.usuarioIds, resultado.push.aviso);
+    return resultado.aprovado;
   });

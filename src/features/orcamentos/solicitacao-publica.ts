@@ -1,16 +1,20 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { criarConvite } from "@/features/clientes/convites.server";
 import { descreverEscolha } from "@/features/orcamentos/formulario-publico";
 import { phoneSchema, whatsappSchema } from "@/features/shared/validation/primitives";
 import { SERVICOS_ADICIONAIS } from "@/lib/catalogo";
 import { serialize } from "@/lib/domain.server";
+import { enviarEmailConvite } from "@/lib/email.server";
 import { notificarNovaSolicitacaoEmpresa } from "@/lib/empresa-notification.server";
 import { hashPassword } from "@/lib/password.server";
 import { exigirDentroDoLimite } from "@/lib/limite-taxa.server";
 import { getPrisma } from "@/lib/prisma.server";
+import { enviarPush } from "@/lib/push.server";
 import { getAuthContext, issueSession, requirePermission } from "@/lib/session.server";
 import { telefoneDe } from "@/lib/empresa-cabecalho";
+import { mesmoTelefone } from "@/lib/telefone";
 
 const tokenSchema = z.object({ token: z.string().uuid() });
 
@@ -100,6 +104,42 @@ export const obterFormularioOrcamento = createServerFn({ method: "GET" })
     if (!empresa) throw new Error("Link de orçamento inválido ou desativado.");
     return serialize(empresa);
   });
+
+/** Entre dois pedidos seguidos com o mesmo e-mail, não envia outro link de ativação. */
+const INTERVALO_CONVITE_MS = 15 * 60 * 1000;
+
+/**
+ * O formulário não prova quem digitou o e-mail. Para um cliente que já existe e não tem conta,
+ * o acesso só é liberado pelo link enviado ao e-mail do cadastro. Falha no envio não perde o pedido.
+ */
+async function enviarLinkDeAtivacao(
+  cliente: { id: string; nome: string; email: string },
+  nomeEmpresa: string,
+) {
+  try {
+    const recente = await getPrisma().conviteCliente.count({
+      where: {
+        clienteId: cliente.id,
+        createdAt: { gte: new Date(Date.now() - INTERVALO_CONVITE_MS) },
+      },
+    });
+    if (recente) return true;
+    const { token } = await criarConvite(getPrisma(), cliente.id);
+    await enviarEmailConvite({
+      destinatario: cliente.email,
+      nome: cliente.nome,
+      nomeEmpresa,
+      token,
+    });
+    return true;
+  } catch (error) {
+    console.error(
+      "Falha ao enviar link de ativação:",
+      error instanceof Error ? error.message : "erro desconhecido",
+    );
+    return false;
+  }
+}
 
 /**
  * Cliente deste buffet já conectado neste navegador: o formulário mostra os dados dele e
@@ -206,8 +246,9 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
           where: { empresaId: empresa.id, email: { equals: data.email, mode: "insensitive" } },
           orderBy: { updatedAt: "desc" },
         }));
-      // Formulário público não autentica quem envia: nunca sobrescreve dados de um cliente
-      // existente, apenas completa campos vazios e registra divergências para a equipe.
+      // Formulário público não autentica quem envia: nunca altera os dados de um cliente
+      // existente (nem campos vazios, pois a equipe usa esse telefone para enviar o convite de
+      // acesso). O que veio diferente fica registrado no evento para a equipe conferir.
       const divergencias =
         clienteExistente && !clienteConectado
           ? [
@@ -215,24 +256,26 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
               clienteExistente.email && clienteExistente.email !== data.email
                 ? `e-mail "${data.email}"`
                 : null,
-              clienteExistente.telefone && clienteExistente.telefone !== data.telefone
-                ? `telefone "${data.telefone}"`
-                : null,
-              clienteExistente.whatsapp && clienteExistente.whatsapp !== data.whatsapp
-                ? `WhatsApp "${data.whatsapp}"`
-                : null,
+              mesmoTelefone(clienteExistente.telefone, data.telefone)
+                ? null
+                : `telefone "${data.telefone}"`,
+              mesmoTelefone(clienteExistente.whatsapp, data.whatsapp)
+                ? null
+                : `WhatsApp "${data.whatsapp}"`,
             ].filter((item) => item !== null)
           : [];
-      const cliente = clienteExistente
-        ? await tx.cliente.update({
-            where: { id: clienteExistente.id },
+      const cliente = clienteConectado
+        ? // Conectado, a identidade vem da sessão: completa o que estiver faltando na própria conta.
+          await tx.cliente.update({
+            where: { id: clienteConectado.id },
             data: {
-              email: clienteExistente.email ?? data.email,
-              telefone: clienteExistente.telefone ?? data.telefone,
-              whatsapp: clienteExistente.whatsapp ?? data.whatsapp,
+              email: clienteConectado.email ?? data.email,
+              telefone: clienteConectado.telefone ?? data.telefone,
+              whatsapp: clienteConectado.whatsapp ?? data.whatsapp,
             },
           })
-        : await tx.cliente.create({
+        : (clienteExistente ??
+          (await tx.cliente.create({
             data: {
               empresaId: empresa.id,
               nome: data.nome,
@@ -242,11 +285,11 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
               whatsapp: data.whatsapp,
               observacoes: "Cadastro realizado pelo formulário público de orçamento.",
             },
-          });
+          })));
 
-      // Cria a conta do cliente (novo ou já cadastrado com este e-mail) quando ele ainda não tem
-      // acesso. Só fica indisponível se o e-mail já pertence a outro usuário (ex.: da equipe).
-      let acesso: "CRIADO" | "JA_EXISTE" | "INDISPONIVEL" | "CONECTADO";
+      // Só um e-mail que ninguém usa cria conta na hora. E-mail de cliente já cadastrado recebe
+      // um link: sem isso, quem soubesse o e-mail abriria a conta e veria os eventos do cliente.
+      let acesso: "CRIADO" | "JA_EXISTE" | "INDISPONIVEL" | "CONECTADO" | "CONFIRMAR_EMAIL";
       let usuarioCriado: { id: string; sessaoVersao: number } | null = null;
       if (clienteConectado) {
         acesso = "CONECTADO";
@@ -258,6 +301,8 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
         });
         if (emailEmUso) {
           acesso = "INDISPONIVEL";
+        } else if (clienteExistente) {
+          acesso = "CONFIRMAR_EMAIL";
         } else {
           if (!senhaHash) throw new Error("Crie uma senha com pelo menos 4 caracteres.");
           const usuario = await tx.usuario.create({
@@ -267,6 +312,8 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
               email: data.email,
               senhaHash,
               role: "CLIENT",
+              // A conta já sai conectada: este é o primeiro acesso do cliente.
+              ultimoLogin: new Date(),
             },
           });
           await tx.cliente.update({ where: { id: cliente.id }, data: { usuarioId: usuario.id } });
@@ -359,10 +406,31 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
         eventoId: evento.id,
         orcamentoId: orcamento.id,
         nomeCliente: cliente.nome,
+        clienteId: cliente.id,
+        emailCliente: cliente.email,
         acesso,
         usuarioCriado,
+        administradoresIds: administradores.map((usuario) => usuario.id),
       };
     });
+
+    await enviarPush(resultado.administradoresIds, {
+      titulo: "Nova solicitação de orçamento",
+      mensagem: `${resultado.nomeCliente} enviou uma solicitação para ${data.tipoEvento}.`,
+      url: `/admin/eventos/${resultado.eventoId}`,
+    });
+
+    const linkEnviado =
+      resultado.acesso === "CONFIRMAR_EMAIL" && resultado.emailCliente
+        ? await enviarLinkDeAtivacao(
+            {
+              id: resultado.clienteId,
+              nome: resultado.nomeCliente,
+              email: resultado.emailCliente,
+            },
+            empresa.nomeFantasia,
+          )
+        : false;
 
     const notificacoes = await notificarNovaSolicitacaoEmpresa({
       email: empresa.email,
@@ -382,6 +450,7 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
       orcamentoId: resultado.orcamentoId,
       nomeCliente: resultado.nomeCliente,
       acesso: resultado.acesso,
+      linkEnviado,
       logado: Boolean(resultado.usuarioCriado) || resultado.acesso === "CONECTADO",
       notificacoes,
     });

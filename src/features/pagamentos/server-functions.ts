@@ -1,9 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import type { Prisma } from "@/generated/prisma/client";
+import type { Prisma, StatusEvento } from "@/generated/prisma/client";
 import { notificar, pagination, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
+import { enviarPush } from "@/lib/push.server";
 import { requireAuth, requirePermission } from "@/lib/session.server";
 
 const pagamento = z.object({
@@ -18,7 +19,8 @@ const pagamento = z.object({
 const id = z.object({ id: z.string().uuid() });
 
 const STATUS_EVENTO_ENCERRADO = ["CANCELADO", "FINALIZADO"];
-const STATUS_COM_PARCELAS = ["APROVADO", "PAGAMENTO"];
+// Confirmado também aceita parcelas: contrato fechado pode ser confirmado antes da quitação.
+const STATUS_COM_PARCELAS: StatusEvento[] = ["APROVADO", "PAGAMENTO", "CONFIRMADO"];
 
 /**
  * Atualiza o status do evento conforme as parcelas: em aberto → Pagamento, quitado → Confirmado.
@@ -36,7 +38,7 @@ async function sincronizarStatusEvento(tx: Prisma.TransactionClient, eventoId: s
     await tx.evento.update({ where: { id: eventoId }, data: { status } });
 }
 
-/** Parcelas só podem ser lançadas depois da aprovação e antes da confirmação do evento. */
+/** Parcelas só podem ser lançadas depois da aprovação e enquanto o evento não se encerra. */
 async function eventoDaEmpresa(tx: Prisma.TransactionClient, empresaId: string, eventoId: string) {
   const evento = await tx.evento.findFirst({ where: { id: eventoId, empresaId } });
   if (!evento || STATUS_EVENTO_ENCERRADO.includes(evento.status)) {
@@ -112,11 +114,12 @@ export const listarContasAReceber = createServerFn({ method: "GET" }).handler(as
       where: { empresaId: auth.empresaId, status: "PAGO", dataPagamento: { gte: inicioDoMes } },
       _sum: { valor: true },
     }),
-    // Mesma regra do servidor: parcelas só depois da aprovação e antes da confirmação.
+    // Mesma regra do servidor: parcelas só depois da aprovação e antes do encerramento.
     prisma.evento.findMany({
-      where: { empresaId: auth.empresaId, status: { in: ["APROVADO", "PAGAMENTO"] } },
+      where: { empresaId: auth.empresaId, status: { in: STATUS_COM_PARCELAS } },
       select: {
         id: true,
+        status: true,
         nome: true,
         cliente: { select: { nome: true } },
         orcamentos: {
@@ -133,14 +136,19 @@ export const listarContasAReceber = createServerFn({ method: "GET" }).handler(as
   return serialize({
     pendentes,
     recebidoNoMes: Number(recebidoNoMes._sum.valor ?? 0),
-    eventosParaParcelas: eventos.map((evento) => ({
-      id: evento.id,
-      nome: evento.nome,
-      cliente: evento.cliente.nome,
-      saldo:
-        Number(evento.orcamentos[0]?.total ?? 0) -
-        evento.pagamentos.reduce((soma, parcela) => soma + Number(parcela.valor), 0),
-    })),
+    eventosParaParcelas: eventos
+      .map((evento) => ({
+        id: evento.id,
+        status: evento.status,
+        nome: evento.nome,
+        cliente: evento.cliente.nome,
+        saldo:
+          Number(evento.orcamentos[0]?.total ?? 0) -
+          evento.pagamentos.reduce((soma, parcela) => soma + Number(parcela.valor), 0),
+      }))
+      // Evento confirmado só aparece se ainda houver valor sem parcela.
+      .filter((evento) => evento.status !== "CONFIRMADO" || evento.saldo > 0)
+      .map(({ status: _status, ...evento }) => evento),
   });
 });
 
@@ -250,7 +258,7 @@ export const registrarPagamento = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const auth = await requirePermission("pagamentos");
-    return getPrisma().$transaction(async (tx) => {
+    const resultado = await getPrisma().$transaction(async (tx) => {
       const found = await tx.pagamento.findFirst({
         where: { id: data.id, empresaId: auth.empresaId },
         include: { evento: { include: { cliente: true } } },
@@ -266,14 +274,17 @@ export const registrarPagamento = createServerFn({ method: "POST" })
       });
       await sincronizarStatusEvento(tx, found.eventoId);
       const usuarioId = found.evento.cliente.usuarioId;
-      if (usuarioId)
-        await notificar(tx, usuarioId, {
-          tipo: "PAGAMENTO_CONFIRMADO",
-          titulo: "Pagamento confirmado",
-          mensagem: `A parcela ${found.numeroParcela} foi confirmada.`,
-        });
-      return serialize(updated);
+      const aviso = {
+        titulo: "Pagamento confirmado",
+        mensagem: `A parcela ${found.numeroParcela} foi confirmada.`,
+      };
+      if (usuarioId) await notificar(tx, usuarioId, { tipo: "PAGAMENTO_CONFIRMADO", ...aviso });
+      return { pagamento: serialize(updated), usuarioId, aviso };
     });
+    if (resultado.usuarioId) {
+      await enviarPush([resultado.usuarioId], { ...resultado.aviso, url: "/cliente/pagamentos" });
+    }
+    return resultado.pagamento;
   });
 
 export const excluirPagamento = createServerFn({ method: "POST" })

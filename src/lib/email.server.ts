@@ -77,6 +77,38 @@ export async function enviarEmail(input: {
   });
 }
 
+export async function enviarEmailConvite(input: {
+  destinatario: string;
+  nome: string;
+  nomeEmpresa: string;
+  token: string;
+}): Promise<void> {
+  const config = getEmailConfig();
+  const link = `${getAppUrl()}/ativar-acesso?token=${encodeURIComponent(input.token)}`;
+  const nome = escapeHtml(input.nome);
+  const nomeEmpresa = escapeHtml(input.nomeEmpresa);
+  const linkSeguro = escapeHtml(link);
+
+  await getTransporter(config).sendMail({
+    from: config.from,
+    to: input.destinatario,
+    subject: `Seu acesso ao portal — ${input.nomeEmpresa}`,
+    text: `Olá, ${input.nome}. Crie sua senha para acompanhar seus eventos e orçamentos com ${input.nomeEmpresa}. O link vale por 7 dias e só pode ser usado uma vez:\n\n${link}\n\nSe você não reconhece este convite, ignore este e-mail.`,
+    html: `
+      <div style="background:#f5f5f4;padding:32px 16px;font-family:Arial,sans-serif;color:#171717">
+        <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:32px;border:1px solid #e7e5e4">
+          <div style="font-size:22px;font-weight:700;margin-bottom:24px">${nomeEmpresa}</div>
+          <h1 style="font-size:20px;margin:0 0 12px">Crie seu acesso</h1>
+          <p style="font-size:15px;line-height:1.6;margin:0 0 16px">Olá, ${nome}.</p>
+          <p style="font-size:15px;line-height:1.6;margin:0 0 24px">Crie sua senha para acompanhar seus eventos e orçamentos. Este link vale por 7 dias e só pode ser usado uma vez.</p>
+          <a href="${linkSeguro}" style="display:inline-block;background:#171717;color:#fff;text-decoration:none;border-radius:8px;padding:12px 18px;font-size:14px;font-weight:600">Criar minha senha</a>
+          <p style="font-size:12px;line-height:1.5;color:#737373;margin:24px 0 0">Se você não reconhece este convite, ignore este e-mail.</p>
+        </div>
+      </div>
+    `,
+  });
+}
+
 export async function enviarEmailRecuperacaoSenha(input: {
   destinatario: string;
   nome: string;

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { pagination, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
+import { enviarPush } from "@/lib/push.server";
 import { requireAuth, requirePermission } from "@/lib/session.server";
 
 export const listarNotificacoes = createServerFn({ method: "GET" })
@@ -58,7 +59,7 @@ export const gerarLembretesOperacionais = createServerFn({ method: "POST" }).han
   const limite = new Date(inicio);
   limite.setDate(limite.getDate() + 7);
 
-  return getPrisma().$transaction(async (tx) => {
+  const resultado = await getPrisma().$transaction(async (tx) => {
     await tx.pagamento.updateMany({
       where: {
         empresaId: auth.empresaId,
@@ -120,6 +121,18 @@ export const gerarLembretesOperacionais = createServerFn({ method: "POST" }).han
       return data;
     });
     if (novas.length) await tx.notificacao.createMany({ data: novas });
-    return { eventos, pagamentos, notificacoesCriadas: novas.length };
+    return { eventos, pagamentos, notificacoesCriadas: novas.length, novas };
   });
+  const { novas, ...resposta } = resultado;
+  await Promise.all(
+    novas.map((nova) =>
+      enviarPush([nova.usuarioId], {
+        titulo: nova.titulo,
+        mensagem: nova.mensagem,
+        url: "/admin/notificacoes",
+        etiqueta: nova.tipo,
+      }),
+    ),
+  );
+  return resposta;
 });

@@ -8,7 +8,10 @@
    e para o administrador.
 2. Preencha o `.env` do servidor a partir do [`.env.example`](../.env.example). Obrigatórias:
    `SESSION_SECRET`, `APP_URL` (endereço público, com `https://`), `POSTGRES_PASSWORD`
-   (ou `DATABASE_URL`), `SMTP_*`, `EMAIL_FROM` e `R2_*`.
+   (ou `DATABASE_URL`), `SMTP_*`, `EMAIL_FROM` e `R2_*`. Para as notificações no celular,
+   gere uma única vez o par `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` com
+   `npx web-push generate-vapid-keys`: trocar as chaves depois obriga todos os aparelhos a
+   ativarem as notificações de novo.
 3. Publique atrás de HTTPS (Nginx, Caddy, Cloudflare ou o proxy da hospedagem). O sistema
    envia `Strict-Transport-Security` em produção, então ele **precisa** ser servido por HTTPS.
 4. Com um proxy na frente, defina `TRUST_PROXY=true` para o limite de tentativas usar o IP
@@ -73,6 +76,7 @@ sistema, mas vale ativar a retenção de versões no painel da Cloudflare.
 - [ ] `TRUST_PROXY` coerente com a infraestrutura
 - [ ] E-mail (SMTP) testado com "Esqueci minha senha"
 - [ ] R2 testado enviando uma imagem no cardápio
+- [ ] Notificações testadas no celular em Notificações → Ativar notificações
 - [ ] `docker compose ps` com `app` em `healthy`
 - [ ] Backup diário configurado e restauração testada
 - [ ] Banco sem porta pública (o Compose publica só em `127.0.0.1`)

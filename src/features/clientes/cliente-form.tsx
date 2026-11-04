@@ -90,12 +90,20 @@ export function ClienteForm({
   salvando,
   textoSalvar,
   cancelarPara,
+  onContatoAlterado,
   onSalvar,
 }: {
   valores?: ClienteFormValues;
   salvando: boolean;
   textoSalvar: string;
   cancelarPara: "/admin/clientes";
+  /** Chamado ao sair de um campo, para a tela avisar se o cliente já existe. */
+  onContatoAlterado?: (contato: {
+    nome: string;
+    telefone: string;
+    whatsapp: string;
+    email: string;
+  }) => void;
   onSalvar: (dados: {
     nome: string;
     tipoPessoa: "FISICA" | "JURIDICA";
@@ -140,7 +148,21 @@ export function ClienteForm({
   }
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={salvar}>
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={salvar}
+      onBlur={(event) => {
+        if (!onContatoAlterado) return;
+        const form = new FormData(event.currentTarget);
+        const text = (name: string) => String(form.get(name) ?? "").trim();
+        onContatoAlterado({
+          nome: text("nome"),
+          telefone: text("tel"),
+          whatsapp: text("zap"),
+          email: text("email"),
+        });
+      }}
+    >
       <Panel className="p-5">
         <PanelHeader title="Dados pessoais" subtitle="Pessoa física ou jurídica" />
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">

@@ -1,10 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { buscarClientesParecidos } from "@/features/clientes/duplicados.server";
 import { firstZodError } from "@/features/shared/validation/errors";
-import { pagination, serialize } from "@/lib/domain.server";
+import { statusAcessoCliente } from "@/lib/acesso-cliente";
+import { serialize } from "@/lib/domain.server";
 import { Prisma } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma.server";
+import { chaveDoTelefone } from "@/lib/telefone";
 import {
   assertAdminPermission,
   requireAnyPermission,
@@ -129,7 +132,8 @@ function erroDeCliente(error: unknown): never {
 const idSchema = z.object({ id: z.string().uuid() });
 const listSchema = z.object({
   page: z.number().int().positive().default(1),
-  pageSize: z.number().int().min(1).max(100).default(20),
+  // A tela de clientes carrega a lista inteira e filtra no navegador.
+  pageSize: z.number().int().min(1).max(2000).default(20),
   busca: z.string().trim().max(100).default(""),
 });
 
@@ -137,6 +141,7 @@ export const listarClientes = createServerFn({ method: "GET" })
   .validator((input: unknown) => listSchema.parse(input ?? {}))
   .handler(async ({ data }) => {
     const auth = await requireAnyPermission(["contatos", "eventos", "usuarios"]);
+    const digitos = data.busca.replace(/\D/g, "");
     const where = {
       empresaId: auth.empresaId,
       ...(data.busca
@@ -144,6 +149,10 @@ export const listarClientes = createServerFn({ method: "GET" })
             OR: [
               { nome: { contains: data.busca, mode: "insensitive" as const } },
               { email: { contains: data.busca, mode: "insensitive" as const } },
+              // Muitos cadastros só têm nome e telefone: a busca também acha pelo número.
+              ...(digitos.length >= 4
+                ? [{ telefone: { contains: digitos } }, { whatsapp: { contains: digitos } }]
+                : []),
             ],
           }
         : {}),
@@ -151,13 +160,24 @@ export const listarClientes = createServerFn({ method: "GET" })
     const [items, total] = await getPrisma().$transaction([
       getPrisma().cliente.findMany({
         where,
-        ...pagination(data.page, data.pageSize),
-        include: { _count: { select: { eventos: true } } },
+        skip: (data.page - 1) * data.pageSize,
+        take: data.pageSize,
+        include: {
+          _count: { select: { eventos: true } },
+          usuario: { select: { ultimoLogin: true, ativo: true } },
+        },
         orderBy: { nome: "asc" },
       }),
       getPrisma().cliente.count({ where }),
     ]);
-    return serialize({ items, total, page: data.page, pageSize: data.pageSize });
+    const lista = serialize({ items, total, page: data.page, pageSize: data.pageSize });
+    return {
+      ...lista,
+      items: lista.items.map(({ usuario, ...cliente }) => ({
+        ...cliente,
+        acesso: statusAcessoCliente({ usuario }),
+      })),
+    };
   });
 
 export const obterCliente = createServerFn({ method: "GET" })
@@ -171,19 +191,51 @@ export const obterCliente = createServerFn({ method: "GET" })
         empresaId: auth.empresaId,
         ...(auth.role === "CLIENT" ? { usuarioId: auth.usuarioId } : {}),
       },
-      include: { eventos: { orderBy: { dataEvento: "desc" } } },
+      include: {
+        eventos: { orderBy: { dataEvento: "desc" } },
+        usuario: { select: { ultimoLogin: true, ativo: true } },
+      },
     });
     if (!cliente) throw new Error("Cliente nao encontrado.");
-    return serialize(cliente);
+    const { usuario, ...dados } = serialize(cliente);
+    return { ...dados, acesso: statusAcessoCliente({ usuario }) };
+  });
+
+/** Clientes parecidos com os dados digitados, para a equipe usar o cadastro que já existe. */
+export const verificarClienteExistente = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        nome: z.string().trim().max(160).nullable().optional(),
+        telefone: z.string().trim().max(30).nullable().optional(),
+        whatsapp: z.string().trim().max(30).nullable().optional(),
+        email: z.string().trim().max(254).nullable().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const auth = await requireAnyPermission(["contatos", "eventos"]);
+    return serialize(await buscarClientesParecidos(getPrisma(), auth.empresaId, data));
   });
 
 export const criarCliente = createServerFn({ method: "POST" })
-  .validator((input: unknown) => lerCliente(input))
+  .validator((input: unknown) => ({
+    ...lerCliente(input),
+    // A equipe já viu o aviso de cadastro parecido e decidiu criar mesmo assim.
+    ignorarParecidos:
+      z.object({ ignorarParecidos: z.boolean() }).safeParse(input).data?.ignorarParecidos ?? false,
+  }))
   .handler(async ({ data }) => {
     const auth = await requirePermission("contatos");
     try {
       return await getPrisma().$transaction(async (tx) => {
-        const { usuarioId, ...cadastro } = data;
+        const { usuarioId, ignorarParecidos, ...cadastro } = data;
+        if (!ignorarParecidos) {
+          const [parecido] = await buscarClientesParecidos(tx, auth.empresaId, cadastro);
+          if (parecido) {
+            throw new Error(`Já existe um cliente com este ${parecido.motivo}: ${parecido.nome}.`);
+          }
+        }
         const cliente = await tx.cliente.create({
           data: {
             ...cadastro,
@@ -214,8 +266,21 @@ export const atualizarCliente = createServerFn({ method: "POST" })
     if (!existing) throw new Error("Cliente nao encontrado.");
     const { usuarioId: _vinculo, ...dados } = data.dados;
     void _vinculo;
+    // Convite enviado para um contato que mudou não pode continuar abrindo a conta.
+    const contatoMudou =
+      (existing.email ?? "").toLowerCase() !== (dados.email ?? "").toLowerCase() ||
+      chaveDoTelefone(existing.telefone) !== chaveDoTelefone(dados.telefone) ||
+      chaveDoTelefone(existing.whatsapp) !== chaveDoTelefone(dados.whatsapp);
     try {
-      return serialize(await getPrisma().cliente.update({ where: { id: data.id }, data: dados }));
+      return await getPrisma().$transaction(async (tx) => {
+        if (contatoMudou) {
+          await tx.conviteCliente.updateMany({
+            where: { clienteId: data.id, usadoEm: null },
+            data: { usadoEm: new Date() },
+          });
+        }
+        return serialize(await tx.cliente.update({ where: { id: data.id }, data: dados }));
+      });
     } catch (error) {
       erroDeCliente(error);
     }

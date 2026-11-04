@@ -26,7 +26,7 @@ export const Route = createFileRoute("/admin/agenda")({
   head: () => pageMeta("Agenda", "Eventos, vencimentos e compromissos organizados por data."),
   loader: async () => {
     const [eventos, pagamentos, compromissos] = await Promise.all([
-      listarEventos({ data: { page: 1, pageSize: 100 } }),
+      listarEventos({ data: { page: 1, pageSize: 2000 } }),
       listarPagamentos({ data: { page: 1, pageSize: 100 } }),
       listarCompromissos(),
     ]);

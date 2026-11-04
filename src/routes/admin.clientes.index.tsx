@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { KeyRound, MoreHorizontal, Plus, Search, Trash2 } from "lucide-react";
+import { KeyRound, MoreHorizontal, Plus, Search, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -15,6 +15,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ConviteClienteDialog, type ClienteConvidado } from "@/features/clientes/convite-dialog";
 import { excluirCliente, listarClientes } from "@/features/clientes/server-functions";
 import {
   RedefinirSenhaDialog,
@@ -24,6 +32,7 @@ import { useConfirmar } from "@/lib/confirmacao";
 import { formatDate } from "@/lib/format";
 import { telefoneDe } from "@/lib/empresa-cabecalho";
 import { usePlaceholderBusca } from "@/lib/placeholder-busca";
+import { digitosDoTelefone } from "@/lib/telefone";
 
 export const Route = createFileRoute("/admin/clientes/")({
   head: () => ({
@@ -37,12 +46,12 @@ export const Route = createFileRoute("/admin/clientes/")({
       { property: "og:description", content: "Gerencie a base de clientes do seu buffet." },
     ],
   }),
-  loader: () => listarClientes({ data: { page: 1, pageSize: 100, busca: "" } }),
+  loader: () => listarClientes({ data: { page: 1, pageSize: 2000, busca: "" } }),
   component: ClientesPage,
 });
 
 function ClientesPage() {
-  const placeholderBusca = usePlaceholderBusca("Buscar por nome, documento ou e-mail");
+  const placeholderBusca = usePlaceholderBusca("Buscar por nome, telefone, documento ou e-mail");
   const router = useRouter();
   const navigate = useNavigate();
   const excluir = useServerFn(excluirCliente);
@@ -50,6 +59,8 @@ function ClientesPage() {
   const { items: clientes } = Route.useLoaderData();
   const confirmar = useConfirmar();
   const [senhaDe, setSenhaDe] = useState<AlvoRedefinicao | null>(null);
+  const [convidado, setConvidado] = useState<ClienteConvidado | null>(null);
+  const [filtroAcesso, setFiltroAcesso] = useState("TODOS");
 
   async function remover(id: string, nome: string) {
     const ok = await confirmar({
@@ -67,12 +78,18 @@ function ClientesPage() {
       toast.error(error instanceof Error ? error.message : "Não foi possível excluir o cliente.");
     }
   }
-  const lista = clientes.filter(
-    (c) =>
-      c.nome.toLowerCase().includes(busca.toLowerCase()) ||
-      (c.cpfCnpj ?? "").includes(busca) ||
-      (c.email ?? "").toLowerCase().includes(busca.toLowerCase()),
-  );
+  const digitosBusca = digitosDoTelefone(busca);
+  const lista = clientes
+    .filter((c) => filtroAcesso === "TODOS" || c.acesso === filtroAcesso)
+    .filter(
+      (c) =>
+        c.nome.toLowerCase().includes(busca.toLowerCase()) ||
+        (c.cpfCnpj ?? "").includes(busca) ||
+        (c.email ?? "").toLowerCase().includes(busca.toLowerCase()) ||
+        (digitosBusca.length >= 4 &&
+          (digitosDoTelefone(c.telefone).includes(digitosBusca) ||
+            digitosDoTelefone(c.whatsapp).includes(digitosBusca))),
+    );
 
   return (
     <div className="flex flex-col gap-4">
@@ -89,14 +106,29 @@ function ClientesPage() {
         }
       />
       <Panel className="p-5">
-        <div className="relative max-w-sm">
-          <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-          <Input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder={placeholderBusca}
-            className="bg-surface border-0 pl-9 ring-1 ring-black/5"
-          />
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1 sm:max-w-sm">
+            <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder={placeholderBusca}
+              className="bg-surface border-0 pl-9 ring-1 ring-black/5"
+            />
+          </div>
+          <Select value={filtroAcesso} onValueChange={setFiltroAcesso}>
+            <SelectTrigger
+              aria-label="Filtrar por acesso"
+              className="bg-surface w-full border-0 ring-1 ring-black/5 sm:w-44"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="TODOS">Todos os status</SelectItem>
+              <SelectItem value="ATIVO">Ativos</SelectItem>
+              <SelectItem value="SEM_ACESSO">Sem acesso</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {lista.length === 0 ? (
@@ -169,7 +201,7 @@ function ClientesPage() {
                       {formatDate(c.createdAt)}
                     </td>
                     <td className="py-3 pr-3">
-                      <StatusBadge status="Ativo" />
+                      <StatusBadge status={c.acesso} />
                     </td>
                     <td className="py-3 text-right">
                       <DropdownMenu>
@@ -179,6 +211,12 @@ function ClientesPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {c.usuarioId ? null : (
+                            <DropdownMenuItem onSelect={() => setConvidado(c)}>
+                              <UserPlus className="size-4" />
+                              Convidar para acessar
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             onSelect={() =>
                               setSenhaDe({
@@ -209,6 +247,7 @@ function ClientesPage() {
           </div>
         )}
       </Panel>
+      <ConviteClienteDialog cliente={convidado} onFechar={() => setConvidado(null)} />
       <RedefinirSenhaDialog
         alvo={senhaDe}
         onOpenChange={(aberto) => {

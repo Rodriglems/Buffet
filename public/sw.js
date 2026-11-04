@@ -4,9 +4,10 @@
  * - Páginas e dados NUNCA vão para o cache: vêm sempre do servidor, para ninguém ver
  *   informação antiga ou de outra conta no mesmo aparelho.
  * - Sem internet, a navegação mostra /offline.html.
+ * - Recebe as notificações push e abre a página certa ao tocar nelas.
  * Ao mudar este arquivo, troque VERSAO para descartar o cache antigo.
  */
-const VERSAO = "mesly-v2";
+const VERSAO = "mesly-v3";
 const OFFLINE = "/offline.html";
 const PRE_CACHE = [
   OFFLINE,
@@ -64,4 +65,36 @@ self.addEventListener("fetch", (evento) => {
       ),
     );
   }
+});
+
+self.addEventListener("push", (evento) => {
+  let aviso = {};
+  try {
+    aviso = evento.data ? evento.data.json() : {};
+  } catch {
+    // Conteúdo inesperado: ainda assim mostra um aviso genérico.
+  }
+  evento.waitUntil(
+    self.registration.showNotification(aviso.titulo || "Mesly", {
+      body: aviso.mensagem || "Você tem um novo aviso.",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: aviso.etiqueta,
+      data: { url: aviso.url || "/" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (evento) => {
+  evento.notification.close();
+  // Só abre páginas do próprio sistema.
+  const destino = new URL(evento.notification.data?.url || "/", self.location.origin);
+  const url = destino.origin === self.location.origin ? destino.href : self.location.origin;
+  evento.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((janelas) => {
+      const aberta = janelas.find((janela) => "focus" in janela);
+      if (!aberta) return self.clients.openWindow(url);
+      return aberta.focus().then((janela) => (janela.navigate ? janela.navigate(url) : janela));
+    }),
+  );
 });

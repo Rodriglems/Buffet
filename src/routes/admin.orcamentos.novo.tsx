@@ -37,7 +37,7 @@ export const Route = createFileRoute("/admin/orcamentos/novo")({
       { property: "og:description", content: "Editor de propostas comerciais do buffet." },
     ],
   }),
-  loader: () => listarEventos({ data: { page: 1, pageSize: 100 } }),
+  loader: () => listarEventos({ data: { page: 1, pageSize: 2000 } }),
   component: NovoOrcamento,
 });
 
@@ -67,11 +67,11 @@ function NovoOrcamento() {
   const [itens, setItens] = useState<Linha[]>([
     {
       id: 1,
-      servico: "Jantar completo",
-      descricao: "Entrada, prato principal e sobremesa",
-      quantidade: 120,
+      servico: "",
+      descricao: "",
+      quantidade: 1,
       unidade: "pessoa",
-      valorUnitario: 165,
+      valorUnitario: 0,
       desconto: 0,
     },
   ]);

@@ -143,11 +143,27 @@ model Usuario {
   notificacoes           Notificacao[]
   documentos             Documento[]
   tokensRecuperacaoSenha TokenRecuperacaoSenha[]
+  pushInscricoes         PushInscricao[]
 
   @@unique([empresaId, email])
   @@unique([empresaId, id])
   @@index([empresaId, ativo])
   @@map("usuarios")
+}
+
+/// Aparelho que aceitou receber notificações push (uma linha por navegador ou app instalado).
+model PushInscricao {
+  id        String   @id @default(uuid()) @db.Uuid
+  usuarioId String   @map("usuario_id") @db.Uuid
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("push_inscricoes")
 }
 
 model TokenRecuperacaoSenha {
@@ -188,12 +204,27 @@ model Cliente {
   usuario     Usuario?    @relation(fields: [empresaId, usuarioId], references: [empresaId, id], onDelete: Restrict)
   eventos     Evento[]
   documentos  Documento[]
+  convites    ConviteCliente[]
 
   @@unique([empresaId, cpfCnpj])
   @@unique([empresaId, usuarioId])
   @@unique([empresaId, id])
   @@index([empresaId, nome])
   @@map("clientes")
+}
+
+/// Link para o cliente criar o próprio acesso ao portal. Só o hash do token fica guardado.
+model ConviteCliente {
+  id        String    @id @default(uuid()) @db.Uuid
+  clienteId String    @map("cliente_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.Char(64)
+  expiraEm  DateTime  @map("expira_em") @db.Timestamptz(6)
+  usadoEm   DateTime? @map("usado_em") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  cliente   Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId, createdAt(sort: Desc)])
+  @@map("convites_cliente")
 }
 
 model Lead {

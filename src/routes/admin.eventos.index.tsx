@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, Copy, ExternalLink, List } from "lucide-react";
+import { CalendarDays, Copy, ExternalLink, List, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -38,7 +38,7 @@ export const Route = createFileRoute("/admin/eventos/")({
   }),
   loader: async () => {
     const [eventos, formulario] = await Promise.all([
-      listarEventos({ data: { page: 1, pageSize: 100 } }),
+      listarEventos({ data: { page: 1, pageSize: 2000 } }),
       obterLinkFormularioOrcamento(),
     ]);
     return { eventos, formulario };
@@ -111,11 +111,17 @@ function EventosPage() {
               <Copy className="size-4" />
               <span className="hidden sm:inline">Copiar link</span>
             </Button>
-            <Button asChild>
+            <Button variant="outline" asChild>
               <a href={`/solicitar-orcamento/${formulario.token}`} target="_blank" rel="noreferrer">
                 <ExternalLink className="size-4" />
                 Abrir formulário
               </a>
+            </Button>
+            <Button asChild>
+              <Link to="/admin/eventos/novo">
+                <Plus className="size-4" />
+                Novo evento
+              </Link>
             </Button>
           </>
         }
@@ -222,6 +228,13 @@ function EventosPage() {
                           <p className="text-muted-foreground text-xs sm:hidden">
                             {e.cliente.nome} · {formatDate(e.dataEvento)}
                           </p>
+                          {e.cliente.acesso === "SEM_ACESSO" ? (
+                            <StatusBadge
+                              status={e.cliente.acesso}
+                              dot={false}
+                              className="mt-1 sm:hidden"
+                            />
+                          ) : null}
                           {e.orcamentos[0] ? (
                             <p className="text-xs font-medium sm:hidden">
                               {formatBRL(Number(e.orcamentos[0].total))}
@@ -230,6 +243,13 @@ function EventosPage() {
                         </td>
                         <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
                           {e.cliente.nome}
+                          {e.cliente.acesso === "SEM_ACESSO" ? (
+                            <StatusBadge
+                              status={e.cliente.acesso}
+                              dot={false}
+                              className="ml-2 align-middle"
+                            />
+                          ) : null}
                         </td>
                         <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
                           {formatDate(e.dataEvento)}

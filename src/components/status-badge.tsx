@@ -63,6 +63,7 @@ const mapa: Record<string, Tone> = {
   // Clientes
   ATIVO: "lime",
   INATIVO: "zinc",
+  SEM_ACESSO: "amber",
 };
 
 export function StatusBadge({

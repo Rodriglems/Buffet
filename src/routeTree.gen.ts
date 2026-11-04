@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AtivarAcessoRouteImport } from './routes/ativar-acesso'
 import { Route as ClienteRouteImport } from './routes/cliente'
 import { Route as RecuperarSenhaRouteImport } from './routes/recuperar-senha'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
@@ -35,6 +36,7 @@ import { Route as AdminClientesIdRouteImport } from './routes/admin.clientes.$id
 import { Route as AdminClientesNovoRouteImport } from './routes/admin.clientes.novo'
 import { Route as AdminEventosIndexRouteImport } from './routes/admin.eventos.index'
 import { Route as AdminEventosIdRouteImport } from './routes/admin.eventos.$id'
+import { Route as AdminEventosNovoRouteImport } from './routes/admin.eventos.novo'
 import { Route as AdminOrcamentosIndexRouteImport } from './routes/admin.orcamentos.index'
 import { Route as AdminOrcamentosIdRouteImport } from './routes/admin.orcamentos.$id'
 import { Route as AdminOrcamentosNovoRouteImport } from './routes/admin.orcamentos.novo'
@@ -49,6 +51,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AtivarAcessoRoute = AtivarAcessoRouteImport.update({
+  id: '/ativar-acesso',
+  path: '/ativar-acesso',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClienteRoute = ClienteRouteImport.update({
@@ -171,6 +178,11 @@ const AdminEventosIdRoute = AdminEventosIdRouteImport.update({
   path: '/eventos/$id',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminEventosNovoRoute = AdminEventosNovoRouteImport.update({
+  id: '/eventos/novo',
+  path: '/eventos/novo',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminOrcamentosIndexRoute = AdminOrcamentosIndexRouteImport.update({
   id: '/orcamentos/',
   path: '/orcamentos/',
@@ -200,6 +212,7 @@ const ClienteOrcamentosIdRoute = ClienteOrcamentosIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/ativar-acesso': typeof AtivarAcessoRoute
   '/cliente': typeof ClienteRouteWithChildren
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
@@ -222,6 +235,7 @@ export interface FileRoutesByFullPath {
   '/admin/clientes/$id': typeof AdminClientesIdRoute
   '/admin/clientes/novo': typeof AdminClientesNovoRoute
   '/admin/eventos/$id': typeof AdminEventosIdRoute
+  '/admin/eventos/novo': typeof AdminEventosNovoRoute
   '/admin/orcamentos/$id': typeof AdminOrcamentosIdRoute
   '/admin/orcamentos/novo': typeof AdminOrcamentosNovoRoute
   '/cliente/orcamentos/$id': typeof ClienteOrcamentosIdRoute
@@ -232,6 +246,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ativar-acesso': typeof AtivarAcessoRoute
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/admin/agenda': typeof AdminAgendaRoute
@@ -253,6 +268,7 @@ export interface FileRoutesByTo {
   '/admin/clientes/$id': typeof AdminClientesIdRoute
   '/admin/clientes/novo': typeof AdminClientesNovoRoute
   '/admin/eventos/$id': typeof AdminEventosIdRoute
+  '/admin/eventos/novo': typeof AdminEventosNovoRoute
   '/admin/orcamentos/$id': typeof AdminOrcamentosIdRoute
   '/admin/orcamentos/novo': typeof AdminOrcamentosNovoRoute
   '/cliente/orcamentos/$id': typeof ClienteOrcamentosIdRoute
@@ -265,6 +281,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/ativar-acesso': typeof AtivarAcessoRoute
   '/cliente': typeof ClienteRouteWithChildren
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
@@ -287,6 +304,7 @@ export interface FileRoutesById {
   '/admin/clientes/$id': typeof AdminClientesIdRoute
   '/admin/clientes/novo': typeof AdminClientesNovoRoute
   '/admin/eventos/$id': typeof AdminEventosIdRoute
+  '/admin/eventos/novo': typeof AdminEventosNovoRoute
   '/admin/orcamentos/$id': typeof AdminOrcamentosIdRoute
   '/admin/orcamentos/novo': typeof AdminOrcamentosNovoRoute
   '/cliente/orcamentos/$id': typeof ClienteOrcamentosIdRoute
@@ -300,6 +318,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/ativar-acesso'
     | '/cliente'
     | '/recuperar-senha'
     | '/redefinir-senha'
@@ -322,6 +341,7 @@ export interface FileRouteTypes {
     | '/admin/clientes/$id'
     | '/admin/clientes/novo'
     | '/admin/eventos/$id'
+    | '/admin/eventos/novo'
     | '/admin/orcamentos/$id'
     | '/admin/orcamentos/novo'
     | '/cliente/orcamentos/$id'
@@ -332,6 +352,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ativar-acesso'
     | '/recuperar-senha'
     | '/redefinir-senha'
     | '/admin/agenda'
@@ -353,6 +374,7 @@ export interface FileRouteTypes {
     | '/admin/clientes/$id'
     | '/admin/clientes/novo'
     | '/admin/eventos/$id'
+    | '/admin/eventos/novo'
     | '/admin/orcamentos/$id'
     | '/admin/orcamentos/novo'
     | '/cliente/orcamentos/$id'
@@ -364,6 +386,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/ativar-acesso'
     | '/cliente'
     | '/recuperar-senha'
     | '/redefinir-senha'
@@ -386,6 +409,7 @@ export interface FileRouteTypes {
     | '/admin/clientes/$id'
     | '/admin/clientes/novo'
     | '/admin/eventos/$id'
+    | '/admin/eventos/novo'
     | '/admin/orcamentos/$id'
     | '/admin/orcamentos/novo'
     | '/cliente/orcamentos/$id'
@@ -398,6 +422,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
+  AtivarAcessoRoute: typeof AtivarAcessoRoute
   ClienteRoute: typeof ClienteRouteWithChildren
   RecuperarSenhaRoute: typeof RecuperarSenhaRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
@@ -418,6 +443,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ativar-acesso': {
+      id: '/ativar-acesso'
+      path: '/ativar-acesso'
+      fullPath: '/ativar-acesso'
+      preLoaderRoute: typeof AtivarAcessoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cliente': {
@@ -588,6 +620,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventosIdRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/eventos/novo': {
+      id: '/admin/eventos/novo'
+      path: '/eventos/novo'
+      fullPath: '/admin/eventos/novo'
+      preLoaderRoute: typeof AdminEventosNovoRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/orcamentos/': {
       id: '/admin/orcamentos/'
       path: '/orcamentos'
@@ -640,6 +679,7 @@ interface AdminRouteChildren {
   AdminClientesIdRoute: typeof AdminClientesIdRoute
   AdminClientesNovoRoute: typeof AdminClientesNovoRoute
   AdminEventosIdRoute: typeof AdminEventosIdRoute
+  AdminEventosNovoRoute: typeof AdminEventosNovoRoute
   AdminOrcamentosIdRoute: typeof AdminOrcamentosIdRoute
   AdminOrcamentosNovoRoute: typeof AdminOrcamentosNovoRoute
   AdminClientesIndexRoute: typeof AdminClientesIndexRoute
@@ -661,6 +701,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminClientesIdRoute: AdminClientesIdRoute,
   AdminClientesNovoRoute: AdminClientesNovoRoute,
   AdminEventosIdRoute: AdminEventosIdRoute,
+  AdminEventosNovoRoute: AdminEventosNovoRoute,
   AdminOrcamentosIdRoute: AdminOrcamentosIdRoute,
   AdminOrcamentosNovoRoute: AdminOrcamentosNovoRoute,
   AdminClientesIndexRoute: AdminClientesIndexRoute,
@@ -696,6 +737,7 @@ const ClienteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
+  AtivarAcessoRoute: AtivarAcessoRoute,
   ClienteRoute: ClienteRouteWithChildren,
   RecuperarSenhaRoute: RecuperarSenhaRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,

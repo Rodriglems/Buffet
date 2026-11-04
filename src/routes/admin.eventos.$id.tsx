@@ -1,7 +1,16 @@
 import { useState } from "react";
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, FileText, Loader2, MessageCircle, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  Check,
+  FileText,
+  Loader2,
+  MessageCircle,
+  Pencil,
+  Plus,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel, PanelHeader, StatCard } from "@/components/panel";
@@ -20,6 +29,8 @@ import {
   STATUS_COM_PDF,
   STATUS_COM_PDF_ORCAMENTO,
 } from "@/features/documentos/eventos-pdf";
+import { ConviteClienteDialog } from "@/features/clientes/convite-dialog";
+import { gerarConviteCliente } from "@/features/clientes/convites";
 import { AlterarStatusEvento } from "@/features/eventos/alterar-status-evento";
 import { confirmarEvento, finalizarEvento, obterEvento } from "@/features/eventos/server-functions";
 import { DescontoOrcamento } from "@/features/orcamentos/desconto-orcamento";
@@ -32,6 +43,7 @@ import {
   excluirPagamento,
   registrarPagamento,
 } from "@/features/pagamentos/server-functions";
+import { caminhoDoConvite } from "@/lib/acesso-cliente";
 import { useConfirmar } from "@/lib/confirmacao";
 import { formatBRL, formatDate } from "@/lib/format";
 import { createWhatsAppUrl } from "@/lib/sharing";
@@ -42,7 +54,7 @@ import { telefoneDe } from "@/lib/empresa-cabecalho";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const Route = createFileRoute("/admin/eventos/$id")({
-  // Endereço que não é de um evento (ex.: o antigo /admin/eventos/novo) volta para a lista.
+  // Endereço que não é de um evento volta para a lista.
   beforeLoad: ({ params }) => {
     if (!UUID.test(params.id)) throw redirect({ to: "/admin/eventos" });
   },
@@ -67,6 +79,7 @@ function DetalheEvento() {
     .filter((item) => item.status === "PAGO")
     .reduce((soma, item) => soma + Number(item.valor), 0);
   const [editando, setEditando] = useState(false);
+  const [convidando, setConvidando] = useState(false);
   const encerrado = ["CANCELADO", "FINALIZADO"].includes(evento.status);
   const botaoWhatsApp = evento.cliente.whatsapp ? (
     <Button
@@ -238,15 +251,29 @@ function DetalheEvento() {
       <Panel className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-display font-semibold">Cliente do evento</h2>
+            <h2 className="font-display flex flex-wrap items-center gap-2 font-semibold">
+              Cliente do evento
+              <StatusBadge status={evento.cliente.acesso} dot={false} />
+            </h2>
             <p className="text-muted-foreground text-sm">Pessoa responsável por este evento</p>
           </div>
-          <Button size="sm" variant="outline" asChild>
-            <Link to="/admin/clientes/$id" params={{ id: evento.cliente.id }}>
-              Abrir cadastro
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {evento.cliente.usuarioId ? null : (
+              <Button size="sm" onClick={() => setConvidando(true)}>
+                <UserPlus className="size-4" /> Convidar para acessar
+              </Button>
+            )}
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/admin/clientes/$id" params={{ id: evento.cliente.id }}>
+                Abrir cadastro
+              </Link>
+            </Button>
+          </div>
         </div>
+        <ConviteClienteDialog
+          cliente={convidando ? evento.cliente : null}
+          onFechar={() => setConvidando(false)}
+        />
         <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             ["Nome", evento.cliente.nome],
@@ -296,6 +323,7 @@ function EnviarOrcamentoAoCliente({
 }) {
   const router = useRouter();
   const enviar = useServerFn(enviarOrcamento);
+  const gerarConvite = useServerFn(gerarConviteCliente);
   const [enviando, setEnviando] = useState(false);
   const whatsapp = evento.cliente.whatsapp;
 
@@ -307,9 +335,13 @@ function EnviarOrcamentoAoCliente({
       await enviar({ data: { id: orcamento.id } });
       if (whatsapp) {
         const primeiroNome = evento.cliente.nome.trim().split(/\s+/)[0];
+        // Cliente sem conta não tem senha para usar: recebe o link para criar o acesso.
+        const comoAcessar = evento.cliente.usuarioId
+          ? `Para ver os itens e o valor, acesse ${window.location.origin}/ e entre com o seu e-mail${evento.cliente.email ? ` (${evento.cliente.email})` : ""} e a senha que você cadastrou.`
+          : `Para ver os itens e o valor, crie sua senha neste link (vale por 7 dias): ${window.location.origin}${caminhoDoConvite((await gerarConvite({ data: { clienteId: evento.cliente.id } })).token)}`;
         const mensagem = [
           `Olá, ${primeiroNome}! O orçamento do seu evento "${evento.nome}" (${formatDate(evento.dataEvento)}) já está pronto.`,
-          `Para ver os itens e o valor, acesse ${window.location.origin}/ e entre com o seu e-mail${evento.cliente.email ? ` (${evento.cliente.email})` : ""} e a senha que você cadastrou.`,
+          comoAcessar,
           "Qualquer dúvida, é só responder esta mensagem.",
         ].join("\n\n");
         const url = createWhatsAppUrl(whatsapp, mensagem);
@@ -378,8 +410,10 @@ function PagamentosDoEvento({
   const [processando, setProcessando] = useState<string | null>(null);
   const parcelas = evento.pagamentos.filter((item) => item.status !== "CANCELADO");
   const parcelado = parcelas.reduce((soma, item) => soma + Number(item.valor), 0);
-  // Novas parcelas só durante a etapa de pagamento; a primeira definição vem do botão de etapa.
-  const podeAdicionar = evento.status === "PAGAMENTO";
+  // Novas parcelas na etapa de pagamento (a primeira definição vem do botão de etapa) ou em
+  // evento confirmado com valor ainda sem parcela, como um contrato fechado com saldo.
+  const podeAdicionar =
+    evento.status === "PAGAMENTO" || (evento.status === "CONFIRMADO" && valorEvento > parcelado);
 
   async function executar(id: string, acao: () => Promise<unknown>, sucesso: string) {
     setProcessando(id);

@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
+import { Button } from "@/components/ui/button";
+import { ConviteClienteDialog } from "@/features/clientes/convite-dialog";
 import { StatusBadge } from "@/components/status-badge";
 import { ClienteForm, type ClienteFormValues } from "@/features/clientes/cliente-form";
 import { atualizarCliente, obterCliente } from "@/features/clientes/server-functions";
@@ -64,12 +67,27 @@ function DetalheCliente() {
   const router = useRouter();
   const atualizar = useServerFn(atualizarCliente);
   const [salvando, setSalvando] = useState(false);
+  const [convidando, setConvidando] = useState(false);
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title={cliente.nome}
         subtitle={`${cliente.cpfCnpj ?? "Sem documento"} · cliente desde ${formatDate(cliente.createdAt)}`}
+        actions={
+          <>
+            <StatusBadge status={cliente.acesso} />
+            {cliente.usuarioId ? null : (
+              <Button onClick={() => setConvidando(true)}>
+                <UserPlus className="size-4" /> Convidar para acessar
+              </Button>
+            )}
+          </>
+        }
+      />
+      <ConviteClienteDialog
+        cliente={convidando ? cliente : null}
+        onFechar={() => setConvidando(false)}
       />
       <ClienteForm
         key={cliente.updatedAt}

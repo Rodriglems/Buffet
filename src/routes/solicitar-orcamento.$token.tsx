@@ -45,6 +45,7 @@ import {
   enviarSolicitacaoOrcamento,
 } from "@/features/orcamentos/solicitacao-publica";
 import { login, logout } from "@/features/auth/server-functions";
+import { desativarPush } from "@/features/notificacoes/push-cliente";
 import { SERVICOS_ADICIONAIS, TIPOS_EVENTO, type ServicoAdicional } from "@/lib/catalogo";
 import { formatBRL } from "@/lib/format";
 import { aplicarCor } from "@/lib/theme-accent";
@@ -65,7 +66,7 @@ export const Route = createFileRoute("/solicitar-orcamento/$token")({
 });
 
 type ServicoPublico = Awaited<ReturnType<typeof obterFormularioOrcamento>>["servicos"][number];
-type Acesso = "CRIADO" | "JA_EXISTE" | "INDISPONIVEL" | "CONECTADO";
+type Acesso = "CRIADO" | "JA_EXISTE" | "INDISPONIVEL" | "CONECTADO" | "CONFIRMAR_EMAIL";
 type ClienteConectado = { nome: string; email: string; telefone: string; whatsapp: string };
 
 const idCategoria = (categoria: string) =>
@@ -87,7 +88,11 @@ function SolicitarOrcamento() {
   const [entrando, setEntrando] = useState(false);
   const [etapa, setEtapa] = useState<1 | 2 | 3>(1);
   const [enviando, setEnviando] = useState(false);
-  const [concluido, setConcluido] = useState<null | { acesso: Acesso; logado: boolean }>(null);
+  const [concluido, setConcluido] = useState<null | {
+    acesso: Acesso;
+    logado: boolean;
+    linkEnviado: boolean;
+  }>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   const [mostrarTodos, setMostrarTodos] = useState(false);
@@ -268,6 +273,7 @@ function SolicitarOrcamento() {
   }
 
   async function sair() {
+    await desativarPush().catch(() => {});
     await sairDaConta().catch(() => {});
     setConectado(null);
     setModo("cliente");
@@ -344,7 +350,11 @@ function SolicitarOrcamento() {
           website,
         },
       });
-      setConcluido({ acesso: resposta.acesso, logado: resposta.logado });
+      setConcluido({
+        acesso: resposta.acesso,
+        logado: resposta.logado,
+        linkEnviado: resposta.linkEnviado,
+      });
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Não foi possível enviar sua solicitação.");
@@ -411,6 +421,18 @@ function SolicitarOrcamento() {
                   <Link to={concluido.logado ? "/cliente" : "/"}>Acompanhar meu pedido</Link>
                 </Button>
               </>
+            ) : concluido.acesso === "CONFIRMAR_EMAIL" ? (
+              <p className="text-muted-foreground mt-3 text-sm leading-6">
+                Este e-mail já está no nosso cadastro.{" "}
+                {concluido.linkEnviado ? (
+                  <>
+                    Para proteger seus dados, enviamos para <strong>{dados.email}</strong> um link
+                    para você criar sua senha e acompanhar o pedido.
+                  </>
+                ) : (
+                  "Para proteger seus dados, nossa equipe vai enviar um link para você criar sua senha e acompanhar o pedido."
+                )}
+              </p>
             ) : concluido.acesso === "JA_EXISTE" ? (
               <>
                 <p className="text-muted-foreground mt-3 text-sm leading-6">

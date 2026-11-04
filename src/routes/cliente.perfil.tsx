@@ -7,6 +7,7 @@ import { PageHeader, Panel, PanelHeader } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AtivarPush } from "@/features/notificacoes/ativar-push";
 import { atualizarMeuPerfil, obterMeuPerfil } from "@/features/usuarios/server-functions";
 import { pageMeta } from "@/lib/meta";
 import { telefoneDe } from "@/lib/empresa-cabecalho";
@@ -62,6 +63,7 @@ function Perfil() {
   return (
     <form className="flex flex-col gap-4" onSubmit={salvar}>
       <PageHeader title="Meu perfil" />
+      <AtivarPush />
       <Panel className="p-5">
         <PanelHeader title="Dados pessoais" />
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">

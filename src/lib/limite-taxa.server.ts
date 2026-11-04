@@ -9,6 +9,7 @@ const limitadores = {
   pedidoOrcamento: criarLimitador(5, 10 * MINUTO),
   recuperacaoSenha: criarLimitador(5, 15 * MINUTO),
   login: criarLimitador(20, 15 * MINUTO),
+  ativacaoConvite: criarLimitador(10, 15 * MINUTO),
 };
 
 export type AcaoLimitada = keyof typeof limitadores;

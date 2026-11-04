@@ -19,6 +19,7 @@ const ROTULOS: Record<string, string> = {
   // Clientes
   ATIVO: "Ativo",
   INATIVO: "Inativo",
+  SEM_ACESSO: "Sem acesso",
 };
 
 export function chaveStatus(status: string) {
