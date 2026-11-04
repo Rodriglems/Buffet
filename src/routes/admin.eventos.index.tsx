@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, Copy, ExternalLink, List, Plus } from "lucide-react";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { CalendarDays, Copy, ExternalLink, List, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -16,8 +17,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { listarEventos } from "@/features/eventos/server-functions";
+import { excluirEvento, listarEventos } from "@/features/eventos/server-functions";
 import { obterLinkFormularioOrcamento } from "@/features/orcamentos/solicitacao-publica";
+import { useConfirmar } from "@/lib/confirmacao";
 import { formatBRL, formatDate } from "@/lib/format";
 import { rotuloStatusEvento } from "@/lib/status-evento";
 import { usePlaceholderBusca } from "@/lib/placeholder-busca";
@@ -54,11 +56,37 @@ function EventosPage() {
   const placeholderBusca = usePlaceholderBusca("Buscar por evento ou cliente");
   const { eventos: resultado, formulario } = Route.useLoaderData();
   const eventos = resultado.items;
+  const router = useRouter();
+  const excluir = useServerFn(excluirEvento);
+  const confirmar = useConfirmar();
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   const [tipo, setTipo] = useState(TODOS);
   const [status, setStatus] = useState(TODOS);
   const [data, setData] = useState("");
   const [ordem, setOrdem] = useState(MAIS_RECENTES);
+
+  async function remover(evento: (typeof eventos)[number]) {
+    const ok = await confirmar({
+      titulo: `Excluir o evento de ${evento.nome}?`,
+      descricao:
+        "O orçamento e as parcelas em aberto também serão apagados. O evento sai da agenda, do financeiro e do portal do cliente, e o cadastro do cliente continua. Essa ação não pode ser desfeita.",
+      textoConfirmar: "Excluir evento",
+      perigoso: true,
+    });
+    if (!ok) return;
+    setExcluindoId(evento.id);
+    try {
+      // O servidor recusa evento com pagamento recebido, custos ou documentos e explica o motivo.
+      await excluir({ data: { id: evento.id } });
+      toast.success("Evento excluído.");
+      await router.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível excluir o evento.");
+    } finally {
+      setExcluindoId(null);
+    }
+  }
 
   const lista = eventos
     .filter(
@@ -207,6 +235,7 @@ function EventosPage() {
                       <th className="pb-2 font-medium max-sm:hidden">Convidados</th>
                       <th className="pb-2 font-medium max-sm:hidden">Valor</th>
                       <th className="pb-2 font-medium text-right sm:text-left">Status</th>
+                      <th className="pb-2 font-medium text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -261,8 +290,24 @@ function EventosPage() {
                         <td className="py-3 pr-3 font-medium whitespace-nowrap max-sm:hidden">
                           {e.orcamentos[0] ? formatBRL(Number(e.orcamentos[0].total)) : "—"}
                         </td>
-                        <td className="py-3 text-right sm:text-left">
+                        <td className="py-3 pr-3 text-right sm:text-left">
                           <StatusBadge status={e.status} />
+                        </td>
+                        <td className="py-2 text-right">
+                          {/* No celular o botão mostra só o ícone; o nome fica no aria-label. */}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            aria-label={`Excluir o evento de ${e.nome}`}
+                            title="Excluir evento"
+                            disabled={excluindoId !== null}
+                            onClick={() => void remover(e)}
+                          >
+                            <Trash2 className="size-4" />
+                            <span className="hidden sm:inline">Excluir</span>
+                          </Button>
                         </td>
                       </tr>
                     ))}
