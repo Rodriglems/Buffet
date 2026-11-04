@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { normalizarBusca } from "@/features/orcamentos/formulario-publico";
+import { ITEM_VALOR_DO_CONTRATO } from "@/features/eventos/contrato";
 import { atualizarItensOrcamento } from "@/features/orcamentos/server-functions";
 import { listServicos } from "@/features/servicos/server-functions";
 import { formatBRL } from "@/lib/format";
@@ -77,11 +78,14 @@ export function EditarOrcamentoDialog({
   onOpenChange,
   orcamento,
   convidados,
+  valorEmParcelas = 0,
 }: {
   aberto: boolean;
   onOpenChange: (aberto: boolean) => void;
   orcamento: { id: string; itens: ItemOrcamento[] };
   convidados: number;
+  /** Soma das parcelas do evento: elas não mudam sozinhas quando o total do orçamento muda. */
+  valorEmParcelas?: number;
 }) {
   const router = useRouter();
   const salvar = useServerFn(atualizarItensOrcamento);
@@ -111,6 +115,8 @@ export function EditarOrcamentoDialog({
     : [];
   const subtotal = linhas.reduce((soma, linha) => soma + totalLinha(linha), 0);
   const errosPorLinha = new Map(linhas.map((linha) => [linha.chave, validarLinha(linha)]));
+  const itemDoContratoJunto =
+    linhas.length > 1 && linhas.some((linha) => linha.descricao === ITEM_VALOR_DO_CONTRATO);
   const quantidadeErros = [...errosPorLinha.values()].filter((e) => Object.keys(e).length).length;
 
   function alterar(chave: string, campo: keyof ErrosLinha, valor: string) {
@@ -353,6 +359,25 @@ export function EditarOrcamentoDialog({
               <p className="text-muted-foreground text-xs">Nenhum item encontrado no cardápio.</p>
             ) : null}
           </div>
+
+          {itemDoContratoJunto ? (
+            <p
+              role="alert"
+              className="bg-warning/10 ring-warning/30 flex items-start gap-2 rounded-xl p-3 text-sm ring-1"
+            >
+              <TriangleAlert className="text-warning-foreground mt-0.5 size-4 shrink-0" />
+              <span>
+                <strong>Remova o item “{ITEM_VALOR_DO_CONTRATO}”.</strong> Ele já contém o valor
+                inteiro: mantido junto dos itens detalhados, o total é contado duas vezes.
+              </span>
+            </p>
+          ) : null}
+          {valorEmParcelas > 0 ? (
+            <p className="text-muted-foreground text-xs">
+              Este evento tem {formatBRL(valorEmParcelas)} em parcelas. Se o total mudar, as
+              parcelas não mudam sozinhas: a tela do evento vai mostrar a diferença.
+            </p>
+          ) : null}
 
           <p className="text-right text-sm">
             Subtotal dos itens: <strong>{formatBRL(subtotal)}</strong>

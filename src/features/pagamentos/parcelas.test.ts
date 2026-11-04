@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import { planejarParcelas, somarIntervalo } from "./parcelas";
+import { diferencaParcelas, planejarParcelas, somarIntervalo } from "./parcelas";
+
+describe("diferencaParcelas", () => {
+  it("é zero quando as parcelas fecham o total, sem erro de arredondamento", () => {
+    expect(diferencaParcelas(0.3, [0.1, 0.2])).toBe(0);
+    expect(diferencaParcelas(30000, [10000, 20000])).toBe(0);
+  });
+
+  it("mostra o que falta parcelar", () => {
+    expect(diferencaParcelas(35000, [10000, 20000])).toBe(5000);
+  });
+
+  it("fica negativa quando as parcelas passam do total", () => {
+    expect(diferencaParcelas(25000, [10000, 20000])).toBe(-5000);
+  });
+});
 
 describe("planejarParcelas", () => {
   it("divide o total e coloca a sobra de centavos na última parcela", () => {

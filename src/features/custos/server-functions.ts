@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { pagination, serialize } from "@/lib/domain.server";
+import { serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
 import { requireAnyPermission, requirePermission } from "@/lib/session.server";
 
@@ -21,7 +21,7 @@ export const listarCustos = createServerFn({ method: "GET" })
     z
       .object({
         page: z.number().int().positive().default(1),
-        pageSize: z.number().int().min(1).max(100).default(30),
+        pageSize: z.number().int().min(1).max(5000).default(30),
         eventoId: z.string().uuid().optional(),
       })
       .parse(value ?? {}),
@@ -35,7 +35,8 @@ export const listarCustos = createServerFn({ method: "GET" })
     const [items, total, agregado] = await getPrisma().$transaction([
       getPrisma().custo.findMany({
         where,
-        ...pagination(data.page, data.pageSize),
+        skip: (data.page - 1) * data.pageSize,
+        take: data.pageSize,
         include: { evento: { select: { nome: true } } },
         orderBy: { data: "desc" },
       }),

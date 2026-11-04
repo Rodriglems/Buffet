@@ -8,6 +8,9 @@ export type DadosContrato = {
   vencimentoSaldo?: string | null;
 };
 
+/** Item único do contrato lançado sem detalhes; sai do orçamento quando os itens são detalhados. */
+export const ITEM_VALOR_DO_CONTRATO = "Valor total do contrato";
+
 const emCentavos = (valor: number) => Math.round(valor * 100);
 
 export function saldoDoContrato(contrato: Pick<DadosContrato, "valorTotal" | "valorPago">): number {

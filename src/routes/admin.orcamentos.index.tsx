@@ -36,7 +36,7 @@ export const Route = createFileRoute("/admin/orcamentos/")({
   }),
   loader: async () => {
     const [orcamentos, formulario] = await Promise.all([
-      listarOrcamentos({ data: { page: 1, pageSize: 100 } }),
+      listarOrcamentos({ data: { page: 1, pageSize: 5000 } }),
       obterLinkFormularioOrcamento(),
     ]);
     return { orcamentos, formulario };

@@ -7,6 +7,12 @@ export const FORMAS_PAGAMENTO = [
   "Boleto",
 ] as const;
 
+/** Quanto do total ainda está sem parcela (negativo: as parcelas passam do total), em reais. */
+export function diferencaParcelas(total: number, parcelas: number[]): number {
+  const centavos = (valor: number) => Math.round(valor * 100);
+  return (centavos(total) - parcelas.reduce((soma, parcela) => soma + centavos(parcela), 0)) / 100;
+}
+
 export type IntervaloParcelas = { tipo: "mensal" } | { tipo: "dias"; dias: number };
 
 export type ParcelaPlanejada = {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Check,
@@ -9,6 +9,8 @@ import {
   Pencil,
   Plus,
   Trash2,
+  TriangleAlert,
+  Undo2,
   UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,14 +34,20 @@ import {
 import { ConviteClienteDialog } from "@/features/clientes/convite-dialog";
 import { gerarConviteCliente } from "@/features/clientes/convites";
 import { AlterarStatusEvento } from "@/features/eventos/alterar-status-evento";
-import { confirmarEvento, finalizarEvento, obterEvento } from "@/features/eventos/server-functions";
+import {
+  confirmarEvento,
+  excluirEvento,
+  finalizarEvento,
+  obterEvento,
+} from "@/features/eventos/server-functions";
 import { DescontoOrcamento } from "@/features/orcamentos/desconto-orcamento";
 import { EditarOrcamentoDialog } from "@/features/orcamentos/editar-orcamento-dialog";
 import { aprovarOrcamento, enviarOrcamento } from "@/features/orcamentos/server-functions";
 import { GerarParcelasDialog } from "@/features/pagamentos/gerar-parcelas-dialog";
-import { FORMAS_PAGAMENTO } from "@/features/pagamentos/parcelas";
+import { diferencaParcelas, FORMAS_PAGAMENTO } from "@/features/pagamentos/parcelas";
 import {
   alterarFormaPagamento,
+  desfazerRecebimento,
   excluirPagamento,
   registrarPagamento,
 } from "@/features/pagamentos/server-functions";
@@ -80,6 +88,11 @@ function DetalheEvento() {
     .reduce((soma, item) => soma + Number(item.valor), 0);
   const [editando, setEditando] = useState(false);
   const [convidando, setConvidando] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
+  const navigate = useNavigate();
+  const router = useRouter();
+  const excluir = useServerFn(excluirEvento);
+  const pedirConfirmacao = useConfirmar();
   const encerrado = ["CANCELADO", "FINALIZADO"].includes(evento.status);
   const botaoWhatsApp = evento.cliente.whatsapp ? (
     <Button
@@ -103,6 +116,42 @@ function DetalheEvento() {
       <MessageCircle className="size-4" /> WhatsApp
     </Button>
   ) : null;
+
+  async function removerEvento() {
+    // Mesma regra do servidor, avisada antes de pedir a confirmação.
+    const motivo = recebido
+      ? "Este evento tem pagamento recebido. Desfaça o recebimento antes de excluir, ou cancele o evento."
+      : evento.custos.length
+        ? "Este evento tem custos lançados. Remova os custos ou cancele o evento."
+        : evento.documentos.length
+          ? "Este evento tem documentos. Remova os documentos ou cancele o evento."
+          : null;
+    if (motivo) {
+      toast.error(motivo);
+      return;
+    }
+    const removidos = [
+      evento.orcamentos.length ? `${evento.orcamentos.length} orçamento(s)` : null,
+      parcelas.length ? `${parcelas.length} parcela(s)` : null,
+    ].filter(Boolean);
+    const ok = await pedirConfirmacao({
+      titulo: `Excluir o evento de ${evento.nome}?`,
+      descricao: `${removidos.length ? `Também serão apagados ${removidos.join(" e ")}. ` : ""}O evento sai da agenda, do financeiro e do portal do cliente. O cadastro do cliente continua. Essa ação não pode ser desfeita.`,
+      textoConfirmar: "Excluir evento",
+      perigoso: true,
+    });
+    if (!ok) return;
+    setExcluindo(true);
+    try {
+      await excluir({ data: { id: evento.id } });
+      toast.success("Evento excluído.");
+      await router.invalidate();
+      await navigate({ to: "/admin/eventos" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível excluir o evento.");
+      setExcluindo(false);
+    }
+  }
 
   return (
     // Espaço extra no fim para a barra fixa de etapas não cobrir o conteúdo.
@@ -131,7 +180,17 @@ function DetalheEvento() {
               </p>
             ) : null}
           </div>
-          <AlterarStatusEvento eventoId={evento.id} status={evento.status} />
+          <div className="flex flex-wrap items-center gap-2">
+            <AlterarStatusEvento eventoId={evento.id} status={evento.status} />
+            <Button
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              disabled={excluindo}
+              onClick={() => void removerEvento()}
+            >
+              <Trash2 className="size-4" /> Excluir evento
+            </Button>
+          </div>
         </div>
       </Panel>
       <Panel className="p-5">
@@ -231,6 +290,9 @@ function DetalheEvento() {
               onOpenChange={setEditando}
               orcamento={orcamentoAtual}
               convidados={evento.quantidadeConvidados}
+              valorEmParcelas={evento.pagamentos
+                .filter((item) => item.status !== "CANCELADO")
+                .reduce((soma, item) => soma + Number(item.valor), 0)}
             />
           </>
         ) : (
@@ -404,12 +466,20 @@ function PagamentosDoEvento({
   const router = useRouter();
   const registrar = useServerFn(registrarPagamento);
   const excluir = useServerFn(excluirPagamento);
+  const desfazer = useServerFn(desfazerRecebimento);
   const trocarForma = useServerFn(alterarFormaPagamento);
   const pedirConfirmacao = useConfirmar();
   const [aberto, setAberto] = useState(false);
   const [processando, setProcessando] = useState<string | null>(null);
   const parcelas = evento.pagamentos.filter((item) => item.status !== "CANCELADO");
   const parcelado = parcelas.reduce((soma, item) => soma + Number(item.valor), 0);
+  // O total do orçamento pode mudar depois das parcelas, que não acompanham sozinhas.
+  const diferenca = parcelas.length
+    ? diferencaParcelas(
+        valorEvento,
+        parcelas.map((item) => Number(item.valor)),
+      )
+    : 0;
   // Novas parcelas na etapa de pagamento (a primeira definição vem do botão de etapa) ou em
   // evento confirmado com valor ainda sem parcela, como um contrato fechado com saldo.
   const podeAdicionar =
@@ -445,6 +515,29 @@ function PagamentosDoEvento({
           </Button>
         ) : null}
       </div>
+      {diferenca !== 0 ? (
+        <div
+          role="status"
+          className="bg-warning/10 ring-warning/30 mt-4 flex items-start gap-2 rounded-xl p-3 text-sm ring-1"
+        >
+          <TriangleAlert className="text-warning-foreground mt-0.5 size-4 shrink-0" />
+          <p>
+            {diferenca > 0 ? (
+              <>
+                <strong>Faltam {formatBRL(diferenca)} em parcelas.</strong> O total do evento é{" "}
+                {formatBRL(valorEvento)}, mas as parcelas somam {formatBRL(parcelado)}.
+                {podeAdicionar ? " Use Adicionar parcelas para completar." : ""}
+              </>
+            ) : (
+              <>
+                <strong>As parcelas passam {formatBRL(-diferenca)} do total.</strong> O total do
+                evento é {formatBRL(valorEvento)}, mas as parcelas somam {formatBRL(parcelado)}.
+                Exclua uma parcela em aberto e lance de novo com o valor certo.
+              </>
+            )}
+          </p>
+        </div>
+      ) : null}
       {parcelas.length ? (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full sm:min-w-[760px] text-left text-sm">
@@ -521,7 +614,34 @@ function PagamentosDoEvento({
                       <StatusBadge status={parcela.status} />
                     </td>
                     <td className="py-3 text-right align-top sm:align-middle">
-                      {parcela.status === "PAGO" ? null : (
+                      {parcela.status === "PAGO" ? (
+                        <div className="flex justify-end">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={processando !== null}
+                            aria-label={`Desfazer o recebimento da parcela ${parcela.numeroParcela}`}
+                            title="Desfazer recebimento"
+                            onClick={async () => {
+                              const ok = await pedirConfirmacao({
+                                titulo: `Desfazer o recebimento da parcela #${parcela.numeroParcela}?`,
+                                descricao: `${formatBRL(Number(parcela.valor))} deixa de contar como recebido e a parcela volta a ficar em aberto.`,
+                                textoConfirmar: "Desfazer recebimento",
+                                perigoso: true,
+                              });
+                              if (!ok) return;
+                              void executar(
+                                parcela.id,
+                                () => desfazer({ data: { id: parcela.id } }),
+                                "Recebimento desfeito.",
+                              );
+                            }}
+                          >
+                            <Undo2 className="size-4 sm:hidden" />
+                            <span className="hidden sm:inline">Desfazer</span>
+                          </Button>
+                        </div>
+                      ) : (
                         <div className="flex justify-end gap-1">
                           <Button
                             size="sm"

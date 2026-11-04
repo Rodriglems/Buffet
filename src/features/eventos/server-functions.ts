@@ -2,7 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { buscarClientesParecidos } from "@/features/clientes/duplicados.server";
-import { problemaNoContrato, saldoDoContrato } from "@/features/eventos/contrato";
+import {
+  ITEM_VALOR_DO_CONTRATO,
+  problemaNoContrato,
+  saldoDoContrato,
+} from "@/features/eventos/contrato";
 import { valoresParaCliente } from "@/features/orcamentos/valores-cliente";
 import { hojeIso } from "@/features/pagamentos/a-receber";
 import { isValidIsoDate } from "@/features/shared/validation/primitives";
@@ -321,7 +325,7 @@ export const criarEventoManual = createServerFn({ method: "POST" })
             observacoes: "Contrato fechado fora do sistema. Os itens podem ser detalhados depois.",
             itens: {
               create: {
-                descricao: "Valor total do contrato",
+                descricao: ITEM_VALOR_DO_CONTRATO,
                 quantidade: "1",
                 unidade: "contrato",
                 valorUnitario: total,
@@ -425,13 +429,41 @@ export const excluirEvento = createServerFn({ method: "POST" })
   .validator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
     const auth = await requirePermission("eventos");
-    const found = await getPrisma().evento.findFirst({
-      where: { id: data.id, empresaId: auth.empresaId },
-      include: { _count: { select: { orcamentos: true, pagamentos: true, custos: true } } },
+    await getPrisma().$transaction(async (tx) => {
+      const found = await tx.evento.findFirst({
+        where: { id: data.id, empresaId: auth.empresaId },
+        select: {
+          id: true,
+          pagamentos: { select: { status: true } },
+          _count: { select: { orcamentos: true, custos: true, documentos: true } },
+        },
+      });
+      if (!found) throw new Error("Evento não encontrado.");
+      // Dinheiro recebido, custos e documentos são histórico: nunca somem junto com o evento.
+      if (found.pagamentos.some((pagamento) => pagamento.status === "PAGO")) {
+        throw new Error(
+          "Este evento tem pagamento recebido. Desfaça o recebimento antes de excluir, ou cancele o evento.",
+        );
+      }
+      if (found._count.custos) {
+        throw new Error("Este evento tem custos lançados. Remova os custos ou cancele o evento.");
+      }
+      if (found._count.documentos) {
+        throw new Error("Este evento tem documentos. Remova os documentos ou cancele o evento.");
+      }
+      const pode = (chave: PermissionKey) => hasPermission(auth.permissoes, chave);
+      if (
+        (found._count.orcamentos && !pode("orcamentos")) ||
+        (found.pagamentos.length && !pode("pagamentos"))
+      ) {
+        throw new Error(
+          "Você não tem permissão para excluir o orçamento e as parcelas deste evento.",
+        );
+      }
+      await tx.pagamento.deleteMany({ where: { eventoId: found.id } });
+      // Os itens do orçamento saem junto, em cascata.
+      await tx.orcamento.deleteMany({ where: { eventoId: found.id } });
+      await tx.evento.delete({ where: { id: found.id } });
     });
-    if (!found) throw new Error("Evento nao encontrado.");
-    if (found._count.orcamentos || found._count.pagamentos || found._count.custos)
-      throw new Error("Evento possui historico e nao pode ser excluido.");
-    await getPrisma().evento.delete({ where: { id: found.id } });
     return { ok: true };
   });

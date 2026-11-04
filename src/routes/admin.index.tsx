@@ -36,8 +36,8 @@ export const Route = createFileRoute("/admin/")({
     const inicio = new Date(fim.getFullYear(), 0, 1);
     const [eventos, orcamentos, pagamentos, financeiro] = await Promise.all([
       listarEventos({ data: { page: 1, pageSize: 2000 } }),
-      listarOrcamentos({ data: { page: 1, pageSize: 100 } }),
-      listarPagamentos({ data: { page: 1, pageSize: 100 } }),
+      listarOrcamentos({ data: { page: 1, pageSize: 5000 } }),
+      listarPagamentos({ data: { page: 1, pageSize: 5000 } }),
       obterResumoFinanceiro({ data: { inicio, fim } }),
     ]);
     return {

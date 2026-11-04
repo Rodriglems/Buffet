@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { calcularDescontoOrcamento } from "@/features/orcamentos/calculos";
 import { valoresParaCliente } from "@/features/orcamentos/valores-cliente";
-import { notificar, pagination, serialize } from "@/lib/domain.server";
+import { notificar, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
 import { enviarPush } from "@/lib/push.server";
 import { requireAuth, requirePermission } from "@/lib/session.server";
@@ -37,7 +37,7 @@ export const listarOrcamentos = createServerFn({ method: "GET" })
     z
       .object({
         page: z.number().int().positive().default(1),
-        pageSize: z.number().int().min(1).max(100).default(20),
+        pageSize: z.number().int().min(1).max(5000).default(20),
         clienteId: z.string().uuid().optional(),
       })
       .parse(value ?? {}),
@@ -52,7 +52,8 @@ export const listarOrcamentos = createServerFn({ method: "GET" })
     const [items, total] = await getPrisma().$transaction([
       getPrisma().orcamento.findMany({
         where,
-        ...pagination(data.page, data.pageSize),
+        skip: (data.page - 1) * data.pageSize,
+        take: data.pageSize,
         include: {
           evento: { include: { cliente: { select: { nome: true } } } },
           _count: { select: { itens: true } },

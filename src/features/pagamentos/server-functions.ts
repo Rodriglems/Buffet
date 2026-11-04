@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import type { Prisma, StatusEvento } from "@/generated/prisma/client";
-import { notificar, pagination, serialize } from "@/lib/domain.server";
+import { notificar, serialize } from "@/lib/domain.server";
 import { getPrisma } from "@/lib/prisma.server";
 import { enviarPush } from "@/lib/push.server";
 import { requireAuth, requirePermission } from "@/lib/session.server";
@@ -55,7 +55,8 @@ export const listarPagamentos = createServerFn({ method: "GET" })
     z
       .object({
         page: z.number().int().positive().default(1),
-        pageSize: z.number().int().min(1).max(100).default(30),
+        // Agenda, Dashboard e Financeiro somam em cima desta lista: um corte aqui erra os totais.
+        pageSize: z.number().int().min(1).max(5000).default(30),
         eventoId: z.string().uuid().optional(),
         clienteId: z.string().uuid().optional(),
       })
@@ -72,7 +73,8 @@ export const listarPagamentos = createServerFn({ method: "GET" })
     const [items, total] = await getPrisma().$transaction([
       getPrisma().pagamento.findMany({
         where,
-        ...pagination(data.page, data.pageSize),
+        skip: (data.page - 1) * data.pageSize,
+        take: data.pageSize,
         include: { evento: { include: { cliente: { select: { nome: true } } } } },
         orderBy: [{ dataVencimento: "asc" }, { numeroParcela: "asc" }],
       }),
@@ -285,6 +287,19 @@ export const registrarPagamento = createServerFn({ method: "POST" })
       await enviarPush([resultado.usuarioId], { ...resultado.aviso, url: "/cliente/pagamentos" });
     }
     return resultado.pagamento;
+  });
+
+/** Corrige um recebimento lançado por engano: a parcela volta a ficar em aberto. */
+export const desfazerRecebimento = createServerFn({ method: "POST" })
+  .validator((value: unknown) => id.parse(value))
+  .handler(async ({ data }) => {
+    const auth = await requirePermission("pagamentos");
+    const resultado = await getPrisma().pagamento.updateMany({
+      where: { id: data.id, empresaId: auth.empresaId, status: "PAGO" },
+      data: { status: "PENDENTE", dataPagamento: null },
+    });
+    if (!resultado.count) throw new Error("Esta parcela não está como paga.");
+    return { ok: true };
   });
 
 export const excluirPagamento = createServerFn({ method: "POST" })
