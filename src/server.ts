@@ -3,6 +3,7 @@ import "./lib/error-capture";
 import { aplicarCabecalhosSeguranca } from "./lib/cabecalhos-seguranca";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { diagnosticarSaidaEmail } from "./lib/diagnostico-email.server";
 import { garantirInstalacaoInicial } from "./lib/instalacao-inicial.server";
 
 type ServerEntry = {
@@ -51,6 +52,8 @@ const PRODUCAO = process.env["NODE_ENV"] === "production";
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     let response: Response;
+    // Em segundo plano, uma vez por início: registra no log se o servidor alcança o e-mail.
+    diagnosticarSaidaEmail();
     try {
       await garantirInstalacaoInicial();
       const handler = await getServerEntry();
