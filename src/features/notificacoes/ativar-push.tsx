@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Panel } from "@/components/panel";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { enviarPushDeTeste } from "@/features/notificacoes/push";
 import {
   ativarPush,
@@ -69,8 +70,56 @@ export function AtivarPush() {
   if (!situacao || situacao === "NAO_CONFIGURADO") return null;
   if (situacao === "SEM_SUPORTE") return null;
 
+  if (situacao === "ATIVO") {
+    return (
+      <Panel className="flex items-center gap-3 px-3 py-2">
+        <BellRing className="text-primary size-5 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">Notificações ativas</p>
+          <p className="text-muted-foreground hidden text-xs sm:block">
+            Este aparelho recebe avisos mesmo com o app fechado.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-11"
+                  disabled={ocupado}
+                  onClick={enviarTeste}
+                  aria-label="Enviar notificação de teste"
+                  title="Enviar notificação de teste"
+                >
+                  {ocupado ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Send className="size-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Enviar notificação de teste</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-muted-foreground h-11 px-2"
+            disabled={ocupado}
+            onClick={desativar}
+          >
+            Desativar
+          </Button>
+        </div>
+      </Panel>
+    );
+  }
+
   return (
-    <Panel className="flex flex-wrap items-center justify-between gap-3 p-5">
+    <Panel className="flex flex-wrap items-center justify-between gap-3 p-4">
       <div className="flex min-w-0 flex-1 basis-64 items-start gap-3">
         {situacao === "BLOQUEADO" ? (
           <BellOff className="text-muted-foreground mt-0.5 size-5 shrink-0" />
@@ -79,11 +128,7 @@ export function AtivarPush() {
         )}
         <div className="min-w-0">
           <p className="font-display font-semibold">Notificações neste aparelho</p>
-          {situacao === "ATIVO" ? (
-            <p className="text-muted-foreground text-sm">
-              Ativadas. Os avisos chegam mesmo com o app fechado.
-            </p>
-          ) : situacao === "PEDIR" ? (
+          {situacao === "PEDIR" ? (
             <p className="text-muted-foreground text-sm">
               Receba os avisos no celular, mesmo com o app fechado.
             </p>
@@ -114,15 +159,6 @@ export function AtivarPush() {
           {ocupado ? <Loader2 className="size-4 animate-spin" /> : <BellRing className="size-4" />}
           Ativar notificações
         </Button>
-      ) : situacao === "ATIVO" ? (
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" disabled={ocupado} onClick={enviarTeste}>
-            <Send className="size-4" /> Enviar teste
-          </Button>
-          <Button variant="ghost" disabled={ocupado} onClick={desativar}>
-            Desativar
-          </Button>
-        </div>
       ) : null}
     </Panel>
   );

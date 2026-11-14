@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AmbientLight } from "@/components/ambient-light";
 import { logout } from "@/features/auth/server-functions";
-import { desativarPush, useSincronizarPush } from "@/features/notificacoes/push-cliente";
+import { desvincularPushAoSair, useSincronizarPush } from "@/features/notificacoes/push-cliente";
+import { EVENTO_NOTIFICACOES_ATUALIZADAS } from "@/features/notificacoes/eventos-cliente";
 import { listarNotificacoes } from "@/features/notificacoes/server-functions";
 import { aplicarCor } from "@/lib/theme-accent";
 import { cn } from "@/lib/utils";
@@ -192,14 +193,19 @@ export function AppShell({ nav, area, usuario, cor }: ShellProps) {
     nav.some((group) => group.items.some((item) => item.permission === "configuracoes"));
 
   useEffect(() => {
-    void carregarNotificacoes({ data: { page: 1, pageSize: 1, apenasNaoLidas: true } })
-      .then((resultado) => setNaoLidas(resultado.naoLidas))
-      .catch(() => setNaoLidas(0));
+    const atualizarContador = () => {
+      void carregarNotificacoes({ data: { page: 1, pageSize: 1, apenasNaoLidas: true } })
+        .then((resultado) => setNaoLidas(resultado.naoLidas))
+        .catch(() => setNaoLidas(0));
+    };
+    atualizarContador();
+    window.addEventListener(EVENTO_NOTIFICACOES_ATUALIZADAS, atualizarContador);
+    return () => window.removeEventListener(EVENTO_NOTIFICACOES_ATUALIZADAS, atualizarContador);
   }, [carregarNotificacoes]);
 
   async function sair() {
-    // Antes de encerrar a sessão: quem usar o aparelho depois não recebe avisos desta conta.
-    await desativarPush().catch(() => {});
+    // Mantém a preferência do aparelho, mas impede avisos da conta depois que ela sair.
+    await desvincularPushAoSair().catch(() => {});
     await sairNoServidor();
     await navigate({ to: "/" });
   }

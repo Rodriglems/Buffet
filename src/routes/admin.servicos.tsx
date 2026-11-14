@@ -11,6 +11,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Settings2,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -273,9 +274,9 @@ function CardapioPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Cardápio"
-        subtitle="Organize os itens por categoria"
+        subtitle="Organize itens, cardápios e formatos"
         actions={
-          // Celular: "Novo item" (ação principal) em largura total, as outras duas lado a lado.
+          // Celular: ação principal em largura total; Cardápios e Formatos lado a lado.
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
             <Button className="col-span-2 max-sm:h-11 sm:order-last" onClick={() => abrirNovo()}>
               <Plus className="size-4" />
@@ -287,16 +288,24 @@ function CardapioPage() {
               onClick={() => setPainelCardapios("cardapios")}
             >
               <ListTree className="size-4" />
-              <span>
-                Cardápios<span className="hidden sm:inline"> e formatos</span>
-              </span>
+              <span>Cardápios</span>
             </Button>
             <Button
               variant="outline"
               className="max-sm:h-11"
+              title="Editar formatos de serviço"
+              onClick={() => setPainelCardapios("formatos")}
+            >
+              <Settings2 className="size-4" />
+              <span>Formatos</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="col-span-2 max-sm:h-11"
               onClick={() => setCategoriaEditada("nova")}
             >
-              <FolderPlus className="size-4" /> Nova categoria
+              <FolderPlus className="size-4" />
+              <span>Nova categoria</span>
             </Button>
           </div>
         }

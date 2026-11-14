@@ -2,7 +2,7 @@ import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouteContext } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { KeyRound, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { KeyRound, MoreHorizontal, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -19,6 +19,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -187,49 +194,54 @@ function UsuariosPage() {
                       <StatusBadge status={usuario.status} />
                     </td>
                     <td className="py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          aria-label={`Redefinir a senha de ${usuario.nome}`}
-                          title="Redefinir senha"
-                          onClick={() =>
-                            setSenhaDe({
-                              usuarioId: usuario.id,
-                              nome: usuario.nome,
-                              perfil: usuario.perfil === "Cliente" ? "CLIENT" : "ADMIN",
-                            })
-                          }
-                        >
-                          <KeyRound className="size-4" />
-                          <span className="hidden sm:inline">Redefinir senha</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          aria-label={`Permissões de ${usuario.nome}`}
-                          title="Permissões"
-                          onClick={() => setPermissoesDe(usuario)}
-                        >
-                          <ShieldCheck className="size-4" />
-                          <span className="hidden sm:inline">Permissões</span>
-                        </Button>
-                        {/* Ninguém exclui o próprio usuário: o botão nem aparece. */}
-                        {usuario.id !== atual.usuarioId ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                           <Button
-                            size="sm"
+                            type="button"
+                            size="icon"
                             variant="ghost"
-                            className="text-destructive hover:text-destructive"
-                            aria-label={`Excluir ${usuario.nome}`}
-                            title="Excluir usuário"
-                            disabled={excluindoId !== null}
-                            onClick={() => void remover(usuario)}
+                            className="size-11 sm:size-9"
+                            aria-label={`Ações de ${usuario.nome}`}
+                            title="Mais ações"
                           >
-                            <Trash2 className="size-4" />
-                            <span className="hidden sm:inline">Excluir</span>
+                            <MoreHorizontal className="size-5" />
                           </Button>
-                        ) : null}
-                      </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                          <DropdownMenuItem
+                            className="min-h-11"
+                            onSelect={() =>
+                              setSenhaDe({
+                                usuarioId: usuario.id,
+                                nome: usuario.nome,
+                                perfil: usuario.perfil === "Cliente" ? "CLIENT" : "ADMIN",
+                              })
+                            }
+                          >
+                            <KeyRound className="size-4" />
+                            Redefinir senha
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="min-h-11"
+                            onSelect={() => setPermissoesDe(usuario)}
+                          >
+                            <ShieldCheck className="size-4" /> Permissões
+                          </DropdownMenuItem>
+                          {/* Ninguém exclui o próprio usuário: a ação nem aparece. */}
+                          {usuario.id !== atual.usuarioId ? (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive min-h-11 [&_svg]:text-destructive"
+                                disabled={excluindoId !== null}
+                                onSelect={() => void remover(usuario)}
+                              >
+                                <Trash2 className="size-4" /> Excluir usuário
+                              </DropdownMenuItem>
+                            </>
+                          ) : null}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   </tr>
                 ))}

@@ -107,22 +107,47 @@ export async function desativarPush(): Promise<void> {
 }
 
 /**
+ * Ao sair, separa este aparelho da conta sem apagar a escolha da pessoa nem cancelar a inscrição
+ * do navegador. Assim nenhum aviso da conta anterior chega enquanto ela está desconectada e, no
+ * próximo login, a mesma inscrição pode ser vinculada automaticamente.
+ */
+export async function desvincularPushAoSair(): Promise<void> {
+  if (!("serviceWorker" in navigator)) return;
+  const reg = await navigator.serviceWorker.getRegistration();
+  const inscricao = await reg?.pushManager?.getSubscription();
+  if (!inscricao) return;
+
+  try {
+    await removerInscricaoPush({ data: { endpoint: inscricao.endpoint } });
+  } catch (error) {
+    // Se o servidor não puder desvincular, cancelar localmente evita que a conta anterior continue
+    // recebendo avisos neste aparelho. Nesse caso raro será necessário ativar novamente.
+    localStorage.removeItem(CHAVE_ATIVADO);
+    await inscricao.unsubscribe().catch(() => false);
+    throw error;
+  }
+}
+
+/** Reassocia silenciosamente a inscrição já autorizada à conta que acabou de entrar. */
+export async function sincronizarPush(): Promise<void> {
+  if (!temSuporte() || Notification.permission !== "granted") return;
+  const reg = await navigator.serviceWorker.getRegistration();
+  const atual = await reg?.pushManager.getSubscription();
+  if (atual) {
+    await enviarAoServidor(atual);
+  } else if (localStorage.getItem(CHAVE_ATIVADO)) {
+    const { chave } = await obterChavePush();
+    if (chave) await enviarAoServidor(await inscrever(chave));
+  }
+}
+
+/**
  * Ao abrir o app, confirma a inscrição no servidor. O navegador pode trocá-la sem avisar, e o
  * aparelho pode ter passado para outra conta. Nunca pede permissão por conta própria.
  */
 export function useSincronizarPush() {
   useEffect(() => {
-    if (!temSuporte() || Notification.permission !== "granted") return;
-    void (async () => {
-      const reg = await navigator.serviceWorker.getRegistration();
-      const atual = await reg?.pushManager.getSubscription();
-      if (atual) {
-        await enviarAoServidor(atual);
-      } else if (localStorage.getItem(CHAVE_ATIVADO)) {
-        const { chave } = await obterChavePush();
-        if (chave) await enviarAoServidor(await inscrever(chave));
-      }
-    })().catch(() => {
+    void sincronizarPush().catch(() => {
       // Tenta de novo na próxima abertura; o app funciona normalmente sem push.
     });
   }, []);

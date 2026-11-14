@@ -8,6 +8,7 @@ import { SERVICOS_ADICIONAIS } from "@/lib/catalogo";
 import { serialize } from "@/lib/domain.server";
 import { enviarEmailConvite } from "@/lib/email.server";
 import { notificarNovaSolicitacaoEmpresa } from "@/lib/empresa-notification.server";
+import { urlFormularioPublico } from "@/lib/formulario-publico-url.server";
 import { hashPassword } from "@/lib/password.server";
 import { exigirDentroDoLimite } from "@/lib/limite-taxa.server";
 import { getPrisma } from "@/lib/prisma.server";
@@ -102,7 +103,7 @@ export const obterFormularioOrcamento = createServerFn({ method: "GET" })
       },
     });
     if (!empresa) throw new Error("Link de orçamento inválido ou desativado.");
-    return serialize(empresa);
+    return serialize({ ...empresa, urlPublica: urlFormularioPublico(data.token) });
   });
 
 /** Entre dois pedidos seguidos com o mesmo e-mail, não envia outro link de ativação. */
@@ -170,7 +171,10 @@ export const obterLinkFormularioOrcamento = createServerFn({ method: "GET" }).ha
     select: { linkOrcamentoToken: true },
   });
   if (!empresa) throw new Error("Empresa não encontrada.");
-  return { token: empresa.linkOrcamentoToken };
+  return {
+    token: empresa.linkOrcamentoToken,
+    url: urlFormularioPublico(empresa.linkOrcamentoToken),
+  };
 });
 
 export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
@@ -370,9 +374,6 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
           total: subtotal.toFixed(2),
           observacoes: [
             `Formato solicitado: ${data.formatoServico}.`,
-            data.servicosAdicionais.length
-              ? `Adicionais de interesse: ${data.servicosAdicionais.join(", ")}.`
-              : "Sem serviços adicionais selecionados.",
             "Cardápio selecionado pelo cliente no formulário público. Valores sob consulta serão definidos pela equipe.",
           ].join("\n"),
           itens: {

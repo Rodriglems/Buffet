@@ -1,17 +1,14 @@
 import { useState } from "react";
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   CalendarDays,
   ChevronDown,
   Copy,
   ExternalLink,
   List,
-  MoreVertical,
   Plus,
   Search,
   SlidersHorizontal,
-  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,12 +16,6 @@ import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -34,9 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { excluirEvento, listarEventos } from "@/features/eventos/server-functions";
+import { listarEventos } from "@/features/eventos/server-functions";
 import { obterLinkFormularioOrcamento } from "@/features/orcamentos/solicitacao-publica";
-import { useConfirmar } from "@/lib/confirmacao";
 import { formatBRL, formatDate } from "@/lib/format";
 import { rotuloStatusEvento } from "@/lib/status-evento";
 import { usePlaceholderBusca } from "@/lib/placeholder-busca";
@@ -74,10 +64,6 @@ function EventosPage() {
   const placeholderBusca = usePlaceholderBusca("Buscar por evento ou cliente");
   const { eventos: resultado, formulario } = Route.useLoaderData();
   const eventos = resultado.items;
-  const router = useRouter();
-  const excluir = useServerFn(excluirEvento);
-  const confirmar = useConfirmar();
-  const [excluindoId, setExcluindoId] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   const [tipo, setTipo] = useState(TODOS);
   const [status, setStatus] = useState(TODOS);
@@ -95,28 +81,6 @@ function EventosPage() {
     setStatus(TODOS);
     setData("");
     setOrdem(MAIS_RECENTES);
-  }
-
-  async function remover(evento: (typeof eventos)[number]) {
-    const ok = await confirmar({
-      titulo: `Excluir o evento de ${evento.nome}?`,
-      descricao:
-        "O orçamento e as parcelas em aberto também serão apagados. O evento sai da agenda, do financeiro e do portal do cliente, e o cadastro do cliente continua. Essa ação não pode ser desfeita.",
-      textoConfirmar: "Excluir evento",
-      perigoso: true,
-    });
-    if (!ok) return;
-    setExcluindoId(evento.id);
-    try {
-      // O servidor recusa evento com pagamento recebido, custos ou documentos e explica o motivo.
-      await excluir({ data: { id: evento.id } });
-      toast.success("Evento excluído.");
-      await router.invalidate();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível excluir o evento.");
-    } finally {
-      setExcluindoId(null);
-    }
   }
 
   const lista = eventos
@@ -163,7 +127,8 @@ function EventosPage() {
               className="max-sm:h-11"
               title="Copiar o link do formulário de orçamento"
               onClick={() => {
-                const link = `${window.location.origin}/solicitar-orcamento/${formulario.token}`;
+                const caminho = `/solicitar-orcamento/${formulario.token}`;
+                const link = formulario.url ?? `${window.location.origin}${caminho}`;
                 void copiarTexto(link).then(
                   () =>
                     toast.success("Link do formulário copiado!", {
@@ -177,7 +142,11 @@ function EventosPage() {
               Copiar link
             </Button>
             <Button variant="outline" asChild className="max-sm:h-11">
-              <a href={`/solicitar-orcamento/${formulario.token}`} target="_blank" rel="noreferrer">
+              <a
+                href={formulario.url ?? `/solicitar-orcamento/${formulario.token}`}
+                target="_blank"
+                rel="noreferrer"
+              >
                 <ExternalLink className="size-4" />
                 Abrir formulário
               </a>
@@ -309,7 +278,7 @@ function EventosPage() {
               />
             ) : (
               <>
-                {/* Celular: um cartão por evento. Tocar abre o evento; excluir fica no menu ⋯. */}
+                {/* Celular: um cartão por evento; tocar em qualquer ponto abre os detalhes. */}
                 <ul className="grid gap-2 sm:hidden">
                   {lista.map((e) => (
                     <li
@@ -341,33 +310,6 @@ function EventosPage() {
                         </span>
                         <StatusBadge status={e.status} className="shrink-0" />
                       </Link>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="mt-2 mr-1 size-11 shrink-0"
-                            aria-label={`Mais ações para o evento de ${e.nome}`}
-                          >
-                            <MoreVertical className="size-5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem asChild className="min-h-11">
-                            <Link to="/admin/eventos/$id" params={{ id: e.id }}>
-                              Abrir evento
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive min-h-11 [&_svg]:text-destructive"
-                            disabled={excluindoId !== null}
-                            onSelect={() => void remover(e)}
-                          >
-                            <Trash2 className="size-4" /> Excluir evento
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     </li>
                   ))}
                 </ul>
@@ -383,7 +325,6 @@ function EventosPage() {
                         <th className="pb-2 font-medium max-sm:hidden">Convidados</th>
                         <th className="pb-2 font-medium max-sm:hidden">Valor</th>
                         <th className="pb-2 font-medium text-right sm:text-left">Status</th>
-                        <th className="pb-2 font-medium text-right">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -440,22 +381,6 @@ function EventosPage() {
                           </td>
                           <td className="py-3 pr-3 text-right sm:text-left">
                             <StatusBadge status={e.status} />
-                          </td>
-                          <td className="py-2 text-right">
-                            {/* No celular o botão mostra só o ícone; o nome fica no aria-label. */}
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              aria-label={`Excluir o evento de ${e.nome}`}
-                              title="Excluir evento"
-                              disabled={excluindoId !== null}
-                              onClick={() => void remover(e)}
-                            >
-                              <Trash2 className="size-4" />
-                              <span className="hidden sm:inline">Excluir</span>
-                            </Button>
                           </td>
                         </tr>
                       ))}

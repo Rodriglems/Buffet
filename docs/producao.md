@@ -12,10 +12,24 @@
    gere uma única vez o par `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` com
    `npx web-push generate-vapid-keys`: trocar as chaves depois obriga todos os aparelhos a
    ativarem as notificações de novo.
+   Para divulgar o cardápio em uma marca própria, configure também
+   `FORMULARIO_PUBLICO_URL=https://cardapio.seu-dominio.com.br`. Informe somente o domínio,
+   sem `/solicitar-orcamento`; mantenha `APP_URL` apontando para o painel Mesly.
 3. Publique atrás de HTTPS (Nginx, Caddy, Cloudflare ou o proxy da hospedagem). O sistema
    envia `Strict-Transport-Security` em produção, então ele **precisa** ser servido por HTTPS.
 4. Com um proxy na frente, defina `TRUST_PROXY=true` para o limite de tentativas usar o IP
    real do visitante. Sem proxy, mantenha `false`.
+
+### Domínio de divulgação do cardápio
+
+1. Registre ou escolha o domínio da marca e crie o registro DNS (`A` ou `CNAME`) apontando
+   para o mesmo proxy da aplicação.
+2. Inclua o novo host no proxy/hospedagem, preserve os cabeçalhos `Host` e
+   `X-Forwarded-Proto` e emita o certificado HTTPS.
+3. Preencha `FORMULARIO_PUBLICO_URL` e publique novamente. Os botões de copiar e abrir o
+   formulário passarão a usar esse endereço, e os links antigos continuarão compatíveis.
+4. Teste o formulário inteiro no domínio novo. Login, instalação do PWA e permissão de push
+   são separados por domínio pelo navegador.
 
 ## 2. Implantação com Docker Compose
 
@@ -73,6 +87,7 @@ sistema, mas vale ativar a retenção de versões no painel da Cloudflare.
 
 - [ ] Segredos novos (sessão, R2, banco, administrador) e `.env` fora do Git
 - [ ] `APP_URL` com o domínio público e HTTPS ativo
+- [ ] `FORMULARIO_PUBLICO_URL` com DNS e HTTPS ativos, quando houver domínio de divulgação
 - [ ] `TRUST_PROXY` coerente com a infraestrutura
 - [ ] E-mail (SMTP) testado com "Esqueci minha senha"
 - [ ] R2 testado enviando uma imagem no cardápio

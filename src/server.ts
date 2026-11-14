@@ -4,6 +4,7 @@ import { aplicarCabecalhosSeguranca } from "./lib/cabecalhos-seguranca";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { diagnosticarSaidaEmail } from "./lib/diagnostico-email.server";
+import { destinoFormularioPublico } from "./lib/formulario-publico-url.server";
 import { garantirInstalacaoInicial } from "./lib/instalacao-inicial.server";
 
 type ServerEntry = {
@@ -56,8 +57,16 @@ export default {
     diagnosticarSaidaEmail();
     try {
       await garantirInstalacaoInicial();
-      const handler = await getServerEntry();
-      response = await normalizeCatastrophicSsrResponse(await handler.fetch(request, env, ctx));
+      const destino =
+        request.method === "GET" || request.method === "HEAD"
+          ? destinoFormularioPublico(request.url)
+          : null;
+      if (destino) {
+        response = Response.redirect(destino, 307);
+      } else {
+        const handler = await getServerEntry();
+        response = await normalizeCatastrophicSsrResponse(await handler.fetch(request, env, ctx));
+      }
     } catch (error) {
       console.error(error);
       response = new Response(renderErrorPage(), {

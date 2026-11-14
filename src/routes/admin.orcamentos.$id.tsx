@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { obterEmpresa } from "@/features/empresa/server-functions";
+import { AdicionaisOrcamento } from "@/features/orcamentos/adicionais-orcamento";
 import { DescontoOrcamento } from "@/features/orcamentos/desconto-orcamento";
 import {
   aprovarOrcamento,
@@ -218,6 +219,11 @@ function DetalheOrcamento() {
                 <p className="text-muted-foreground text-xs">{evento?.convidados} convidados</p>
               </div>
             </div>
+
+            <AdicionaisOrcamento
+              itens={dados.orcamento.evento.servicosAdicionais}
+              className="mb-6"
+            />
 
             <div className="overflow-x-auto">
               <table className="w-full sm:min-w-[620px] text-left text-sm">

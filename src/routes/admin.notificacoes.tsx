@@ -1,17 +1,22 @@
+import { useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { AtivarPush } from "@/features/notificacoes/ativar-push";
+import { avisarNotificacoesAtualizadas } from "@/features/notificacoes/eventos-cliente";
 import {
   gerarLembretesOperacionais,
+  limparNotificacoes,
   listarNotificacoes,
   marcarNotificacaoLida,
   marcarTodasLidas,
 } from "@/features/notificacoes/server-functions";
+import { useConfirmar } from "@/lib/confirmacao";
 import { formatDate } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
 import { cn } from "@/lib/utils";
@@ -23,12 +28,43 @@ export const Route = createFileRoute("/admin/notificacoes")({
 });
 
 function Notificacoes() {
-  const { items: lista } = Route.useLoaderData();
+  const { items: lista, naoLidas } = Route.useLoaderData();
   const marcarUma = useServerFn(marcarNotificacaoLida);
   const marcarTodas = useServerFn(marcarTodasLidas);
+  const limparTodas = useServerFn(limparNotificacoes);
   const gerarLembretes = useServerFn(gerarLembretesOperacionais);
+  const confirmar = useConfirmar();
   const router = useRouter();
-  const naoLidas = lista.filter((n) => !n.lida).length;
+  const [limpando, setLimpando] = useState(false);
+
+  async function limpar() {
+    const ok = await confirmar({
+      titulo: "Limpar todas as notificações?",
+      descricao:
+        "Todo o histórico de notificações será excluído. Isso não desativa os próximos avisos no celular.",
+      textoConfirmar: "Limpar notificações",
+      perigoso: true,
+    });
+    if (!ok) return;
+
+    setLimpando(true);
+    try {
+      const resultado = await limparTodas();
+      await router.invalidate();
+      avisarNotificacoesAtualizadas();
+      toast.success(
+        resultado.removidas === 1
+          ? "1 notificação removida."
+          : `${resultado.removidas} notificações removidas.`,
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Não foi possível limpar as notificações.",
+      );
+    } finally {
+      setLimpando(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -42,9 +78,10 @@ function Notificacoes() {
               onClick={() => {
                 void gerarLembretes()
                   .then((resultado) => router.invalidate().then(() => resultado))
-                  .then((resultado) =>
-                    toast.success(`${resultado.notificacoesCriadas} lembrete(s) criado(s).`),
-                  )
+                  .then((resultado) => {
+                    avisarNotificacoesAtualizadas();
+                    toast.success(`${resultado.notificacoesCriadas} lembrete(s) criado(s).`);
+                  })
                   .catch(() => toast.error("Não foi possível atualizar os lembretes."));
               }}
             >
@@ -56,10 +93,26 @@ function Notificacoes() {
               onClick={() => {
                 void marcarTodas()
                   .then(() => router.invalidate())
-                  .then(() => toast.success("Todas marcadas como lidas."));
+                  .then(() => {
+                    avisarNotificacoesAtualizadas();
+                    toast.success("Todas marcadas como lidas.");
+                  });
               }}
             >
               Marcar todas como lidas
+            </Button>
+            <Button
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              disabled={!lista.length || limpando}
+              onClick={() => void limpar()}
+            >
+              {limpando ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
+              Limpar notificações
             </Button>
           </div>
         }
@@ -78,7 +131,9 @@ function Notificacoes() {
                     !n.lida && "bg-brand/5",
                   )}
                   onClick={() =>
-                    void marcarUma({ data: { id: n.id } }).then(() => router.invalidate())
+                    void marcarUma({ data: { id: n.id } })
+                      .then(() => router.invalidate())
+                      .then(avisarNotificacoesAtualizadas)
                   }
                 >
                   <span

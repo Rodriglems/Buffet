@@ -45,7 +45,7 @@ import {
   enviarSolicitacaoOrcamento,
 } from "@/features/orcamentos/solicitacao-publica";
 import { login, logout } from "@/features/auth/server-functions";
-import { desativarPush } from "@/features/notificacoes/push-cliente";
+import { desvincularPushAoSair, sincronizarPush } from "@/features/notificacoes/push-cliente";
 import { SERVICOS_ADICIONAIS, TIPOS_EVENTO, type ServicoAdicional } from "@/lib/catalogo";
 import { formatBRL } from "@/lib/format";
 import { aplicarCor } from "@/lib/theme-accent";
@@ -53,15 +53,24 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/solicitar-orcamento/$token")({
   loader: async ({ params }) => obterFormularioOrcamento({ data: { token: params.token } }),
-  head: ({ loaderData }) => ({
-    meta: [
-      { title: `Monte seu cardápio — ${loaderData?.nomeFantasia ?? "Buffet"}` },
-      {
-        name: "description",
-        content: "Conte sobre seu evento, escolha o cardápio e receba uma proposta personalizada.",
-      },
-    ],
-  }),
+  head: ({ loaderData }) => {
+    const titulo = `Monte seu cardápio — ${loaderData?.nomeFantasia ?? "Buffet"}`;
+    const descricao =
+      "Conte sobre seu evento, escolha o cardápio e receba uma proposta personalizada.";
+    const imagem = loaderData?.logoOrcamentoUrl ?? loaderData?.logoUrl;
+
+    return {
+      meta: [
+        { title: titulo },
+        { name: "description", content: descricao },
+        { property: "og:title", content: titulo },
+        { property: "og:description", content: descricao },
+        ...(loaderData?.urlPublica ? [{ property: "og:url", content: loaderData.urlPublica }] : []),
+        ...(imagem ? [{ property: "og:image", content: imagem }] : []),
+      ],
+      links: loaderData?.urlPublica ? [{ rel: "canonical", href: loaderData.urlPublica }] : [],
+    };
+  },
   component: SolicitarOrcamento,
 });
 
@@ -263,6 +272,7 @@ function SolicitarOrcamento() {
         setErro("Este acesso não é de um cliente deste buffet.");
         return;
       }
+      await sincronizarPush().catch(() => {});
       usarClienteConectado(cliente);
       setAcessoCliente({ email: "", senha: "" });
     } catch (error) {
@@ -273,7 +283,7 @@ function SolicitarOrcamento() {
   }
 
   async function sair() {
-    await desativarPush().catch(() => {});
+    await desvincularPushAoSair().catch(() => {});
     await sairDaConta().catch(() => {});
     setConectado(null);
     setModo("cliente");

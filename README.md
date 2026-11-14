@@ -65,5 +65,6 @@ Todas estão documentadas em [`.env.example`](.env.example). As obrigatórias em
 - `DATABASE_URL` (fora do Docker) ou `POSTGRES_*` (com Docker Compose);
 - `SESSION_SECRET`: chave aleatória com pelo menos 32 caracteres;
 - `APP_URL`: endereço público do sistema, usado nos links enviados por e-mail;
+- `FORMULARIO_PUBLICO_URL`: domínio exclusivo para divulgar o cardápio e o formulário;
 - `SMTP_*` e `EMAIL_FROM`: envio de e-mails (recuperação de senha e avisos);
 - `R2_*`: armazenamento das imagens do cardápio e da logo.

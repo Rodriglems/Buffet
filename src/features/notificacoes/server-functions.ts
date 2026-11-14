@@ -52,6 +52,15 @@ export const marcarTodasLidas = createServerFn({ method: "POST" }).handler(async
   return { ok: true };
 });
 
+/** Remove todo o histórico de notificações da pessoa conectada. */
+export const limparNotificacoes = createServerFn({ method: "POST" }).handler(async () => {
+  const auth = await requireAuth();
+  const resultado = await getPrisma().notificacao.deleteMany({
+    where: { usuarioId: auth.usuarioId },
+  });
+  return { removidas: resultado.count };
+});
+
 export const gerarLembretesOperacionais = createServerFn({ method: "POST" }).handler(async () => {
   const auth = await requirePermission("notificacoes");
   const inicio = new Date();

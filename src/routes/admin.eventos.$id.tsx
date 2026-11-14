@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Check,
@@ -34,12 +34,8 @@ import {
 import { ConviteClienteDialog } from "@/features/clientes/convite-dialog";
 import { gerarConviteCliente } from "@/features/clientes/convites";
 import { AlterarStatusEvento } from "@/features/eventos/alterar-status-evento";
-import {
-  confirmarEvento,
-  excluirEvento,
-  finalizarEvento,
-  obterEvento,
-} from "@/features/eventos/server-functions";
+import { confirmarEvento, finalizarEvento, obterEvento } from "@/features/eventos/server-functions";
+import { AdicionaisOrcamento } from "@/features/orcamentos/adicionais-orcamento";
 import { DescontoOrcamento } from "@/features/orcamentos/desconto-orcamento";
 import { EditarOrcamentoDialog } from "@/features/orcamentos/editar-orcamento-dialog";
 import { aprovarOrcamento, enviarOrcamento } from "@/features/orcamentos/server-functions";
@@ -88,11 +84,6 @@ function DetalheEvento() {
     .reduce((soma, item) => soma + Number(item.valor), 0);
   const [editando, setEditando] = useState(false);
   const [convidando, setConvidando] = useState(false);
-  const [excluindo, setExcluindo] = useState(false);
-  const navigate = useNavigate();
-  const router = useRouter();
-  const excluir = useServerFn(excluirEvento);
-  const pedirConfirmacao = useConfirmar();
   const encerrado = ["CANCELADO", "FINALIZADO"].includes(evento.status);
   const botaoWhatsApp = evento.cliente.whatsapp ? (
     <Button
@@ -117,42 +108,6 @@ function DetalheEvento() {
     </Button>
   ) : null;
 
-  async function removerEvento() {
-    // Mesma regra do servidor, avisada antes de pedir a confirmação.
-    const motivo = recebido
-      ? "Este evento tem pagamento recebido. Desfaça o recebimento antes de excluir, ou cancele o evento."
-      : evento.custos.length
-        ? "Este evento tem custos lançados. Remova os custos ou cancele o evento."
-        : evento.documentos.length
-          ? "Este evento tem documentos. Remova os documentos ou cancele o evento."
-          : null;
-    if (motivo) {
-      toast.error(motivo);
-      return;
-    }
-    const removidos = [
-      evento.orcamentos.length ? `${evento.orcamentos.length} orçamento(s)` : null,
-      parcelas.length ? `${parcelas.length} parcela(s)` : null,
-    ].filter(Boolean);
-    const ok = await pedirConfirmacao({
-      titulo: `Excluir o evento de ${evento.nome}?`,
-      descricao: `${removidos.length ? `Também serão apagados ${removidos.join(" e ")}. ` : ""}O evento sai da agenda, do financeiro e do portal do cliente. O cadastro do cliente continua. Essa ação não pode ser desfeita.`,
-      textoConfirmar: "Excluir evento",
-      perigoso: true,
-    });
-    if (!ok) return;
-    setExcluindo(true);
-    try {
-      await excluir({ data: { id: evento.id } });
-      toast.success("Evento excluído.");
-      await router.invalidate();
-      await navigate({ to: "/admin/eventos" });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível excluir o evento.");
-      setExcluindo(false);
-    }
-  }
-
   return (
     // Espaço extra no fim para a barra fixa de etapas não cobrir o conteúdo.
     <div className="flex flex-col gap-4 pb-28">
@@ -174,23 +129,8 @@ function DetalheEvento() {
               {evento.formatoServico ? `${evento.formatoServico} · ` : ""}
               {evento.quantidadeConvidados} convidados
             </p>
-            {evento.servicosAdicionais.length ? (
-              <p className="text-muted-foreground mt-1 text-xs">
-                Adicionais: {evento.servicosAdicionais.join(", ")}
-              </p>
-            ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <AlterarStatusEvento eventoId={evento.id} status={evento.status} />
-            <Button
-              variant="ghost"
-              className="text-destructive hover:text-destructive"
-              disabled={excluindo}
-              onClick={() => void removerEvento()}
-            >
-              <Trash2 className="size-4" /> Excluir evento
-            </Button>
-          </div>
+          <AlterarStatusEvento eventoId={evento.id} status={evento.status} />
         </div>
       </Panel>
       <Panel className="p-5">
@@ -247,6 +187,7 @@ function DetalheEvento() {
                 </tbody>
               </table>
             </div>
+            <AdicionaisOrcamento itens={evento.servicosAdicionais} className="mt-4" />
             <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="w-full max-w-sm empty:hidden">
                 {encerrado ? null : (

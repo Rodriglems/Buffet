@@ -1,6 +1,7 @@
 import { CalendarDays, MapPin, Users, Utensils } from "lucide-react";
 
 import { StatusBadge } from "@/components/status-badge";
+import { AdicionaisOrcamento } from "@/features/orcamentos/adicionais-orcamento";
 import type { obterOrcamento } from "@/features/orcamentos/server-functions";
 import { formatBRL, formatDate } from "@/lib/format";
 
@@ -72,12 +73,7 @@ export function ResumoPedido({ orcamento }: { orcamento: Orcamento }) {
         </div>
       </div>
 
-      {evento.servicosAdicionais.length ? (
-        <p className="text-muted-foreground text-sm">
-          <span className="text-foreground font-medium">Serviços adicionais: </span>
-          {evento.servicosAdicionais.join(", ")}
-        </p>
-      ) : null}
+      <AdicionaisOrcamento itens={evento.servicosAdicionais} />
 
       <div className="border-border flex flex-wrap items-end justify-between gap-3 border-t pt-4">
         <p className="text-muted-foreground max-w-md text-xs">
