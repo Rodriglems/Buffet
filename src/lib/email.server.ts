@@ -1,5 +1,7 @@
 import { createTransport, type Transporter } from "nodemailer";
 
+import { corpoBrevo, meioDeEnvio, remetenteDe, type Mensagem } from "@/lib/email-envio";
+
 type EmailConfig = {
   from: string;
   host: string;
@@ -61,20 +63,45 @@ function escapeHtml(value: string): string {
   );
 }
 
-export async function enviarEmail(input: {
-  destinatario: string;
-  assunto: string;
-  texto: string;
-  html?: string;
-}): Promise<void> {
+async function enviarPorSmtp(mensagem: Mensagem): Promise<void> {
   const config = getEmailConfig();
   await getTransporter(config).sendMail({
     from: config.from,
-    to: input.destinatario,
-    subject: input.assunto,
-    text: input.texto,
-    html: input.html,
+    to: mensagem.destinatario,
+    subject: mensagem.assunto,
+    text: mensagem.texto,
+    html: mensagem.html,
   });
+}
+
+async function enviarPeloBrevo(mensagem: Mensagem): Promise<void> {
+  const chave = process.env["BREVO_API_KEY"]?.trim() ?? "";
+  const from = process.env["EMAIL_FROM"]?.trim() || process.env["SMTP_USER"]?.trim();
+  if (!from) throw new Error("Com BREVO_API_KEY, defina também EMAIL_FROM (remetente).");
+  const resposta = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: { "api-key": chave, "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify(corpoBrevo(mensagem, remetenteDe(from))),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!resposta.ok) {
+    const detalhe = await resposta
+      .json()
+      .then((corpo: { message?: string }) => corpo.message)
+      .catch(() => undefined);
+    throw new Error(
+      `O Brevo recusou o envio (HTTP ${resposta.status}): ${detalhe ?? "sem detalhe"}`,
+    );
+  }
+}
+
+/** Único ponto de saída dos e-mails: Brevo quando há BREVO_API_KEY, senão SMTP. */
+function entregar(mensagem: Mensagem): Promise<void> {
+  return meioDeEnvio(process.env) === "brevo" ? enviarPeloBrevo(mensagem) : enviarPorSmtp(mensagem);
+}
+
+export async function enviarEmail(input: Mensagem): Promise<void> {
+  await entregar(input);
 }
 
 export async function enviarEmailConvite(input: {
@@ -83,17 +110,15 @@ export async function enviarEmailConvite(input: {
   nomeEmpresa: string;
   token: string;
 }): Promise<void> {
-  const config = getEmailConfig();
   const link = `${getAppUrl()}/ativar-acesso?token=${encodeURIComponent(input.token)}`;
   const nome = escapeHtml(input.nome);
   const nomeEmpresa = escapeHtml(input.nomeEmpresa);
   const linkSeguro = escapeHtml(link);
 
-  await getTransporter(config).sendMail({
-    from: config.from,
-    to: input.destinatario,
-    subject: `Seu acesso ao portal — ${input.nomeEmpresa}`,
-    text: `Olá, ${input.nome}. Crie sua senha para acompanhar seus eventos e orçamentos com ${input.nomeEmpresa}. O link vale por 7 dias e só pode ser usado uma vez:\n\n${link}\n\nSe você não reconhece este convite, ignore este e-mail.`,
+  await entregar({
+    destinatario: input.destinatario,
+    assunto: `Seu acesso ao portal — ${input.nomeEmpresa}`,
+    texto: `Olá, ${input.nome}. Crie sua senha para acompanhar seus eventos e orçamentos com ${input.nomeEmpresa}. O link vale por 7 dias e só pode ser usado uma vez:\n\n${link}\n\nSe você não reconhece este convite, ignore este e-mail.`,
     html: `
       <div style="background:#f5f5f4;padding:32px 16px;font-family:Arial,sans-serif;color:#171717">
         <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:32px;border:1px solid #e7e5e4">
@@ -114,16 +139,14 @@ export async function enviarEmailRecuperacaoSenha(input: {
   nome: string;
   token: string;
 }): Promise<void> {
-  const config = getEmailConfig();
   const link = `${getAppUrl()}/redefinir-senha?token=${encodeURIComponent(input.token)}`;
   const nome = escapeHtml(input.nome);
   const linkSeguro = escapeHtml(link);
 
-  await getTransporter(config).sendMail({
-    from: config.from,
-    to: input.destinatario,
-    subject: "Redefinição de senha — Mesly",
-    text: `Olá, ${input.nome}. Recebemos uma solicitação para redefinir sua senha do Mesly. Acesse o link abaixo em até 30 minutos:\n\n${link}\n\nSe você não fez esta solicitação, ignore este e-mail.`,
+  await entregar({
+    destinatario: input.destinatario,
+    assunto: "Redefinição de senha — Mesly",
+    texto: `Olá, ${input.nome}. Recebemos uma solicitação para redefinir sua senha do Mesly. Acesse o link abaixo em até 30 minutos:\n\n${link}\n\nSe você não fez esta solicitação, ignore este e-mail.`,
     html: `
       <div style="background:#f5f5f4;padding:32px 16px;font-family:Arial,sans-serif;color:#171717">
         <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:32px;border:1px solid #e7e5e4">

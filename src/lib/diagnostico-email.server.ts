@@ -2,6 +2,7 @@ import { promises as dns } from "node:dns";
 import { connect } from "node:net";
 
 import { concluirDiagnostico, type ResultadoTeste } from "@/lib/diagnostico-email";
+import { meioDeEnvio } from "@/lib/email-envio";
 
 const ESPERA_MS = 8_000;
 const PREFIXO = "[diagnóstico de e-mail]";
@@ -41,7 +42,8 @@ async function primeiroEndereco(host: string, versao: 4 | 6): Promise<string | n
  */
 export function diagnosticarSaidaEmail(): void {
   const host = process.env["SMTP_HOST"]?.trim();
-  if (executado || !host) return;
+  // Com o Brevo por API o SMTP não é usado: não há porta de e-mail para testar.
+  if (executado || !host || meioDeEnvio(process.env) === "brevo") return;
   executado = true;
 
   void (async () => {
