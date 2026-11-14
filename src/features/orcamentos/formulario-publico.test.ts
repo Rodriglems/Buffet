@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { descreverEscolha, normalizarBusca, obterDataMinimaEvento } from "./formulario-publico";
+import {
+  descreverEscolha,
+  intervaloHorarioValido,
+  normalizarBusca,
+  obterDataMinimaEvento,
+  textoHorarioEvento,
+} from "./formulario-publico";
 
 test("descreve a opção escolhida sem repetir o rótulo", () => {
   assert.equal(
@@ -20,4 +26,12 @@ test("permite eventos a partir do dia de hoje", () => {
 
 test("normaliza textos do catálogo para busca", () => {
   assert.equal(normalizarBusca("Café À Bolonhesa"), "cafe a bolonhesa");
+});
+
+test("valida e descreve o horário solicitado para o evento", () => {
+  assert.equal(intervaloHorarioValido("19:00", "23:00"), true);
+  assert.equal(intervaloHorarioValido("19:00", "18:30"), false);
+  assert.equal(intervaloHorarioValido("19:00", ""), true);
+  assert.equal(textoHorarioEvento("19:00", "23:00"), "19:00 às 23:00");
+  assert.equal(textoHorarioEvento("19:00", ""), "19:00");
 });

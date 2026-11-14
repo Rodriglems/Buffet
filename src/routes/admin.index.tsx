@@ -21,7 +21,7 @@ import { listarEventos } from "@/features/eventos/server-functions";
 import { obterResumoFinanceiro } from "@/features/financeiro/server-functions";
 import { listarOrcamentos } from "@/features/orcamentos/server-functions";
 import { listarPagamentos } from "@/features/pagamentos/server-functions";
-import { formatBRLShort, formatDate } from "@/lib/format";
+import { formatBRLShort, formatDate, formatTime } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
 import { rotuloStatusEvento } from "@/lib/status-evento";
 
@@ -189,12 +189,7 @@ function Dashboard() {
       .map((evento) => ({
         id: `evento-${evento.id}`,
         icon: CalendarDays,
-        quando: evento.horaInicio
-          ? new Date(evento.horaInicio).toLocaleTimeString("pt-BR", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : "Horário a definir",
+        quando: evento.horaInicio ? formatTime(evento.horaInicio) : "Horário a definir",
         oque: `${evento.nome} · ${evento.local}`,
         href: `/admin/eventos/${evento.id}`,
       })),

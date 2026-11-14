@@ -35,8 +35,10 @@ import {
   DADOS_INICIAIS_FORMULARIO,
   descreverEscolha,
   ETAPAS_FORMULARIO,
+  intervaloHorarioValido,
   normalizarBusca,
   obterDataMinimaEvento,
+  textoHorarioEvento,
   type DadosFormularioOrcamento,
 } from "@/features/orcamentos/formulario-publico";
 import {
@@ -314,6 +316,11 @@ export function FormularioOrcamento({
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
+    if (!intervaloHorarioValido(dados.horaInicio, dados.horaFim)) {
+      setErro("O horário de término deve ser posterior ao início do evento.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     if (!formulario?.reportValidity()) return;
     setErro(null);
     setEtapa(2);
@@ -360,6 +367,8 @@ export function FormularioOrcamento({
           formatoServico: formato,
           servicosAdicionais: adicionais,
           dataEvento: new Date(`${dados.dataEvento}T12:00:00`),
+          horaInicio: dados.horaInicio,
+          horaFim: dados.horaFim || null,
           quantidadeConvidados: Number(dados.quantidadeConvidados),
           localNome: dados.localNome || null,
           cidade: dados.cidade || null,
@@ -817,6 +826,24 @@ export function FormularioOrcamento({
                     required
                   />
                   <Field
+                    label="Horário de início"
+                    name="horaInicio"
+                    type="time"
+                    step="900"
+                    value={dados.horaInicio}
+                    onChange={(e) => atualizar("horaInicio", e.target.value)}
+                    required
+                  />
+                  <Field
+                    label="Horário de término (opcional)"
+                    name="horaFim"
+                    type="time"
+                    step="900"
+                    min={dados.horaInicio || undefined}
+                    value={dados.horaFim}
+                    onChange={(e) => atualizar("horaFim", e.target.value)}
+                  />
+                  <Field
                     label="Número de convidados"
                     name="quantidadeConvidados"
                     type="number"
@@ -1174,6 +1201,9 @@ export function FormularioOrcamento({
                     <p>
                       {dados.dataEvento
                         ? new Date(`${dados.dataEvento}T12:00:00`).toLocaleDateString("pt-BR")
+                        : ""}
+                      {dados.horaInicio
+                        ? ` · ${textoHorarioEvento(dados.horaInicio, dados.horaFim)}`
                         : ""}
                       {dados.cidade ? ` · ${dados.cidade}` : ""}
                     </p>

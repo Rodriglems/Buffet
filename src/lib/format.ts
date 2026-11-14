@@ -23,6 +23,22 @@ export function formatDateTime(iso: string, time: string): string {
   return `${formatDate(iso)} às ${time}`;
 }
 
+/** Colunas TIME chegam serializadas em UTC; não aplica o fuso local do navegador. */
+export function formatTime(value: string | Date): string {
+  const data = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(data.getTime())) return String(value);
+  return data.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+  });
+}
+
+export function formatTimeRange(inicio: string | Date, fim?: string | Date | null): string {
+  const inicioFormatado = formatTime(inicio);
+  return fim ? `${inicioFormatado} às ${formatTime(fim)}` : inicioFormatado;
+}
+
 export function formatPercent(value: number): string {
   return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 }

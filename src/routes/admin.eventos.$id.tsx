@@ -50,7 +50,7 @@ import {
 } from "@/features/pagamentos/server-functions";
 import { caminhoDoConvite } from "@/lib/acesso-cliente";
 import { useConfirmar } from "@/lib/confirmacao";
-import { formatBRL, formatDate } from "@/lib/format";
+import { formatBRL, formatDate, formatTimeRange } from "@/lib/format";
 import { createWhatsAppUrl } from "@/lib/sharing";
 import { acaoDaEtapa, ETAPAS_EVENTO, rotuloStatusEvento } from "@/lib/status-evento";
 import { cn } from "@/lib/utils";
@@ -115,7 +115,9 @@ function DetalheEvento() {
     <div className="flex flex-col gap-4 pb-28">
       <PageHeader
         title={evento.nome}
-        subtitle={`${evento.tipo} · ${formatDate(evento.dataEvento)} · ${evento.localNome ?? "Local a definir"}`}
+        subtitle={`${evento.tipo} · ${formatDate(evento.dataEvento)}${
+          evento.horaInicio ? ` · ${formatTimeRange(evento.horaInicio, evento.horaFim)}` : ""
+        } · ${evento.localNome ?? "Local a definir"}`}
         actions={orcamentoAtual ? null : botaoWhatsApp}
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

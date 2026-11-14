@@ -27,7 +27,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { listarEventos } from "@/features/eventos/server-functions";
 import { obterLinkFormularioOrcamento } from "@/features/orcamentos/solicitacao-publica";
-import { formatBRL, formatDate } from "@/lib/format";
+import { formatBRL, formatDate, formatTime } from "@/lib/format";
 import { rotuloStatusEvento } from "@/lib/status-evento";
 import { usePlaceholderBusca } from "@/lib/placeholder-busca";
 import { copiarTexto } from "@/lib/copiar-texto";
@@ -408,13 +408,8 @@ function EventosPage() {
                               {e.nome}
                             </Link>
                             <p className="text-muted-foreground text-[11px]">
-                              {e.horaInicio
-                                ? new Date(e.horaInicio).toLocaleTimeString("pt-BR", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })
-                                : "Horário a definir"}{" "}
-                              · {e.localNome ?? "Local a definir"}
+                              {e.horaInicio ? formatTime(e.horaInicio) : "Horário a definir"} ·{" "}
+                              {e.localNome ?? "Local a definir"}
                             </p>
                           </div>
                           <StatusBadge status={e.status} dot={false} />

@@ -25,8 +25,9 @@ export type DadosPdfEvento = {
   convidados: number;
   /** Data do evento em UTC (coluna DATE do banco). */
   data: Date;
-  /** Horário em UTC (coluna TIME do banco), quando informado. */
-  horario: Date | null;
+  /** Horários em UTC (colunas TIME do banco), quando informados. */
+  horarioInicio: Date | null;
+  horarioFim: Date | null;
   endereco: string | null;
   itens: string[];
   /** Formato do serviço escolhido no pedido, ex.: "Jantar". */
@@ -67,6 +68,18 @@ export function formatarDataEvento(data: Date): string {
   const diaMes = data.toLocaleDateString("pt-BR", { ...opcoes, day: "2-digit", month: "2-digit" });
   const semana = data.toLocaleDateString("pt-BR", { ...opcoes, weekday: "long" });
   return `${diaMes} (${semana})`;
+}
+
+function formatarHora(horario: Date): string {
+  return `${String(horario.getUTCHours()).padStart(2, "0")}:${String(
+    horario.getUTCMinutes(),
+  ).padStart(2, "0")}`;
+}
+
+export function formatarHorarioEvento(inicio: Date | null, fim: Date | null): string | null {
+  if (!inicio) return null;
+  const inicioFormatado = formatarHora(inicio);
+  return fim ? `${inicioFormatado} às ${formatarHora(fim)}` : inicioFormatado;
 }
 
 function formatarMoeda(valor: number): string {
@@ -266,14 +279,8 @@ function desenharEvento({ pdf, negrito, italico, logo }: Recursos, dados: DadosP
     `DATA: ${formatarDataEvento(dados.data)}`,
   );
   linha(`ENDEREÇO DE ENTREGA: ${dados.endereco ?? "a definir"}`);
-  if (dados.horario) {
-    const hora = `${String(dados.horario.getUTCHours()).padStart(2, "0")}:${String(
-      dados.horario.getUTCMinutes(),
-    ).padStart(2, "0")}`;
-    linha(`ENTREGAR: Às ${hora} horas`);
-  } else {
-    linha("ENTREGAR: horário a definir");
-  }
+  const horarioEvento = formatarHorarioEvento(dados.horarioInicio, dados.horarioFim);
+  linha(`HORÁRIO DO EVENTO: ${horarioEvento ?? "a definir"}`);
 
   y -= entrelinha;
   linha("MENU");

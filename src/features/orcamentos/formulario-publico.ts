@@ -13,6 +13,8 @@ export type DadosFormularioOrcamento = {
   tipoEventoOutro: string;
   formatoServico: string;
   dataEvento: string;
+  horaInicio: string;
+  horaFim: string;
   quantidadeConvidados: string;
   localNome: string;
   cidade: string;
@@ -30,6 +32,8 @@ export const DADOS_INICIAIS_FORMULARIO: DadosFormularioOrcamento = {
   tipoEventoOutro: "",
   formatoServico: "",
   dataEvento: "",
+  horaInicio: "",
+  horaFim: "",
   quantidadeConvidados: "",
   localNome: "",
   cidade: "",
@@ -47,6 +51,15 @@ export function obterDataMinimaEvento(dataAtual = new Date()): string {
     String(data.getMonth() + 1).padStart(2, "0"),
     String(data.getDate()).padStart(2, "0"),
   ].join("-");
+}
+
+export function intervaloHorarioValido(inicio: string, fim: string): boolean {
+  return !fim || fim > inicio;
+}
+
+export function textoHorarioEvento(inicio: string, fim: string): string {
+  if (!inicio) return "Horário a definir";
+  return fim ? `${inicio} às ${fim}` : inicio;
 }
 
 /**

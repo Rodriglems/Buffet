@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { listarEventos } from "@/features/eventos/server-functions";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatTimeRange } from "@/lib/format";
 import { pageMeta } from "@/lib/meta";
 import { downloadCalendarFile } from "@/lib/sharing";
 import { rotuloStatusEvento } from "@/lib/status-evento";
@@ -43,14 +43,7 @@ function MeusEventos() {
             </div>
             <div>
               <dt className="text-muted-foreground text-[11px] uppercase">Horário</dt>
-              <dd>
-                {e.horaInicio
-                  ? new Date(e.horaInicio).toLocaleTimeString("pt-BR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : "A definir"}
-              </dd>
+              <dd>{e.horaInicio ? formatTimeRange(e.horaInicio, e.horaFim) : "A definir"}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground text-[11px] uppercase">Convidados</dt>

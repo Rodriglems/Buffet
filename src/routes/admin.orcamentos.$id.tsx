@@ -28,7 +28,7 @@ import {
   enviarOrcamento,
   obterOrcamento,
 } from "@/features/orcamentos/server-functions";
-import { formatBRL, formatDate } from "@/lib/format";
+import { formatBRL, formatDate, formatTimeRange } from "@/lib/format";
 import { createWhatsAppUrl } from "@/lib/sharing";
 import { telefoneDe } from "@/lib/empresa-cabecalho";
 
@@ -72,17 +72,8 @@ function DetalheOrcamento() {
     data: dados.orcamento.evento.dataEvento,
     local: dados.orcamento.evento.localNome ?? "Local a definir",
     convidados: dados.orcamento.evento.quantidadeConvidados,
-    horaInicio: dados.orcamento.evento.horaInicio
-      ? new Date(dados.orcamento.evento.horaInicio).toLocaleTimeString("pt-BR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "a definir",
-    horaFim: dados.orcamento.evento.horaFim
-      ? new Date(dados.orcamento.evento.horaFim).toLocaleTimeString("pt-BR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
+    horario: dados.orcamento.evento.horaInicio
+      ? formatTimeRange(dados.orcamento.evento.horaInicio, dados.orcamento.evento.horaFim)
       : "a definir",
   };
   const empresa = {
@@ -214,8 +205,7 @@ function DetalheOrcamento() {
                 <p className="text-muted-foreground text-[11px] tracking-wide uppercase">Evento</p>
                 <p className="mt-1 text-sm font-medium">{evento?.nome}</p>
                 <p className="text-muted-foreground text-xs">
-                  {evento &&
-                    `${formatDate(evento.data)} · ${evento.horaInicio} às ${evento.horaFim}`}
+                  {evento && `${formatDate(evento.data)} · ${evento.horario}`}
                 </p>
                 <p className="text-muted-foreground text-xs">{evento?.local}</p>
                 <p className="text-muted-foreground text-xs">{evento?.convidados} convidados</p>

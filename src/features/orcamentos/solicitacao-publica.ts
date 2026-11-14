@@ -18,31 +18,44 @@ import { telefoneDe } from "@/lib/empresa-cabecalho";
 import { mesmoTelefone } from "@/lib/telefone";
 
 const tokenSchema = z.object({ token: z.string().uuid() });
+const horarioSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido.");
 
-const solicitacaoSchema = tokenSchema.extend({
-  nome: z.string().trim().min(2).max(160),
-  email: z.string().trim().email().toLowerCase(),
-  telefone: phoneSchema,
-  whatsapp: whatsappSchema,
-  tipoEvento: z.string().trim().min(2).max(100),
-  formatoServico: z.string().trim().min(2).max(100),
-  servicosAdicionais: z
-    .array(z.enum(SERVICOS_ADICIONAIS))
-    .max(SERVICOS_ADICIONAIS.length)
-    .default([]),
-  dataEvento: z.coerce.date(),
-  quantidadeConvidados: z.coerce.number().int().positive().max(100000),
-  localNome: z.string().trim().max(160).nullable().optional(),
-  cidade: z.string().trim().max(120).nullable().optional(),
-  observacoes: z.string().trim().max(4000).nullable().optional(),
-  servicosIds: z.array(z.string().uuid()).min(1).max(300),
-  // Opção escolhida para cada item que pede uma escolha (ex.: { massaId: recheioId }).
-  escolhas: z.record(z.string().uuid(), z.string().uuid()).default({}),
-  // Senha curta (a partir de 4 dígitos) é aceita porque o login bloqueia tentativas repetidas.
-  // Cliente já conectado não envia senha: o pedido vai para a conta da sessão.
-  senha: z.string().max(200).default(""),
-  website: z.string().max(0).optional(),
-});
+const solicitacaoSchema = tokenSchema
+  .extend({
+    nome: z.string().trim().min(2).max(160),
+    email: z.string().trim().email().toLowerCase(),
+    telefone: phoneSchema,
+    whatsapp: whatsappSchema,
+    tipoEvento: z.string().trim().min(2).max(100),
+    formatoServico: z.string().trim().min(2).max(100),
+    servicosAdicionais: z
+      .array(z.enum(SERVICOS_ADICIONAIS))
+      .max(SERVICOS_ADICIONAIS.length)
+      .default([]),
+    dataEvento: z.coerce.date(),
+    horaInicio: horarioSchema,
+    horaFim: horarioSchema.nullable().optional(),
+    quantidadeConvidados: z.coerce.number().int().positive().max(100000),
+    localNome: z.string().trim().max(160).nullable().optional(),
+    cidade: z.string().trim().max(120).nullable().optional(),
+    observacoes: z.string().trim().max(4000).nullable().optional(),
+    servicosIds: z.array(z.string().uuid()).min(1).max(300),
+    // Opção escolhida para cada item que pede uma escolha (ex.: { massaId: recheioId }).
+    escolhas: z.record(z.string().uuid(), z.string().uuid()).default({}),
+    // Senha curta (a partir de 4 dígitos) é aceita porque o login bloqueia tentativas repetidas.
+    // Cliente já conectado não envia senha: o pedido vai para a conta da sessão.
+    senha: z.string().max(200).default(""),
+    website: z.string().max(0).optional(),
+  })
+  .superRefine((dados, contexto) => {
+    if (dados.horaFim && dados.horaFim <= dados.horaInicio) {
+      contexto.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["horaFim"],
+        message: "O horário de término deve ser posterior ao início do evento.",
+      });
+    }
+  });
 
 function validarSolicitacao(value: unknown) {
   const resultado = solicitacaoSchema.safeParse(value);
@@ -54,6 +67,13 @@ function validarSolicitacao(value: unknown) {
   }
   if (camposInvalidos.has("telefone") || camposInvalidos.has("whatsapp")) {
     throw new Error("Informe um telefone e WhatsApp válidos, incluindo o DDD.");
+  }
+  if (camposInvalidos.has("horaInicio") || camposInvalidos.has("horaFim")) {
+    throw new Error(
+      resultado.error.issues.find((issue) =>
+        ["horaInicio", "horaFim"].includes(String(issue.path[0])),
+      )?.message ?? "Informe um horário válido para o evento.",
+    );
   }
 
   throw new Error("Revise os campos do formulário e tente novamente.");
@@ -354,6 +374,8 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
           formatoServico: data.formatoServico,
           servicosAdicionais: data.servicosAdicionais,
           dataEvento: data.dataEvento,
+          horaInicio: paraHorario(data.horaInicio),
+          horaFim: paraHorario(data.horaFim),
           quantidadeConvidados: data.quantidadeConvidados,
           localNome: data.localNome,
           cidade: data.cidade,
