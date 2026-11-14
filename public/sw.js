@@ -7,7 +7,7 @@
  * - Recebe as notificações push e abre a página certa ao tocar nelas.
  * Ao mudar este arquivo, troque VERSAO para descartar o cache antigo.
  */
-const VERSAO = "mesly-v3";
+const VERSAO = "mesly-v4";
 const OFFLINE = "/offline.html";
 const PRE_CACHE = [
   OFFLINE,
@@ -15,6 +15,7 @@ const PRE_CACHE = [
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/apple-touch-icon.png",
+  "/icons/badge-96.png",
 ];
 
 self.addEventListener("install", (evento) => {
@@ -78,7 +79,9 @@ self.addEventListener("push", (evento) => {
     self.registration.showNotification(aviso.titulo || "Mesly", {
       body: aviso.mensagem || "Você tem um novo aviso.",
       icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
+      // O Android desenha o badge só pela transparência da imagem: precisa ser a silhueta
+      // do M em branco sobre fundo transparente. Com o ícone colorido aparecia um quadrado.
+      badge: "/icons/badge-96.png",
       tag: aviso.etiqueta,
       data: { url: aviso.url || "/" },
     }),
