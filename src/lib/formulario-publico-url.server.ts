@@ -34,17 +34,16 @@ export function origemFormularioPublico(
   );
 }
 
-export function caminhoFormularioPublico(token: string): string {
-  return "/solicitar-orcamento/" + encodeURIComponent(token);
+export function caminhoFormularioPublico(): string {
+  return "/orcamento";
 }
 
 export function urlFormularioPublico(
-  token: string,
   formularioUrl = process.env["FORMULARIO_PUBLICO_URL"],
   appUrl = process.env["APP_URL"],
 ): string | null {
   const origem = origemFormularioPublico(formularioUrl, appUrl);
-  return origem ? origem + caminhoFormularioPublico(token) : null;
+  return origem ? origem + caminhoFormularioPublico() : null;
 }
 
 /**
@@ -58,8 +57,8 @@ export function destinoFormularioPublico(
   const atual = new URL(enderecoAtual);
   if (!atual.pathname.startsWith("/solicitar-orcamento/")) return null;
 
-  const origem = normalizarOrigem(formularioUrl, "FORMULARIO_PUBLICO_URL");
-  if (!origem || atual.origin === origem) return null;
-
-  return origem + atual.pathname + atual.search;
+  // Sem um domínio exclusivo, mantém exatamente o host pelo qual o visitante chegou. Isso evita
+  // trocar a porta no desenvolvimento e preserva aliases válidos do mesmo ambiente.
+  const origem = normalizarOrigem(formularioUrl, "FORMULARIO_PUBLICO_URL") ?? atual.origin;
+  return origem + caminhoFormularioPublico() + atual.search;
 }

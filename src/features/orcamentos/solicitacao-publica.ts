@@ -59,52 +59,71 @@ function validarSolicitacao(value: unknown) {
   throw new Error("Revise os campos do formulário e tente novamente.");
 }
 
+const paraHorario = (horario: string | null | undefined) =>
+  horario ? new Date(`1970-01-01T${horario}:00.000Z`) : null;
+
+async function carregarFormularioOrcamento(token?: string) {
+  const empresa = await getPrisma().empresa.findFirst({
+    where: token ? { linkOrcamentoToken: token } : undefined,
+    // Cada instalação possui uma empresa; a ordem mantém o resultado determinístico caso existam
+    // dados legados adicionais.
+    orderBy: { createdAt: "asc" },
+    select: {
+      linkOrcamentoToken: true,
+      nomeFantasia: true,
+      logoUrl: true,
+      logoOrcamentoUrl: true,
+      corTema: true,
+      servicos: {
+        where: { ativo: true },
+        select: {
+          id: true,
+          nome: true,
+          categoria: true,
+          tiposEvento: true,
+          cardapios: true,
+          descricao: true,
+          imagemUrl: true,
+          unidade: true,
+          precoBase: true,
+          precoVisivel: true,
+          ordem: true,
+          opcoesRotulo: true,
+          opcoes: { select: { opcaoId: true } },
+        },
+        orderBy: [{ ordem: "asc" }, { categoria: "asc" }, { nome: "asc" }],
+      },
+      categoriasCardapio: {
+        select: { nome: true, ordem: true },
+        orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+      },
+      cardapiosPublicos: {
+        select: { nome: true },
+        orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+      },
+      formatosServico: {
+        select: { nome: true, cardapios: true },
+        orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+      },
+    },
+  });
+  if (!empresa) throw new Error("Link de orçamento inválido ou desativado.");
+
+  const { linkOrcamentoToken, ...formulario } = empresa;
+  return {
+    token: linkOrcamentoToken,
+    formulario: serialize({ ...formulario, urlPublica: urlFormularioPublico() }),
+  };
+}
+
 export const obterFormularioOrcamento = createServerFn({ method: "GET" })
   .validator((value: unknown) => tokenSchema.parse(value))
-  .handler(async ({ data }) => {
-    const empresa = await getPrisma().empresa.findUnique({
-      where: { linkOrcamentoToken: data.token },
-      select: {
-        nomeFantasia: true,
-        logoUrl: true,
-        logoOrcamentoUrl: true,
-        corTema: true,
-        servicos: {
-          where: { ativo: true },
-          select: {
-            id: true,
-            nome: true,
-            categoria: true,
-            tiposEvento: true,
-            cardapios: true,
-            descricao: true,
-            imagemUrl: true,
-            unidade: true,
-            precoBase: true,
-            precoVisivel: true,
-            ordem: true,
-            opcoesRotulo: true,
-            opcoes: { select: { opcaoId: true } },
-          },
-          orderBy: [{ ordem: "asc" }, { categoria: "asc" }, { nome: "asc" }],
-        },
-        categoriasCardapio: {
-          select: { nome: true, ordem: true },
-          orderBy: [{ ordem: "asc" }, { nome: "asc" }],
-        },
-        cardapiosPublicos: {
-          select: { nome: true },
-          orderBy: [{ ordem: "asc" }, { nome: "asc" }],
-        },
-        formatosServico: {
-          select: { nome: true, cardapios: true },
-          orderBy: [{ ordem: "asc" }, { nome: "asc" }],
-        },
-      },
-    });
-    if (!empresa) throw new Error("Link de orçamento inválido ou desativado.");
-    return serialize({ ...empresa, urlPublica: urlFormularioPublico(data.token) });
-  });
+  .handler(async ({ data }) => (await carregarFormularioOrcamento(data.token)).formulario);
+
+/** Formulário da empresa desta instalação para a URL pública curta `/orcamento`. */
+export const obterFormularioOrcamentoCurto = createServerFn({ method: "GET" }).handler(async () =>
+  carregarFormularioOrcamento(),
+);
 
 /** Entre dois pedidos seguidos com o mesmo e-mail, não envia outro link de ativação. */
 const INTERVALO_CONVITE_MS = 15 * 60 * 1000;
@@ -173,7 +192,7 @@ export const obterLinkFormularioOrcamento = createServerFn({ method: "GET" }).ha
   if (!empresa) throw new Error("Empresa não encontrada.");
   return {
     token: empresa.linkOrcamentoToken,
-    url: urlFormularioPublico(empresa.linkOrcamentoToken),
+    url: urlFormularioPublico(),
   };
 });
 

@@ -127,7 +127,7 @@ function EventosPage() {
               className="max-sm:h-11"
               title="Copiar o link do formulário de orçamento"
               onClick={() => {
-                const caminho = `/solicitar-orcamento/${formulario.token}`;
+                const caminho = "/orcamento";
                 const link = formulario.url ?? `${window.location.origin}${caminho}`;
                 void copiarTexto(link).then(
                   () =>
@@ -142,11 +142,7 @@ function EventosPage() {
               Copiar link
             </Button>
             <Button variant="outline" asChild className="max-sm:h-11">
-              <a
-                href={formulario.url ?? `/solicitar-orcamento/${formulario.token}`}
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a href={formulario.url ?? "/orcamento"} target="_blank" rel="noreferrer">
                 <ExternalLink className="size-4" />
                 Abrir formulário
               </a>

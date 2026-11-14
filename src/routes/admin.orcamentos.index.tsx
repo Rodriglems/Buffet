@@ -71,7 +71,7 @@ function OrcamentosPage() {
             <Button
               variant="outline"
               onClick={() => {
-                const caminho = `/solicitar-orcamento/${formulario.token}`;
+                const caminho = "/orcamento";
                 const link = formulario.url ?? `${window.location.origin}${caminho}`;
                 void copiarTexto(link).then(
                   () => toast.success("Link copiado. Envie-o ao cliente para preencher os dados."),
@@ -82,11 +82,7 @@ function OrcamentosPage() {
               <Copy className="size-4" /> Link para o cliente
             </Button>
             <Button variant="outline" asChild>
-              <a
-                href={formulario.url ?? `/solicitar-orcamento/${formulario.token}`}
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a href={formulario.url ?? "/orcamento"} target="_blank" rel="noreferrer">
                 <ExternalLink className="size-4" /> Abrir formulário
               </a>
             </Button>

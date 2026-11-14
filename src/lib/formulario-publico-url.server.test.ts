@@ -9,22 +9,14 @@ import {
 
 describe("URL pública do formulário", () => {
   it("prioriza e normaliza o domínio exclusivo", () => {
-    expect(
-      urlFormularioPublico(
-        "57be70d9-5fc7-4d2a-b537-7def494b699c",
-        "https://cardapio.requinte.test/",
-        "https://mesly.test",
-      ),
-    ).toBe(
-      "https://cardapio.requinte.test/solicitar-orcamento/57be70d9-5fc7-4d2a-b537-7def494b699c",
+    expect(urlFormularioPublico("https://cardapio.requinte.test/", "https://mesly.test")).toBe(
+      "https://cardapio.requinte.test/orcamento",
     );
   });
 
   it("usa APP_URL enquanto o domínio exclusivo não foi configurado", () => {
     expect(origemFormularioPublico("", "https://mesly.test/")).toBe("https://mesly.test");
-    expect(urlFormularioPublico("token", "", "https://mesly.test")).toBe(
-      "https://mesly.test/solicitar-orcamento/token",
-    );
+    expect(urlFormularioPublico("", "https://mesly.test")).toBe("https://mesly.test/orcamento");
   });
 
   it("permite HTTP somente no ambiente local", () => {
@@ -45,10 +37,8 @@ describe("URL pública do formulário", () => {
     expect(() => origemFormularioPublico(configurado, undefined)).toThrow();
   });
 
-  it("codifica o token ao montar o caminho", () => {
-    expect(caminhoFormularioPublico("token com/barra")).toBe(
-      "/solicitar-orcamento/token%20com%2Fbarra",
-    );
+  it("usa um caminho curto sem expor o token", () => {
+    expect(caminhoFormularioPublico()).toBe("/orcamento");
   });
 
   it("leva o link antigo ao domínio oficial e preserva os parâmetros", () => {
@@ -57,13 +47,28 @@ describe("URL pública do formulário", () => {
         "https://mesly.test/solicitar-orcamento/token?origem=instagram",
         "https://cardapio.requinte.test",
       ),
-    ).toBe("https://cardapio.requinte.test/solicitar-orcamento/token?origem=instagram");
+    ).toBe("https://cardapio.requinte.test/orcamento?origem=instagram");
   });
 
-  it("não redireciona o domínio oficial nem outras rotas", () => {
+  it("leva o link antigo do mesmo domínio ao caminho curto", () => {
     expect(
       destinoFormularioPublico(
         "https://cardapio.requinte.test/solicitar-orcamento/token",
+        "https://cardapio.requinte.test",
+      ),
+    ).toBe("https://cardapio.requinte.test/orcamento");
+  });
+
+  it("usa a origem atual quando nenhuma URL foi configurada", () => {
+    expect(destinoFormularioPublico("https://mesly.test/solicitar-orcamento/token", "")).toBe(
+      "https://mesly.test/orcamento",
+    );
+  });
+
+  it("não redireciona o caminho curto nem outras rotas", () => {
+    expect(
+      destinoFormularioPublico(
+        "https://cardapio.requinte.test/orcamento",
         "https://cardapio.requinte.test",
       ),
     ).toBeNull();

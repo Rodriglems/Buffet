@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AtivarAcessoRouteImport } from './routes/ativar-acesso'
 import { Route as ClienteRouteImport } from './routes/cliente'
+import { Route as OrcamentoRouteImport } from './routes/orcamento'
 import { Route as RecuperarSenhaRouteImport } from './routes/recuperar-senha'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
@@ -61,6 +62,11 @@ const AtivarAcessoRoute = AtivarAcessoRouteImport.update({
 const ClienteRoute = ClienteRouteImport.update({
   id: '/cliente',
   path: '/cliente',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrcamentoRoute = OrcamentoRouteImport.update({
+  id: '/orcamento',
+  path: '/orcamento',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecuperarSenhaRoute = RecuperarSenhaRouteImport.update({
@@ -214,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/ativar-acesso': typeof AtivarAcessoRoute
   '/cliente': typeof ClienteRouteWithChildren
+  '/orcamento': typeof OrcamentoRoute
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/admin/agenda': typeof AdminAgendaRoute
@@ -247,6 +254,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ativar-acesso': typeof AtivarAcessoRoute
+  '/orcamento': typeof OrcamentoRoute
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/admin/agenda': typeof AdminAgendaRoute
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/ativar-acesso': typeof AtivarAcessoRoute
   '/cliente': typeof ClienteRouteWithChildren
+  '/orcamento': typeof OrcamentoRoute
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/admin/agenda': typeof AdminAgendaRoute
@@ -320,6 +329,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/ativar-acesso'
     | '/cliente'
+    | '/orcamento'
     | '/recuperar-senha'
     | '/redefinir-senha'
     | '/admin/agenda'
@@ -353,6 +363,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/ativar-acesso'
+    | '/orcamento'
     | '/recuperar-senha'
     | '/redefinir-senha'
     | '/admin/agenda'
@@ -388,6 +399,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/ativar-acesso'
     | '/cliente'
+    | '/orcamento'
     | '/recuperar-senha'
     | '/redefinir-senha'
     | '/admin/agenda'
@@ -424,6 +436,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   AtivarAcessoRoute: typeof AtivarAcessoRoute
   ClienteRoute: typeof ClienteRouteWithChildren
+  OrcamentoRoute: typeof OrcamentoRoute
   RecuperarSenhaRoute: typeof RecuperarSenhaRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   SolicitarOrcamentoTokenRoute: typeof SolicitarOrcamentoTokenRoute
@@ -457,6 +470,13 @@ declare module '@tanstack/react-router' {
       path: '/cliente'
       fullPath: '/cliente'
       preLoaderRoute: typeof ClienteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orcamento': {
+      id: '/orcamento'
+      path: '/orcamento'
+      fullPath: '/orcamento'
+      preLoaderRoute: typeof OrcamentoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/recuperar-senha': {
@@ -739,6 +759,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   AtivarAcessoRoute: AtivarAcessoRoute,
   ClienteRoute: ClienteRouteWithChildren,
+  OrcamentoRoute: OrcamentoRoute,
   RecuperarSenhaRoute: RecuperarSenhaRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
   SolicitarOrcamentoTokenRoute: SolicitarOrcamentoTokenRoute,

@@ -71,20 +71,32 @@ export const Route = createFileRoute("/solicitar-orcamento/$token")({
       links: loaderData?.urlPublica ? [{ rel: "canonical", href: loaderData.urlPublica }] : [],
     };
   },
-  component: SolicitarOrcamento,
+  component: SolicitarOrcamentoRota,
 });
 
-type ServicoPublico = Awaited<ReturnType<typeof obterFormularioOrcamento>>["servicos"][number];
+export type EmpresaFormularioOrcamento = Awaited<ReturnType<typeof obterFormularioOrcamento>>;
+type ServicoPublico = EmpresaFormularioOrcamento["servicos"][number];
 type Acesso = "CRIADO" | "JA_EXISTE" | "INDISPONIVEL" | "CONECTADO" | "CONFIRMAR_EMAIL";
 type ClienteConectado = { nome: string; email: string; telefone: string; whatsapp: string };
 
 const idCategoria = (categoria: string) =>
   `categoria-${normalizarBusca(categoria).replace(/[^a-z0-9]+/g, "-")}`;
 
-function SolicitarOrcamento() {
+function SolicitarOrcamentoRota() {
   const empresa = Route.useLoaderData();
-  const logo = empresa.logoOrcamentoUrl ?? empresa.logoUrl;
   const { token } = Route.useParams();
+
+  return <FormularioOrcamento empresa={empresa} token={token} />;
+}
+
+export function FormularioOrcamento({
+  empresa,
+  token,
+}: {
+  empresa: EmpresaFormularioOrcamento;
+  token: string;
+}) {
+  const logo = empresa.logoOrcamentoUrl ?? empresa.logoUrl;
   const enviar = useServerFn(enviarSolicitacaoOrcamento);
   const buscarConectado = useServerFn(obterClienteConectado);
   const entrarComoCliente = useServerFn(login);
