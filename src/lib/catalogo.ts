@@ -1,6 +1,6 @@
 export const TIPOS_EVENTO = [
   "Casamento",
-  "Aniversário adulto",
+  "Aniversário",
   "Aniversário infantil",
   "Formatura",
   "Confraternização",
