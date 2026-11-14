@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowRight, Check, ListChecks, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { ListaArrastavel } from "@/components/lista-arrastavel";
@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   criarCardapio,
+  definirItensDoCardapio,
   excluirCardapio,
   excluirFormato,
   renomearCardapio,
@@ -29,6 +30,8 @@ import {
   type CardapioPublico,
   type FormatoServico,
 } from "@/features/servicos/cardapios-formatos";
+import { normalizarBusca } from "@/features/orcamentos/formulario-publico";
+import { alteracoesDoCardapio } from "@/features/servicos/regras-cardapio";
 import type { Servico } from "@/features/servicos/server-functions";
 import {
   CHAVE_CARDAPIOS_FORMATOS,
@@ -379,6 +382,7 @@ function AbaCardapios({
   const [novo, setNovo] = useState("");
   const [editando, setEditando] = useState<{ id: string; nome: string } | null>(null);
   const [salvando, setSalvando] = useState(false);
+  const [escolhendoItensDe, setEscolhendoItensDe] = useState<CardapioPublico | null>(null);
 
   const itensEm = (nome: string) => itens.filter((item) => item.cardapios.includes(nome)).length;
   const formatosCom = (nome: string) =>
@@ -407,7 +411,7 @@ function AbaCardapios({
     }
     const ok = await executar(
       () => criar({ data: { nome: novo.trim() } }),
-      "Cardápio criado. Marque-o nos itens e nos formatos.",
+      "Cardápio criado. Use “Escolher itens” para montá-lo e ligue-o a um formato.",
       "Não foi possível criar o cardápio.",
     );
     if (ok) setNovo("");
@@ -521,6 +525,18 @@ function AbaCardapios({
                     type="button"
                     size="sm"
                     variant="outline"
+                    aria-label={`Escolher os itens do cardápio ${cardapio.nome}`}
+                    title="Escolher itens"
+                    disabled={salvando}
+                    onClick={() => setEscolhendoItensDe(cardapio)}
+                  >
+                    <ListChecks className="size-4" />
+                    <span className="hidden sm:inline">Escolher itens</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
                     aria-label={`Renomear o cardápio ${cardapio.nome}`}
                     title="Renomear"
                     disabled={salvando}
@@ -550,6 +566,143 @@ function AbaCardapios({
           Nenhum cardápio ainda. Sem cardápios, o formulário não mostra itens.
         </p>
       ) : null}
+      {escolhendoItensDe ? (
+        <EscolherItensDialog
+          cardapio={escolhendoItensDe}
+          itens={itens}
+          onFechar={() => setEscolhendoItensDe(null)}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Monta um cardápio marcando os itens que já existem, numa tela só, em vez de abrir e editar
+ * item por item. Os outros cardápios de cada item continuam como estão.
+ */
+function EscolherItensDialog({
+  cardapio,
+  itens,
+  onFechar,
+}: {
+  cardapio: CardapioPublico;
+  itens: Servico[];
+  onFechar: () => void;
+}) {
+  const atualizar = useAtualizar();
+  const definir = useServerFn(definirItensDoCardapio);
+  const [busca, setBusca] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [marcados, setMarcados] = useState<Set<string>>(
+    () => new Set(itens.filter((item) => item.cardapios.includes(cardapio.nome)).map((i) => i.id)),
+  );
+
+  const termo = normalizarBusca(busca.trim());
+  const visiveis = itens
+    .filter((item) => !termo || normalizarBusca(`${item.nome} ${item.categoria}`).includes(termo))
+    .sort(
+      (a, b) =>
+        a.categoria.localeCompare(b.categoria, "pt-BR") || a.nome.localeCompare(b.nome, "pt-BR"),
+    );
+  const categorias = [...new Set(visiveis.map((item) => item.categoria))];
+  const { adicionar, remover } = alteracoesDoCardapio(itens, cardapio.nome, [...marcados]);
+
+  function alternar(id: string, marcado: boolean) {
+    setMarcados((atuais) => {
+      const proximos = new Set(atuais);
+      if (marcado) proximos.add(id);
+      else proximos.delete(id);
+      return proximos;
+    });
+  }
+
+  async function salvar() {
+    if (!adicionar.length && !remover.length) return onFechar();
+    setSalvando(true);
+    try {
+      await definir({ data: { id: cardapio.id, servicoIds: [...marcados] } });
+      await atualizar();
+      const partes = [
+        adicionar.length ? `${adicionar.length} incluído(s)` : "",
+        remover.length ? `${remover.length} retirado(s)` : "",
+      ].filter(Boolean);
+      toast.success(`Cardápio “${cardapio.nome}” atualizado: ${partes.join(" e ")}.`);
+      onFechar();
+    } catch (error) {
+      toast.error(mensagem(error, "Não foi possível salvar os itens do cardápio."));
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(aberto) => (aberto ? null : onFechar())}>
+      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Itens do cardápio “{cardapio.nome}”</DialogTitle>
+          <DialogDescription>
+            Marque os itens que o cliente vê neste cardápio. Cada item continua com um cadastro só e
+            pode estar em vários cardápios.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="relative">
+          <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+          <Input
+            aria-label="Buscar item"
+            placeholder="Buscar item ou categoria"
+            className="pl-9"
+            value={busca}
+            onChange={(event) => setBusca(event.target.value)}
+          />
+        </div>
+        <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+          {categorias.length ? (
+            categorias.map((categoria) => (
+              <section key={categoria} className="py-2">
+                <h3 className="text-muted-foreground py-1 text-xs font-semibold">{categoria}</h3>
+                <ul className="grid gap-0.5">
+                  {visiveis
+                    .filter((item) => item.categoria === categoria)
+                    .map((item) => (
+                      <li key={item.id}>
+                        <label className="hover:bg-secondary flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm">
+                          <Checkbox
+                            checked={marcados.has(item.id)}
+                            onCheckedChange={(checked) => alternar(item.id, checked === true)}
+                          />
+                          <span className="min-w-0 flex-1">
+                            {item.nome}
+                            {item.status === "Inativo" ? (
+                              <span className="text-muted-foreground"> (inativo)</span>
+                            ) : null}
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                </ul>
+              </section>
+            ))
+          ) : (
+            <p className="text-muted-foreground py-6 text-center text-sm">
+              Nenhum item encontrado. Cadastre o item no Cardápio e volte aqui.
+            </p>
+          )}
+        </div>
+        <div className="border-border flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+          <p className="text-muted-foreground text-sm">
+            {marcados.size} {marcados.size === 1 ? "item marcado" : "itens marcados"}
+          </p>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={onFechar} disabled={salvando}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={() => void salvar()} disabled={salvando}>
+              {salvando ? "Salvando…" : "Salvar itens"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

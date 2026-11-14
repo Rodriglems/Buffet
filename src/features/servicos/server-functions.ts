@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { serialize } from "@/lib/domain.server";
 import { validarCardapios } from "@/features/servicos/cardapios-formatos";
+import { mensagemNomeRepetido } from "@/features/servicos/regras-cardapio";
 import { TIPOS_EVENTO, type TipoEvento } from "@/lib/catalogo";
 import { getPrisma } from "@/lib/prisma.server";
 import { requirePermission } from "@/lib/session.server";
@@ -32,6 +33,27 @@ const nomeCategoria = z.string().trim().min(2, "Informe o nome da categoria.").m
 function validarImagem(imagemUrl: string | null | undefined, atual: string | null = null) {
   if (!imagemUrl || imagemUrl === atual || ehUrlDoArmazenamento(imagemUrl)) return;
   throw new Error("Envie a imagem novamente para salvar o item.");
+}
+
+/**
+ * Recusa um nome que já está em outro item, dizendo qual é e em que categoria ele está. Sem isso
+ * a pessoa recebia só "Já existe um cadastro com esses dados" e não sabia qual item abrir.
+ */
+async function garantirNomeLivre(
+  tx: Prisma.TransactionClient,
+  empresaId: string,
+  nome: string,
+  ignorarId?: string,
+) {
+  const existente = await tx.servico.findFirst({
+    where: {
+      empresaId,
+      nome: { equals: nome, mode: "insensitive" },
+      ...(ignorarId ? { id: { not: ignorarId } } : {}),
+    },
+    select: { nome: true, categoria: true, ativo: true },
+  });
+  if (existente) throw new Error(mensagemNomeRepetido(existente));
 }
 
 async function validarCategoria(tx: Prisma.TransactionClient, empresaId: string, nome?: string) {
@@ -92,6 +114,7 @@ export const criarServico = createServerFn({ method: "POST" })
     validarImagem(data.imagemUrl);
     const { opcoesIds, ...dados } = data;
     return getPrisma().$transaction(async (tx) => {
+      await garantirNomeLivre(tx, auth.empresaId, dados.nome);
       await validarCategoria(tx, auth.empresaId, dados.categoria);
       await validarCardapios(tx, auth.empresaId, dados.cardapios);
       const criado = await tx.servico.create({ data: { ...dados, empresaId: auth.empresaId } });
@@ -111,6 +134,9 @@ export const atualizarServico = createServerFn({ method: "POST" })
     validarImagem(data.dados.imagemUrl, found.imagemUrl);
     const { opcoesIds, ...dados } = data.dados;
     const atualizado = await getPrisma().$transaction(async (tx) => {
+      if (dados.nome !== undefined && dados.nome !== found.nome) {
+        await garantirNomeLivre(tx, auth.empresaId, dados.nome, found.id);
+      }
       if (dados.categoria !== found.categoria) {
         await validarCategoria(tx, auth.empresaId, dados.categoria);
       }

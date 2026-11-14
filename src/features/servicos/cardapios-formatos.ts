@@ -133,6 +133,42 @@ export const excluirCardapio = createServerFn({ method: "POST" })
     });
   });
 
+/**
+ * Define de uma vez quais itens aparecem no cardápio (tela "Escolher itens"): os marcados
+ * passam a tê-lo e os desmarcados o perdem. Os outros cardápios de cada item não mudam.
+ */
+export const definirItensDoCardapio = createServerFn({ method: "POST" })
+  .validator((value: unknown) =>
+    id.extend({ servicoIds: z.array(z.string().uuid()).max(5000) }).parse(value),
+  )
+  .handler(async ({ data }) => {
+    const auth = await requirePermission("servicos");
+    const selecionados = [...new Set(data.servicoIds)];
+    return getPrisma().$transaction(async (tx) => {
+      const cardapio = await tx.cardapioPublico.findFirst({
+        where: { id: data.id, empresaId: auth.empresaId },
+      });
+      if (!cardapio) throw new Error("Cardápio não encontrado. Recarregue a página.");
+      const validos = await tx.servico.count({
+        where: { empresaId: auth.empresaId, id: { in: selecionados } },
+      });
+      if (validos !== selecionados.length) {
+        throw new Error("Um ou mais itens não existem mais. Recarregue a página.");
+      }
+      const adicionados = await tx.$executeRaw`
+        UPDATE "servicos" SET "cardapios" = array_append("cardapios", ${cardapio.nome})
+        WHERE "empresa_id" = ${auth.empresaId}::uuid
+          AND "id" = ANY(${selecionados}::uuid[])
+          AND NOT (${cardapio.nome} = ANY("cardapios"))`;
+      const removidos = await tx.$executeRaw`
+        UPDATE "servicos" SET "cardapios" = array_remove("cardapios", ${cardapio.nome})
+        WHERE "empresa_id" = ${auth.empresaId}::uuid
+          AND ${cardapio.nome} = ANY("cardapios")
+          AND NOT ("id" = ANY(${selecionados}::uuid[]))`;
+      return { adicionados, removidos };
+    });
+  });
+
 export const reordenarCardapios = createServerFn({ method: "POST" })
   .validator((value: unknown) => ids.parse(value))
   .handler(async ({ data }) => {

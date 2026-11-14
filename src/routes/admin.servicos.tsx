@@ -48,6 +48,11 @@ import {
 } from "@/features/servicos/server-functions";
 import { CardapiosFormatosDialog } from "@/features/servicos/cardapios-formatos-dialog";
 import {
+  itemComMesmoNome,
+  itensParecidos,
+  textoDoPreco,
+} from "@/features/servicos/regras-cardapio";
+import {
   useCardapiosEFormatos,
   type AbaCardapiosFormatos,
 } from "@/features/servicos/use-cardapios-formatos";
@@ -434,6 +439,10 @@ function CardapioPage() {
         onGerenciarCardapios={() => setPainelCardapios("cardapios")}
         todosItens={itens.data ?? []}
         onSalvo={atualizarTudo}
+        onAbrirExistente={(item) => {
+          abrirEdicao(item);
+          toast.info(`Editando “${item.nome}”. Marque o cardápio e salve.`);
+        }}
       />
       <CardapiosFormatosDialog
         aberto={painelCardapios !== null}
@@ -596,6 +605,7 @@ function ItemDialog({
   onGerenciarCardapios,
   todosItens,
   onSalvo,
+  onAbrirExistente,
 }: {
   aberto: boolean;
   onOpenChange: (aberto: boolean) => void;
@@ -607,18 +617,23 @@ function ItemDialog({
   onGerenciarCardapios: () => void;
   todosItens: Servico[];
   onSalvo: () => Promise<unknown>;
+  /** Troca o cadastro pela edição do item que já tem esse nome. */
+  onAbrirExistente: (item: Servico) => void;
 }) {
-  // Texto do preço separado do número para permitir "0" (sob consulta) e evitar zeros à esquerda.
+  // Texto do preço separado do número: vazio é "sob consulta" e evita zeros à esquerda.
   const [precoTexto, setPrecoTexto] = useState("");
   const [enviandoImagem, setEnviandoImagem] = useState(false);
   const [buscaOpcao, setBuscaOpcao] = useState("");
   // A seção de opções só aparece para itens que pedem uma escolha (ex.: massa recheada).
   const [comOpcoes, setComOpcoes] = useState(false);
-  const [aberturaAnterior, setAberturaAnterior] = useState(false);
-  if (aberto !== aberturaAnterior) {
-    setAberturaAnterior(aberto);
+  // Reinicia os campos ao abrir e também ao trocar de item com a janela aberta
+  // ("Abrir este item" passa do cadastro para a edição do item existente).
+  const chaveAbertura = aberto ? `aberto:${editandoId ?? "novo"}` : "fechado";
+  const [aberturaAnterior, setAberturaAnterior] = useState("fechado");
+  if (chaveAbertura !== aberturaAnterior) {
+    setAberturaAnterior(chaveAbertura);
     if (aberto) {
-      setPrecoTexto(editandoId ? String(form.valorBase) : "");
+      setPrecoTexto(editandoId ? textoDoPreco(form.valorBase) : "");
       setBuscaOpcao("");
       setComOpcoes(form.opcoesIds.length > 0);
     }
@@ -664,12 +679,14 @@ function ItemDialog({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (precoTexto.trim() === "") {
-      toast.error("Informe o preço (use 0 para valor sob consulta).");
-      return;
-    }
     salvarMutation.mutate(form);
   }
+
+  // Enquanto a pessoa digita o nome: se o item já existe, leva até ele em vez de duplicar.
+  const repetido = itemComMesmoNome(todosItens, form.nome, editandoId);
+  // No cadastro, mostra pratos com nome parecido: o item pode já existir com outro nome.
+  const parecidos =
+    !editandoId && !repetido ? itensParecidos(todosItens, form.nome, editandoId) : [];
 
   const termoOpcao = normalizarBusca(buscaOpcao.trim());
   const candidatas = todosItens
@@ -708,7 +725,55 @@ function ItemDialog({
                 minLength={2}
                 value={form.nome}
                 onChange={(event) => atualizar({ nome: event.target.value })}
+                aria-describedby={repetido ? "item-nome-repetido" : undefined}
               />
+              {repetido ? (
+                <div
+                  id="item-nome-repetido"
+                  role="status"
+                  className="bg-warning/12 text-warning-foreground flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm"
+                >
+                  <span>
+                    Já existe “{repetido.nome}” na categoria {repetido.categoria}
+                    {repetido.status === "Inativo" ? " (inativo)" : ""}. Para colocá-lo em outro
+                    cardápio, abra esse item.
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onAbrirExistente(repetido)}
+                  >
+                    Abrir este item
+                  </Button>
+                </div>
+              ) : parecidos.length ? (
+                <div role="status" className="bg-secondary grid gap-1 rounded-lg px-3 py-2 text-sm">
+                  <p className="text-muted-foreground text-xs">
+                    Itens parecidos já cadastrados. Se for um deles, abra em vez de cadastrar de
+                    novo:
+                  </p>
+                  <ul className="grid gap-0.5">
+                    {parecidos.map((item) => (
+                      <li key={item.id} className="flex items-center justify-between gap-2">
+                        <span className="min-w-0">
+                          {item.nome}
+                          <span className="text-muted-foreground"> · {item.categoria}</span>
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 shrink-0"
+                          onClick={() => onAbrirExistente(item)}
+                        >
+                          Abrir
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="item-categoria">Categoria</Label>
@@ -727,6 +792,9 @@ function ItemDialog({
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-muted-foreground text-xs">
+                O tipo do prato, ex.: Salgadinhos. Cada item tem uma só.
+              </p>
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="item-status">Status</Label>
@@ -748,7 +816,7 @@ function ItemDialog({
               <Input
                 id="item-valor"
                 inputMode="decimal"
-                required
+                placeholder="Sob consulta"
                 value={precoTexto}
                 onChange={(event) => {
                   const texto = limparNumeroDigitado(event.target.value);
@@ -756,7 +824,7 @@ function ItemDialog({
                   atualizar({ valorBase: Number(texto.replace(",", ".")) || 0 });
                 }}
               />
-              <p className="text-muted-foreground text-xs">Use 0 para “valor sob consulta”.</p>
+              <p className="text-muted-foreground text-xs">Em branco, aparece como sob consulta.</p>
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="item-unidade">Unidade</Label>
@@ -815,8 +883,8 @@ function ItemDialog({
                 <div>
                   <Label>Cardápios públicos</Label>
                   <p className="text-muted-foreground text-xs">
-                    Abas do formulário de orçamento em que este item aparece. Sem seleção, o cliente
-                    não vê o item.
+                    Em que tipo de festa o item é servido, ex.: Feijoada, Coquetel. Marque quantos
+                    quiser. Sem seleção, o cliente não vê o item.
                   </p>
                 </div>
                 <Button type="button" size="sm" variant="ghost" onClick={onGerenciarCardapios}>
