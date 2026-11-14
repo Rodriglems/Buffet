@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import {
   CalendarDays,
   ChevronDown,
   Copy,
   ExternalLink,
   List,
+  Loader2,
   Plus,
   Search,
   SlidersHorizontal,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,8 +28,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { listarEventos } from "@/features/eventos/server-functions";
+import { excluirEvento, listarEventos } from "@/features/eventos/server-functions";
 import { obterLinkFormularioOrcamento } from "@/features/orcamentos/solicitacao-publica";
+import { useConfirmar } from "@/lib/confirmacao";
 import { formatBRL, formatDate, formatTime } from "@/lib/format";
 import { rotuloStatusEvento } from "@/lib/status-evento";
 import { usePlaceholderBusca } from "@/lib/placeholder-busca";
@@ -64,11 +68,15 @@ function EventosPage() {
   const placeholderBusca = usePlaceholderBusca("Buscar por evento ou cliente");
   const { eventos: resultado, formulario } = Route.useLoaderData();
   const eventos = resultado.items;
+  const router = useRouter();
+  const excluir = useServerFn(excluirEvento);
+  const confirmar = useConfirmar();
   const [busca, setBusca] = useState("");
   const [tipo, setTipo] = useState(TODOS);
   const [status, setStatus] = useState(TODOS);
   const [data, setData] = useState("");
   const [ordem, setOrdem] = useState(MAIS_RECENTES);
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
   // No celular os filtros ficam recolhidos: a lista aparece primeiro.
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const filtrosAtivos =
@@ -81,6 +89,27 @@ function EventosPage() {
     setStatus(TODOS);
     setData("");
     setOrdem(MAIS_RECENTES);
+  }
+
+  async function apagarEvento(evento: { id: string; tipo: string; cliente: { nome: string } }) {
+    const confirmado = await confirmar({
+      titulo: `Excluir ${evento.tipo}?`,
+      descricao: `Evento de ${evento.cliente.nome}. Esta ação também exclui o orçamento e as parcelas ainda não recebidas.`,
+      textoConfirmar: "Excluir evento",
+      perigoso: true,
+    });
+    if (!confirmado) return;
+
+    setExcluindoId(evento.id);
+    try {
+      await excluir({ data: { id: evento.id } });
+      toast.success("Evento excluído.");
+      await router.invalidate();
+    } catch (erro) {
+      toast.error(erro instanceof Error ? erro.message : "Não foi possível excluir o evento.");
+    } finally {
+      setExcluindoId(null);
+    }
   }
 
   const lista = eventos
@@ -306,6 +335,22 @@ function EventosPage() {
                         </span>
                         <StatusBadge status={e.status} className="shrink-0" />
                       </Link>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive mt-2 mr-2 shrink-0"
+                        disabled={excluindoId !== null}
+                        aria-label={`Excluir evento ${e.tipo} de ${e.cliente.nome}`}
+                        title="Excluir evento"
+                        onClick={() => void apagarEvento(e)}
+                      >
+                        {excluindoId === e.id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-4" />
+                        )}
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -321,6 +366,9 @@ function EventosPage() {
                         <th className="pb-2 font-medium max-sm:hidden">Convidados</th>
                         <th className="pb-2 font-medium max-sm:hidden">Valor</th>
                         <th className="pb-2 font-medium text-right sm:text-left">Status</th>
+                        <th className="w-10 pb-2 text-right font-medium">
+                          <span className="sr-only">Ações</span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -377,6 +425,24 @@ function EventosPage() {
                           </td>
                           <td className="py-3 pr-3 text-right sm:text-left">
                             <StatusBadge status={e.status} />
+                          </td>
+                          <td className="py-2 text-right">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                              disabled={excluindoId !== null}
+                              aria-label={`Excluir evento ${e.tipo} de ${e.cliente.nome}`}
+                              title="Excluir evento"
+                              onClick={() => void apagarEvento(e)}
+                            >
+                              {excluindoId === e.id ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="size-4" />
+                              )}
+                            </Button>
                           </td>
                         </tr>
                       ))}
