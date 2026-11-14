@@ -1,7 +1,8 @@
 import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouteContext } from "@tanstack/react-router";
-import { KeyRound, Plus, Search, ShieldCheck } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { KeyRound, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -32,11 +33,13 @@ import {
 } from "@/features/usuarios/redefinir-senha-dialog";
 import {
   createUsuario,
+  excluirUsuario,
   listUsuarios,
   type CreateUsuarioInput,
   type Usuario,
   type UsuarioStatus,
 } from "@/features/usuarios/server-functions";
+import { useConfirmar } from "@/lib/confirmacao";
 import { pageMeta } from "@/lib/meta";
 import { usePlaceholderBusca } from "@/lib/placeholder-busca";
 import { InputSenha } from "@/components/input-senha";
@@ -76,6 +79,32 @@ function UsuariosPage() {
     onError: (error) =>
       toast.error(error instanceof Error ? error.message : "Não foi possível cadastrar o usuário."),
   });
+  const excluir = useServerFn(excluirUsuario);
+  const confirmar = useConfirmar();
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
+
+  async function remover(usuario: Usuario) {
+    const ok = await confirmar({
+      titulo: `Excluir ${usuario.nome}?`,
+      descricao:
+        "A pessoa perde o acesso na hora e o e-mail fica livre para um novo cadastro. Essa ação não pode ser desfeita. Se quiser só bloquear o acesso por um tempo, deixe o usuário como Inativo.",
+      textoConfirmar: "Excluir usuário",
+      perigoso: true,
+    });
+    if (!ok) return;
+    setExcluindoId(usuario.id);
+    try {
+      // O servidor recusa quem enviou documentos e explica o motivo.
+      await excluir({ data: { id: usuario.id } });
+      toast.success(`${usuario.nome} foi excluído.`);
+      await queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível excluir o usuário.");
+    } finally {
+      setExcluindoId(null);
+    }
+  }
+
   const lista = (query.data ?? []).filter((usuario) =>
     [usuario.nome, usuario.email, usuario.perfil].some((valor) =>
       valor.toLowerCase().includes(busca.toLowerCase()),
@@ -185,6 +214,21 @@ function UsuariosPage() {
                           <ShieldCheck className="size-4" />
                           <span className="hidden sm:inline">Permissões</span>
                         </Button>
+                        {/* Ninguém exclui o próprio usuário: o botão nem aparece. */}
+                        {usuario.id !== atual.usuarioId ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            aria-label={`Excluir ${usuario.nome}`}
+                            title="Excluir usuário"
+                            disabled={excluindoId !== null}
+                            onClick={() => void remover(usuario)}
+                          >
+                            <Trash2 className="size-4" />
+                            <span className="hidden sm:inline">Excluir</span>
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

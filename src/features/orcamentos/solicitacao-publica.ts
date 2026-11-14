@@ -389,7 +389,12 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
         },
       });
       const administradores = await tx.usuario.findMany({
-        where: { empresaId: empresa.id, role: "ADMIN", ativo: true },
+        where: {
+          empresaId: empresa.id,
+          role: "ADMIN",
+          ativo: true,
+          administradorInstalacao: false,
+        },
         select: { id: true },
       });
       if (administradores.length) {

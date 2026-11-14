@@ -81,7 +81,12 @@ export const gerarLembretesOperacionais = createServerFn({ method: "POST" }).han
         where: { empresaId: auth.empresaId, status: "ATRASADO" },
       }),
       tx.usuario.findMany({
-        where: { empresaId: auth.empresaId, role: "ADMIN", ativo: true },
+        where: {
+          empresaId: auth.empresaId,
+          role: "ADMIN",
+          ativo: true,
+          administradorInstalacao: false,
+        },
         select: { id: true },
       }),
     ]);

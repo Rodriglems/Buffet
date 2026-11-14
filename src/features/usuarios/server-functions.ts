@@ -12,6 +12,7 @@ import {
 } from "@/lib/permissions";
 import { getPrisma } from "@/lib/prisma.server";
 import { problemaNaSenha } from "@/lib/regras-senha";
+import { motivoParaNaoExcluir } from "@/features/usuarios/regras-exclusao";
 import {
   issueSession,
   requireAnyPermission,
@@ -29,6 +30,18 @@ const novoUsuario = z.object({
 });
 const id = z.object({ id: z.string().uuid() });
 
+/**
+ * Filtro para buscar um usuário que a pessoa conectada pode alterar: da mesma empresa e nunca a
+ * conta da instalação de outra pessoa (para a equipe ela não existe). A própria conta sempre vale.
+ */
+function usuarioAlteravel(alvoId: string, auth: { empresaId: string; usuarioId: string }) {
+  return {
+    id: alvoId,
+    empresaId: auth.empresaId,
+    OR: [{ administradorInstalacao: false }, { id: auth.usuarioId }],
+  };
+}
+
 export const listarUsuarios = createServerFn({ method: "GET" })
   .validator((value: unknown) =>
     z
@@ -40,8 +53,13 @@ export const listarUsuarios = createServerFn({ method: "GET" })
   )
   .handler(async ({ data }) => {
     const auth = await requireAnyPermission(["usuarios", "configuracoes"]);
-    // Só a equipe: o acesso dos clientes é cuidado pela lista de clientes.
-    const where = { empresaId: auth.empresaId, role: "ADMIN" as const };
+    // Só a equipe: o acesso dos clientes é cuidado pela lista de clientes. A conta da
+    // instalação também fica de fora: a equipe do buffet não a vê.
+    const where = {
+      empresaId: auth.empresaId,
+      role: "ADMIN" as const,
+      administradorInstalacao: false,
+    };
     const [items, total] = await getPrisma().$transaction([
       getPrisma().usuario.findMany({
         where,
@@ -128,7 +146,7 @@ export const atualizarUsuario = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const auth = await requirePermission("usuarios");
     const found = await getPrisma().usuario.findFirst({
-      where: { id: data.id, empresaId: auth.empresaId },
+      where: usuarioAlteravel(data.id, auth),
     });
     if (!found) throw new Error("Usuario nao encontrado.");
     if (found.id === auth.usuarioId && data.ativo === false)
@@ -168,7 +186,7 @@ export const redefinirSenhaUsuario = createServerFn({ method: "POST" })
     const resultado = await getPrisma().$transaction(async (tx) => {
       let alvo = data.usuarioId
         ? await tx.usuario.findFirst({
-            where: { id: data.usuarioId, empresaId: auth.empresaId },
+            where: usuarioAlteravel(data.usuarioId, auth),
             select: { id: true, role: true, email: true },
           })
         : null;
@@ -241,17 +259,34 @@ export const redefinirSenhaUsuario = createServerFn({ method: "POST" })
     return { email: resultado.email, acessoCriado: resultado.acessoCriado };
   });
 
+/**
+ * Exclui de verdade um usuário da equipe. Avisos, aparelhos de notificação e links de senha
+ * saem junto (cascata no banco) e o e-mail fica livre para um novo cadastro. Quem enviou
+ * documentos não sai, para o histórico não perder o autor: nesse caso o caminho é inativar.
+ */
 export const excluirUsuario = createServerFn({ method: "POST" })
   .validator((value: unknown) => id.parse(value))
   .handler(async ({ data }) => {
     const auth = await requirePermission("usuarios");
-    if (data.id === auth.usuarioId) throw new Error("Voce nao pode excluir seu proprio usuario.");
-    const found = await getPrisma().usuario.findFirst({
-      where: { id: data.id, empresaId: auth.empresaId },
+    await getPrisma().$transaction(async (tx) => {
+      const alvo = await tx.usuario.findFirst({
+        where: { id: data.id, empresaId: auth.empresaId },
+        select: {
+          id: true,
+          nome: true,
+          role: true,
+          administradorInstalacao: true,
+          _count: { select: { documentos: true } },
+        },
+      });
+      const motivo = motivoParaNaoExcluir(
+        alvo && { ...alvo, documentos: alvo._count.documentos },
+        auth.usuarioId,
+      );
+      if (motivo) throw new Error(motivo);
+      await tx.usuario.delete({ where: { id: data.id } });
     });
-    if (!found) throw new Error("Usuario nao encontrado.");
-    await getPrisma().usuario.update({ where: { id: found.id }, data: { ativo: false } });
-    return { ok: true, inativado: true };
+    return { ok: true };
   });
 
 const permissoesInput = z.object(
@@ -274,7 +309,7 @@ export const atualizarPermissoes = createServerFn({ method: "POST" })
       throw new Error("Você não pode alterar permissões.");
     }
     const found = await getPrisma().usuario.findFirst({
-      where: { id: data.id, empresaId: auth.empresaId },
+      where: usuarioAlteravel(data.id, auth),
     });
     if (!found) throw new Error("Usuário não encontrado.");
     if (found.role !== "ADMIN") throw new Error("O perfil Cliente usa apenas o portal.");

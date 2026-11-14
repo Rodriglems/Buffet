@@ -124,26 +124,29 @@ model Empresa {
 }
 
 model Usuario {
-  id                     String                  @id @default(uuid()) @db.Uuid
-  empresaId              String                  @map("empresa_id") @db.Uuid
-  nome                   String
-  email                  String
-  senhaHash              String                  @map("senha_hash")
-  role                   RoleUsuario
-  permissoes             Json                    @default("{}") @db.JsonB
-  sessaoVersao           Int                     @default(0) @map("sessao_versao")
-  ativo                  Boolean                 @default(true)
-  ultimoLogin            DateTime?               @map("ultimo_login") @db.Timestamptz(6)
-  tentativasLogin        Int                     @default(0) @map("tentativas_login")
-  bloqueadoAte           DateTime?               @map("bloqueado_ate") @db.Timestamptz(6)
-  createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  empresa                Empresa                 @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  cliente                Cliente?
-  notificacoes           Notificacao[]
-  documentos             Documento[]
-  tokensRecuperacaoSenha TokenRecuperacaoSenha[]
-  pushInscricoes         PushInscricao[]
+  id                      String                  @id @default(uuid()) @db.Uuid
+  empresaId               String                  @map("empresa_id") @db.Uuid
+  nome                    String
+  email                   String
+  senhaHash               String                  @map("senha_hash")
+  role                    RoleUsuario
+  permissoes              Json                    @default("{}") @db.JsonB
+  sessaoVersao            Int                     @default(0) @map("sessao_versao")
+  ativo                   Boolean                 @default(true)
+  /// Conta criada na instalação: entra no sistema, mas não aparece para a equipe do buffet
+  /// (lista de usuários, avisos) e ninguém da empresa pode alterá-la ou excluí-la.
+  administradorInstalacao Boolean                 @default(false) @map("administrador_instalacao")
+  ultimoLogin             DateTime?               @map("ultimo_login") @db.Timestamptz(6)
+  tentativasLogin         Int                     @default(0) @map("tentativas_login")
+  bloqueadoAte            DateTime?               @map("bloqueado_ate") @db.Timestamptz(6)
+  createdAt               DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa                 Empresa                 @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  cliente                 Cliente?
+  notificacoes            Notificacao[]
+  documentos              Documento[]
+  tokensRecuperacaoSenha  TokenRecuperacaoSenha[]
+  pushInscricoes          PushInscricao[]
 
   @@unique([empresaId, email])
   @@unique([empresaId, id])
@@ -181,27 +184,27 @@ model TokenRecuperacaoSenha {
 }
 
 model Cliente {
-  id          String      @id @default(uuid()) @db.Uuid
-  empresaId   String      @map("empresa_id") @db.Uuid
-  usuarioId   String?     @unique @map("usuario_id") @db.Uuid
+  id          String           @id @default(uuid()) @db.Uuid
+  empresaId   String           @map("empresa_id") @db.Uuid
+  usuarioId   String?          @unique @map("usuario_id") @db.Uuid
   nome        String
-  tipoPessoa  TipoPessoa  @map("tipo_pessoa")
-  cpfCnpj     String?     @map("cpf_cnpj") @db.VarChar(14)
+  tipoPessoa  TipoPessoa       @map("tipo_pessoa")
+  cpfCnpj     String?          @map("cpf_cnpj") @db.VarChar(14)
   email       String?
-  telefone    String?     @db.VarChar(20)
-  whatsapp    String?     @db.VarChar(20)
-  cep         String?     @db.VarChar(8)
-  estado      String?     @db.Char(2)
+  telefone    String?          @db.VarChar(20)
+  whatsapp    String?          @db.VarChar(20)
+  cep         String?          @db.VarChar(8)
+  estado      String?          @db.Char(2)
   cidade      String?
   bairro      String?
   logradouro  String?
   numero      String?
   complemento String?
   observacoes String?
-  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  empresa     Empresa     @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  usuario     Usuario?    @relation(fields: [empresaId, usuarioId], references: [empresaId, id], onDelete: Restrict)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  empresa     Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  usuario     Usuario?         @relation(fields: [empresaId, usuarioId], references: [empresaId, id], onDelete: Restrict)
   eventos     Evento[]
   documentos  Documento[]
   convites    ConviteCliente[]

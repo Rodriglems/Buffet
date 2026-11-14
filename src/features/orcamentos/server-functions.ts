@@ -393,7 +393,12 @@ export const aprovarOrcamento = createServerFn({ method: "POST" })
           : null;
       const equipe = avisoEquipe
         ? await tx.usuario.findMany({
-            where: { empresaId: auth.empresaId, role: "ADMIN", ativo: true },
+            where: {
+              empresaId: auth.empresaId,
+              role: "ADMIN",
+              ativo: true,
+              administradorInstalacao: false,
+            },
             select: { id: true },
           })
         : [];

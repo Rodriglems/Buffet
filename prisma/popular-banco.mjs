@@ -211,13 +211,15 @@ export async function popularBanco(prisma, { email, senhaHash }) {
 
     await tx.usuario.upsert({
       where: { empresaId_email: { empresaId: empresa.id, email } },
-      update: { ativo: true, role: "ADMIN", senhaHash },
+      // Conta da instalação: entra no sistema, mas fica escondida da equipe do buffet.
+      update: { ativo: true, role: "ADMIN", senhaHash, administradorInstalacao: true },
       create: {
         empresaId: empresa.id,
         nome: "Administrador",
         email,
         senhaHash,
         role: "ADMIN",
+        administradorInstalacao: true,
       },
     });
   });
