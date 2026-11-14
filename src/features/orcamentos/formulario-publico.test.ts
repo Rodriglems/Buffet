@@ -20,8 +20,9 @@ test("descreve a opção escolhida sem repetir o rótulo", () => {
   );
 });
 
-test("permite eventos a partir do dia de hoje", () => {
-  assert.equal(obterDataMinimaEvento(new Date(2026, 9, 24, 23, 30)), "2026-10-24");
+test("permite eventos somente a partir de amanhã", () => {
+  assert.equal(obterDataMinimaEvento(new Date(2026, 9, 24, 23, 30)), "2026-10-25");
+  assert.equal(obterDataMinimaEvento(new Date(2026, 11, 31, 10, 0)), "2027-01-01");
 });
 
 test("normaliza textos do catálogo para busca", () => {

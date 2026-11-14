@@ -24,6 +24,7 @@ import {
 } from "@/features/clientes/use-clientes-parecidos";
 import { SeletorCliente, type ClienteEscolhido } from "@/features/clientes/seletor-cliente";
 import { problemaNoContrato, saldoDoContrato } from "@/features/eventos/contrato";
+import { dataEventoEhFutura, obterDataMinimaEvento } from "@/features/eventos/data-evento";
 import { criarEventoManual, obterOpcoesNovoEvento } from "@/features/eventos/server-functions";
 import { hojeIso } from "@/features/pagamentos/a-receber";
 import { FORMAS_PAGAMENTO } from "@/features/pagamentos/parcelas";
@@ -116,6 +117,7 @@ function NovoEvento() {
   const [contrato, setContrato] = useState(CONTRATO_VAZIO);
   const [salvando, setSalvando] = useState<Destino | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const dataMinimaEvento = obterDataMinimaEvento();
 
   const parecidos = useClientesParecidos(
     cadastrandoCliente
@@ -173,6 +175,7 @@ function NovoEvento() {
       return "Informe qual é o tipo do evento.";
     }
     if (!evento.data) return "Informe a data do evento.";
+    if (!dataEventoEhFutura(evento.data)) return "A data do evento deve ser a partir de amanhã.";
     if (!(Number(evento.convidados) > 0)) return "Informe a quantidade de convidados.";
     if (evento.horaInicio && evento.horaFim && evento.horaFim <= evento.horaInicio) {
       return "O horário final deve ser posterior ao horário inicial.";
@@ -426,6 +429,7 @@ function NovoEvento() {
             <Input
               id="evento-data"
               type="date"
+              min={dataMinimaEvento}
               className={CLASSE_CAMPO}
               value={evento.data}
               onChange={(e) => atualizarEvento({ data: e.target.value })}

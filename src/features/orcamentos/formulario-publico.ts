@@ -42,16 +42,7 @@ export const DADOS_INICIAIS_FORMULARIO: DadosFormularioOrcamento = {
   confirmarSenha: "",
 };
 
-/** O evento pode ser marcado a partir do dia de hoje. */
-export function obterDataMinimaEvento(dataAtual = new Date()): string {
-  const data = new Date(dataAtual);
-
-  return [
-    data.getFullYear(),
-    String(data.getMonth() + 1).padStart(2, "0"),
-    String(data.getDate()).padStart(2, "0"),
-  ].join("-");
-}
+export { obterDataMinimaEvento } from "@/features/eventos/data-evento";
 
 export function intervaloHorarioValido(inicio: string, fim: string): boolean {
   return !fim || fim > inicio;

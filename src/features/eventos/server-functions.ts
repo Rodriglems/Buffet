@@ -7,6 +7,7 @@ import {
   problemaNoContrato,
   saldoDoContrato,
 } from "@/features/eventos/contrato";
+import { dataEventoEhFutura } from "@/features/eventos/data-evento";
 import { valoresParaCliente } from "@/features/orcamentos/valores-cliente";
 import { hojeIso } from "@/features/pagamentos/a-receber";
 import { isValidIsoDate } from "@/features/shared/validation/primitives";
@@ -204,6 +205,9 @@ function lerNovoEvento(value: unknown) {
     throw new Error(result.error.issues[0]?.message ?? "Dados do evento inválidos.");
   }
   const { horaInicio, horaFim } = result.data;
+  if (!dataEventoEhFutura(result.data.dataEvento)) {
+    throw new Error("A data do evento deve ser a partir de amanhã.");
+  }
   if (horaInicio && horaFim && horaFim <= horaInicio) {
     throw new Error("O horário final deve ser posterior ao horário inicial.");
   }

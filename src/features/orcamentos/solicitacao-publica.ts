@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { criarConvite } from "@/features/clientes/convites.server";
+import { dataEventoEhFutura } from "@/features/eventos/data-evento";
 import { descreverEscolha } from "@/features/orcamentos/formulario-publico";
 import { phoneSchema, whatsappSchema } from "@/features/shared/validation/primitives";
 import { SERVICOS_ADICIONAIS } from "@/lib/catalogo";
@@ -48,6 +49,13 @@ const solicitacaoSchema = tokenSchema
     website: z.string().max(0).optional(),
   })
   .superRefine((dados, contexto) => {
+    if (!dataEventoEhFutura(dados.dataEvento.toISOString().slice(0, 10))) {
+      contexto.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["dataEvento"],
+        message: "A data do evento deve ser a partir de amanhã.",
+      });
+    }
     if (dados.horaFim && dados.horaFim <= dados.horaInicio) {
       contexto.addIssue({
         code: z.ZodIssueCode.custom,
@@ -67,6 +75,9 @@ function validarSolicitacao(value: unknown) {
   }
   if (camposInvalidos.has("telefone") || camposInvalidos.has("whatsapp")) {
     throw new Error("Informe um telefone e WhatsApp válidos, incluindo o DDD.");
+  }
+  if (camposInvalidos.has("dataEvento")) {
+    throw new Error("A data do evento deve ser a partir de amanhã.");
   }
   if (camposInvalidos.has("horaInicio") || camposInvalidos.has("horaFim")) {
     throw new Error(
