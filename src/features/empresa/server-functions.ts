@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { serialize } from "@/lib/domain.server";
-import { getPrisma } from "@/lib/prisma.server";
+import { comNovaTentativaBanco, getPrisma } from "@/lib/prisma.server";
 import { requireAnyPermission, requirePermission } from "@/lib/session.server";
 import { ehUrlDoArmazenamento, removerImagem } from "@/lib/storage.server";
 import { COR_IDS } from "@/lib/theme-accent";
@@ -52,6 +52,38 @@ export const obterEmpresa = createServerFn({ method: "GET" }).handler(async () =
   if (!result) throw new Error("Empresa nao encontrada.");
   return serialize(result);
 });
+
+/** Dados completos da tela de Configurações com uma única autenticação e transação. */
+export const obterConfiguracoes = createServerFn({ method: "GET" }).handler(async () =>
+  comNovaTentativaBanco(async () => {
+    const auth = await requirePermission("configuracoes");
+    const whereUsuarios = {
+      empresaId: auth.empresaId,
+      role: "ADMIN" as const,
+      administradorInstalacao: false,
+    };
+    const [dadosEmpresa, usuarios] = await getPrisma().$transaction([
+      getPrisma().empresa.findUnique({ where: { id: auth.empresaId } }),
+      getPrisma().usuario.findMany({
+        where: whereUsuarios,
+        select: {
+          id: true,
+          nome: true,
+          email: true,
+          role: true,
+          ativo: true,
+          permissoes: true,
+          ultimoLogin: true,
+          createdAt: true,
+          cliente: { select: { id: true, nome: true } },
+        },
+        orderBy: { nome: "asc" },
+      }),
+    ]);
+    if (!dadosEmpresa) throw new Error("Empresa não encontrada.");
+    return serialize({ empresa: dadosEmpresa, usuarios });
+  }),
+);
 
 export const atualizarEmpresa = createServerFn({ method: "POST" })
   .validator((value: unknown) => empresa.partial().parse(value))

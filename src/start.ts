@@ -5,7 +5,7 @@ import { isNotFound, isRedirect } from "@tanstack/react-router";
 import { renderErrorPage } from "./lib/error-page";
 import { mensagemAmigavel } from "./lib/erros";
 
-const errorMiddleware = createMiddleware().server(async ({ next }) => {
+const errorMiddleware = createMiddleware().server(async ({ next, handlerType }) => {
   try {
     return await next();
   } catch (error) {
@@ -13,6 +13,9 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
       throw error;
     }
     console.error(error);
+    // Funções do servidor precisam manter o protocolo do TanStack para o cliente receber
+    // o erro serializado. Responder HTML aqui fazia o roteador cair na tela global genérica.
+    if (handlerType === "serverFn") throw error;
     return new Response(renderErrorPage(), {
       status: 500,
       headers: { "content-type": "text/html; charset=utf-8" },

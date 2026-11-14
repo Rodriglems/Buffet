@@ -8,7 +8,7 @@ import {
   type Permissoes,
 } from "@/lib/permissions";
 import { corValida, type CorSistema } from "@/lib/theme-accent";
-import { getPrisma } from "@/lib/prisma.server";
+import { comNovaTentativaBanco, getPrisma } from "@/lib/prisma.server";
 
 const COOKIE_NAME = "buffet_session";
 const SESSION_SECONDS = 60 * 60 * 12;
@@ -101,20 +101,22 @@ export async function getAuthContext(): Promise<AuthContext | null> {
   const payload = parse(getCookie(COOKIE_NAME));
   if (!payload) return null;
 
-  const usuario = await getPrisma().usuario.findFirst({
-    where: { id: payload.userId, ativo: true },
-    select: {
-      id: true,
-      empresaId: true,
-      nome: true,
-      email: true,
-      role: true,
-      sessaoVersao: true,
-      permissoes: true,
-      empresa: { select: { corTema: true } },
-      cliente: { select: { id: true } },
-    },
-  });
+  const usuario = await comNovaTentativaBanco(() =>
+    getPrisma().usuario.findFirst({
+      where: { id: payload.userId, ativo: true },
+      select: {
+        id: true,
+        empresaId: true,
+        nome: true,
+        email: true,
+        role: true,
+        sessaoVersao: true,
+        permissoes: true,
+        empresa: { select: { corTema: true } },
+        cliente: { select: { id: true } },
+      },
+    }),
+  );
   if (!usuario || usuario.sessaoVersao !== payload.sessionVersion) return null;
 
   return {

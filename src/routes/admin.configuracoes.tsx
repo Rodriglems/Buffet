@@ -9,10 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { atualizarEmpresa, obterEmpresa } from "@/features/empresa/server-functions";
+import { atualizarEmpresa, obterConfiguracoes } from "@/features/empresa/server-functions";
 import { uploadImagem } from "@/features/uploads/server-functions";
 import { PermissoesDialog } from "@/features/usuarios/permissoes-dialog";
-import { listarUsuarios } from "@/features/usuarios/server-functions";
 import {
   formatarCnpj,
   linhasEnderecoEmpresa,
@@ -25,13 +24,7 @@ import { telefoneDe } from "@/lib/empresa-cabecalho";
 
 export const Route = createFileRoute("/admin/configuracoes")({
   head: () => pageMeta("Configurações", "Dados da empresa, usuários e preferências do sistema."),
-  loader: async () => {
-    const [empresa, usuarios] = await Promise.all([
-      obterEmpresa(),
-      listarUsuarios({ data: { page: 1, pageSize: 100 } }),
-    ]);
-    return { empresa, usuarios: usuarios.items };
-  },
+  loader: () => obterConfiguracoes(),
   component: Configuracoes,
 });
 
