@@ -1,15 +1,16 @@
-import { CalendarDays, MapPin, Users, Utensils } from "lucide-react";
+import { CalendarDays, Clock3, MapPin, Users, Utensils } from "lucide-react";
 
 import { StatusBadge } from "@/components/status-badge";
-import { AdicionaisOrcamento } from "@/features/orcamentos/adicionais-orcamento";
+import { observacaoDoCliente } from "@/features/eventos/observacoes";
 import type { obterOrcamento } from "@/features/orcamentos/server-functions";
-import { formatBRL, formatDate } from "@/lib/format";
+import { formatBRL, formatDate, formatTimeRange } from "@/lib/format";
 
 type Orcamento = Awaited<ReturnType<typeof obterOrcamento>>;
 
 /** Resumo do pedido para o cliente: evento, itens escolhidos por categoria e valores. */
 export function ResumoPedido({ orcamento }: { orcamento: Orcamento }) {
   const { evento } = orcamento;
+  const observacaoCliente = observacaoDoCliente(evento.observacoes);
   const total = Number(orcamento.total);
   const desconto = Number(orcamento.desconto);
   const grupos = new Map<string, string[]>();
@@ -31,11 +32,18 @@ export function ResumoPedido({ orcamento }: { orcamento: Orcamento }) {
         <StatusBadge status={evento.status} />
       </div>
 
-      <dl className="text-muted-foreground grid gap-2 text-sm sm:grid-cols-3">
+      <dl className="text-muted-foreground grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex items-center gap-2">
           <CalendarDays className="text-primary size-4 shrink-0" />
           <dt className="sr-only">Data</dt>
           <dd>{formatDate(evento.dataEvento)}</dd>
+        </div>
+        <div className="flex items-center gap-2">
+          <Clock3 className="text-primary size-4 shrink-0" />
+          <dt className="sr-only">Horário</dt>
+          <dd>
+            {evento.horaInicio ? formatTimeRange(evento.horaInicio, evento.horaFim) : "A definir"}
+          </dd>
         </div>
         <div className="flex items-center gap-2">
           <Users className="text-primary size-4 shrink-0" />
@@ -73,7 +81,23 @@ export function ResumoPedido({ orcamento }: { orcamento: Orcamento }) {
         </div>
       </div>
 
-      <AdicionaisOrcamento itens={evento.servicosAdicionais} />
+      {evento.servicosAdicionais.length ? (
+        <div className="border-border border-t pt-4">
+          <p className="text-sm font-medium">Adicionais de interesse</p>
+          <p className="text-muted-foreground mt-0.5 text-sm leading-5">
+            {evento.servicosAdicionais.join(" · ")}
+          </p>
+        </div>
+      ) : null}
+
+      {observacaoCliente ? (
+        <div className="border-border border-t pt-4">
+          <p className="text-sm font-medium">Observações</p>
+          <p className="text-muted-foreground mt-0.5 whitespace-pre-wrap text-sm leading-5">
+            {observacaoCliente}
+          </p>
+        </div>
+      ) : null}
 
       <div className="border-border flex flex-wrap items-end justify-between gap-3 border-t pt-4">
         <p className="text-muted-foreground max-w-md text-xs">

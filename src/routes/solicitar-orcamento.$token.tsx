@@ -846,9 +846,10 @@ export function FormularioOrcamento({
               </div>
 
               <div className="border-border border-t pt-7">
-                <h3 className="font-display font-semibold">
-                  Você também precisa de algum destes serviços?
-                </h3>
+                <h3 className="font-display font-semibold">Adicionais de interesse</h3>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Marque o que gostaria de incluir ou conversar com a nossa equipe.
+                </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {SERVICOS_ADICIONAIS.map((item) => (
                     <label
@@ -884,7 +885,7 @@ export function FormularioOrcamento({
                     rows={4}
                     value={dados.observacoes}
                     onChange={(e) => atualizar("observacoes", e.target.value)}
-                    placeholder="Restrições alimentares, estilo desejado, horário ou outras informações…"
+                    placeholder="Restrições alimentares, estilo desejado ou outras informações…"
                   />
                 </div>
               </div>
@@ -1176,22 +1177,23 @@ export function FormularioOrcamento({
                         : ""}
                       {dados.cidade ? ` · ${dados.cidade}` : ""}
                     </p>
+                    {dados.observacoes ? (
+                      <p className="whitespace-pre-wrap">Observações: {dados.observacoes}</p>
+                    ) : null}
                   </ResumoCard>
                 </div>
 
                 {adicionais.length ? (
-                  <div className="bg-surface mt-4 rounded-xl p-4 ring-1 ring-black/5">
-                    <p className="text-xs font-semibold uppercase tracking-wide">
-                      Serviços adicionais
-                    </p>
-                    <ul className="text-muted-foreground mt-2 grid gap-1 text-sm sm:grid-cols-2">
-                      {adicionais.map((item) => (
-                        <li key={item} className="flex gap-2">
-                          <Check className="text-primary mt-0.5 size-4 shrink-0" />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
+                  <div className="border-border mt-4 flex items-start justify-between gap-3 border-t pt-4">
+                    <div>
+                      <p className="text-sm font-medium">Adicionais de interesse</p>
+                      <p className="text-muted-foreground mt-0.5 text-sm leading-5">
+                        {adicionais.join(" · ")}
+                      </p>
+                    </div>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setEtapa(1)}>
+                      Editar
+                    </Button>
                   </div>
                 ) : null}
 

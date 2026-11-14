@@ -33,9 +33,10 @@ import {
 } from "@/features/documentos/eventos-pdf";
 import { ConviteClienteDialog } from "@/features/clientes/convite-dialog";
 import { gerarConviteCliente } from "@/features/clientes/convites";
+import { AdicionaisInteresseEvento } from "@/features/eventos/adicionais-interesse";
 import { AlterarStatusEvento } from "@/features/eventos/alterar-status-evento";
+import { observacaoDoCliente } from "@/features/eventos/observacoes";
 import { confirmarEvento, finalizarEvento, obterEvento } from "@/features/eventos/server-functions";
-import { AdicionaisOrcamento } from "@/features/orcamentos/adicionais-orcamento";
 import { DescontoOrcamento } from "@/features/orcamentos/desconto-orcamento";
 import { EditarOrcamentoDialog } from "@/features/orcamentos/editar-orcamento-dialog";
 import { aprovarOrcamento, enviarOrcamento } from "@/features/orcamentos/server-functions";
@@ -76,6 +77,7 @@ function valorDoEvento(evento: EventoDetalhe) {
 
 function DetalheEvento() {
   const evento = Route.useLoaderData();
+  const observacaoCliente = observacaoDoCliente(evento.observacoes);
   const orcamentoAtual = evento.orcamentos[0];
   const valorEvento = valorDoEvento(evento);
   const parcelas = evento.pagamentos.filter((item) => item.status !== "CANCELADO");
@@ -187,7 +189,6 @@ function DetalheEvento() {
                 </tbody>
               </table>
             </div>
-            <AdicionaisOrcamento itens={evento.servicosAdicionais} className="mt-4" />
             <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="w-full max-w-sm empty:hidden">
                 {encerrado ? null : (
@@ -216,10 +217,11 @@ function DetalheEvento() {
                 </div>
               </dl>
             </div>
-            {orcamentoAtual.observacoes ? (
+            <AdicionaisInteresseEvento eventoId={evento.id} itens={evento.servicosAdicionais} />
+            {observacaoCliente ? (
               <div className="bg-surface mt-4 rounded-xl p-4 ring-1 ring-black/5">
                 <p className="text-muted-foreground text-[11px] uppercase">Observações</p>
-                <p className="mt-1 whitespace-pre-wrap text-sm">{orcamentoAtual.observacoes}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm">{observacaoCliente}</p>
               </div>
             ) : null}
             {["REJEITADO", "EXPIRADO", "CANCELADO"].includes(orcamentoAtual.status) ? null : (

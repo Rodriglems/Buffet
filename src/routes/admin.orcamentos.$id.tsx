@@ -20,7 +20,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { obterEmpresa } from "@/features/empresa/server-functions";
-import { AdicionaisOrcamento } from "@/features/orcamentos/adicionais-orcamento";
+import { AdicionaisInteresseEvento } from "@/features/eventos/adicionais-interesse";
+import { observacaoDoCliente } from "@/features/eventos/observacoes";
 import { DescontoOrcamento } from "@/features/orcamentos/desconto-orcamento";
 import {
   aprovarOrcamento,
@@ -56,6 +57,7 @@ export const Route = createFileRoute("/admin/orcamentos/$id")({
 
 function DetalheOrcamento() {
   const dados = Route.useLoaderData();
+  const observacaoCliente = observacaoDoCliente(dados.orcamento.evento.observacoes);
   const enviar = useServerFn(enviarOrcamento);
   const aprovar = useServerFn(aprovarOrcamento);
   const router = useRouter();
@@ -220,11 +222,6 @@ function DetalheOrcamento() {
               </div>
             </div>
 
-            <AdicionaisOrcamento
-              itens={dados.orcamento.evento.servicosAdicionais}
-              className="mb-6"
-            />
-
             <div className="overflow-x-auto">
               <table className="w-full sm:min-w-[620px] text-left text-sm">
                 <thead>
@@ -287,14 +284,21 @@ function DetalheOrcamento() {
               </div>
             </div>
 
-            {(orcamento.observacoes || orcamento.condicoes) && (
+            <AdicionaisInteresseEvento
+              eventoId={dados.orcamento.evento.id}
+              itens={dados.orcamento.evento.servicosAdicionais}
+            />
+
+            {(observacaoCliente || orcamento.condicoes) && (
               <div className="mt-6 grid grid-cols-1 gap-4 border-t border-border pt-6 sm:grid-cols-2">
-                {orcamento.observacoes && (
+                {observacaoCliente && (
                   <div>
                     <p className="text-muted-foreground text-[11px] tracking-wide uppercase">
                       Observações
                     </p>
-                    <p className="mt-1 text-xs text-pretty">{orcamento.observacoes}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-xs text-pretty">
+                      {observacaoCliente}
+                    </p>
                   </div>
                 )}
                 {orcamento.condicoes && (

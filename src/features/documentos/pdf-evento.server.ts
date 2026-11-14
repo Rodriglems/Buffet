@@ -233,13 +233,18 @@ function desenharEvento({ pdf, negrito, italico, logo }: Recursos, dados: DadosP
 
   // Cabe em uma página: cardápios longos ganham fonte e espaçamento menores, até o mínimo
   // legível (TAMANHO_FONTE_MINIMO). Abaixo disso o cardápio continua na página seguinte.
-  const servicosContratados = [
-    ...(dados.formatoServico ? [`Formato: ${dados.formatoServico}`] : []),
-    ...dados.servicosAdicionais,
-  ];
-  const linhasServicos = servicosContratados.length ? servicosContratados.length + 2 : 0;
+  const linhasFormato = dados.formatoServico ? 3 : 0;
+  const linhasAdicionais = dados.servicosAdicionais.length
+    ? dados.servicosAdicionais.length + 2
+    : 0;
   const linhasDoCorpo =
-    4 + 2 + dados.itens.length + linhasServicos + 1 + (dados.desconto > 0 ? 3 : 1);
+    4 +
+    2 +
+    dados.itens.length +
+    linhasFormato +
+    linhasAdicionais +
+    1 +
+    (dados.desconto > 0 ? 3 : 1);
   // Espaço das linhas de fechamento (garantirEspaco(48) lá embaixo) com uma pequena folga.
   const alturaFechamento = 52;
   const espacoDisponivel = y - 60 - alturaFechamento;
@@ -275,9 +280,15 @@ function desenharEvento({ pdf, negrito, italico, logo }: Recursos, dados: DadosP
   for (const item of dados.itens) linha(item);
   y -= entrelinha;
 
-  if (servicosContratados.length) {
-    linha("SERVIÇOS CONTRATADOS");
-    for (const servico of servicosContratados) linha(servico);
+  if (dados.formatoServico) {
+    linha("FORMATO DO SERVIÇO");
+    linha(dados.formatoServico);
+    y -= entrelinha;
+  }
+
+  if (dados.servicosAdicionais.length) {
+    linha("ADICIONAIS DE INTERESSE");
+    for (const servico of dados.servicosAdicionais) linha(servico);
     y -= entrelinha;
   }
 

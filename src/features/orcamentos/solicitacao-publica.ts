@@ -358,15 +358,8 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
           localNome: data.localNome,
           cidade: data.cidade,
           status: "ORCAMENTO",
-          observacoes:
-            [
-              data.observacoes,
-              divergencias.length
-                ? `Atenção: o formulário informou dados diferentes do cadastro do cliente (${divergencias.join(", ")}). Confirme antes de atualizar o cadastro.`
-                : null,
-            ]
-              .filter(Boolean)
-              .join("\n\n") || null,
+          // Este campo aparece como a observação do cliente. Avisos internos ficam no orçamento.
+          observacoes: data.observacoes || null,
         },
       });
 
@@ -394,7 +387,12 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
           observacoes: [
             `Formato solicitado: ${data.formatoServico}.`,
             "Cardápio selecionado pelo cliente no formulário público. Valores sob consulta serão definidos pela equipe.",
-          ].join("\n"),
+            divergencias.length
+              ? `Atenção: o formulário informou dados diferentes do cadastro do cliente (${divergencias.join(", ")}). Confirme antes de atualizar o cadastro.`
+              : null,
+          ]
+            .filter(Boolean)
+            .join("\n"),
           itens: {
             create: itens.map(({ servico, quantidade, valorUnitario, total }) => ({
               servicoId: servico.id,
