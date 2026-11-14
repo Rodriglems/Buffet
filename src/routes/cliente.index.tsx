@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
 
 import { PageHeader, Panel, PanelHeader, StatCard } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
 import { currentUser } from "@/features/auth/server-functions";
 import { listarEventos } from "@/features/eventos/server-functions";
 import { ResumoPedido } from "@/features/orcamentos/resumo-pedido";
@@ -57,6 +59,14 @@ function Inicio() {
       <PageHeader
         title={`Olá, ${usuario?.nome.split(" ")[0] ?? "Cliente"}`}
         subtitle="Tudo sobre o seu evento em um só lugar"
+        actions={
+          <Button asChild className="max-sm:w-full">
+            <Link to="/orcamento">
+              <Plus className="size-4" />
+              Solicitar novo orçamento
+            </Link>
+          </Button>
+        }
       />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Eventos" value={String(meusEventos.length)} />
