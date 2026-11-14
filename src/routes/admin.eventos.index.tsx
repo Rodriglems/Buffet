@@ -1,13 +1,30 @@
 import { useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { CalendarDays, Copy, ExternalLink, List, Plus, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  List,
+  MoreVertical,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -24,6 +41,7 @@ import { formatBRL, formatDate } from "@/lib/format";
 import { rotuloStatusEvento } from "@/lib/status-evento";
 import { usePlaceholderBusca } from "@/lib/placeholder-busca";
 import { copiarTexto } from "@/lib/copiar-texto";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/eventos/")({
   head: () => ({
@@ -65,6 +83,19 @@ function EventosPage() {
   const [status, setStatus] = useState(TODOS);
   const [data, setData] = useState("");
   const [ordem, setOrdem] = useState(MAIS_RECENTES);
+  // No celular os filtros ficam recolhidos: a lista aparece primeiro.
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const filtrosAtivos =
+    Number(tipo !== TODOS) +
+    Number(status !== TODOS) +
+    Number(Boolean(data)) +
+    Number(ordem !== MAIS_RECENTES);
+  function limparFiltros() {
+    setTipo(TODOS);
+    setStatus(TODOS);
+    setData("");
+    setOrdem(MAIS_RECENTES);
+  }
 
   async function remover(evento: (typeof eventos)[number]) {
     const ok = await confirmar({
@@ -119,12 +150,18 @@ function EventosPage() {
         title="Eventos"
         subtitle={`${eventos.length} eventos cadastrados`}
         actions={
-          <>
-            {/* No celular o botão de copiar mostra só o ícone; o do formulário é o principal. */}
+          // Celular: "Novo evento" em largura total; os dois atalhos do formulário lado a lado.
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+            <Button asChild className="col-span-2 max-sm:h-11 sm:order-last">
+              <Link to="/admin/eventos/novo">
+                <Plus className="size-4" />
+                Novo evento
+              </Link>
+            </Button>
             <Button
               variant="outline"
-              aria-label="Copiar link do formulário de orçamento"
-              title="Copiar link do formulário"
+              className="max-sm:h-11"
+              title="Copiar o link do formulário de orçamento"
               onClick={() => {
                 const link = `${window.location.origin}/solicitar-orcamento/${formulario.token}`;
                 void copiarTexto(link).then(
@@ -137,33 +174,62 @@ function EventosPage() {
               }}
             >
               <Copy className="size-4" />
-              <span className="hidden sm:inline">Copiar link</span>
+              Copiar link
             </Button>
-            <Button variant="outline" asChild>
+            <Button variant="outline" asChild className="max-sm:h-11">
               <a href={`/solicitar-orcamento/${formulario.token}`} target="_blank" rel="noreferrer">
                 <ExternalLink className="size-4" />
                 Abrir formulário
               </a>
             </Button>
-            <Button asChild>
-              <Link to="/admin/eventos/novo">
-                <Plus className="size-4" />
-                Novo evento
-              </Link>
-            </Button>
-          </>
+          </div>
         }
       />
-      <Panel className="p-5">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <Input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder={placeholderBusca}
-            className="bg-surface border-0 ring-1 ring-black/5"
-          />
+      <Panel className="grid gap-3 p-3 sm:p-5">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input
+              aria-label="Buscar evento ou cliente"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder={placeholderBusca}
+              className="bg-surface border-0 pl-9 ring-1 ring-black/5 max-sm:h-11"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 shrink-0 sm:hidden"
+            aria-expanded={filtrosAbertos}
+            aria-controls="eventos-filtros"
+            onClick={() => setFiltrosAbertos((atual) => !atual)}
+          >
+            <SlidersHorizontal className="size-4" />
+            Filtros
+            {filtrosAtivos ? (
+              <span className="bg-primary text-primary-foreground grid size-5 place-items-center rounded-full text-[11px]">
+                {filtrosAtivos}
+              </span>
+            ) : (
+              <ChevronDown
+                className={cn("size-4 transition-transform", filtrosAbertos && "rotate-180")}
+              />
+            )}
+          </Button>
+        </div>
+        <div
+          id="eventos-filtros"
+          className={cn(
+            "grid grid-cols-1 gap-3 sm:grid sm:grid-cols-2 xl:grid-cols-4",
+            !filtrosAbertos && "max-sm:hidden",
+          )}
+        >
           <Select value={tipo} onValueChange={setTipo}>
-            <SelectTrigger className="bg-surface w-full border-0 ring-1 ring-black/5">
+            <SelectTrigger
+              aria-label="Tipo de evento"
+              className="bg-surface w-full border-0 ring-1 ring-black/5 max-sm:h-11"
+            >
               <SelectValue placeholder="Tipo de evento" />
             </SelectTrigger>
             <SelectContent>
@@ -176,7 +242,10 @@ function EventosPage() {
             </SelectContent>
           </Select>
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="bg-surface w-full border-0 ring-1 ring-black/5">
+            <SelectTrigger
+              aria-label="Status do evento"
+              className="bg-surface w-full border-0 ring-1 ring-black/5 max-sm:h-11"
+            >
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -190,12 +259,17 @@ function EventosPage() {
           </Select>
           <Input
             type="date"
+            aria-label="Data do evento"
+            title="Data do evento"
             value={data}
             onChange={(event) => setData(event.target.value)}
-            className="bg-surface border-0 ring-1 ring-black/5"
+            className="bg-surface border-0 ring-1 ring-black/5 max-sm:h-11"
           />
           <Select value={ordem} onValueChange={setOrdem}>
-            <SelectTrigger className="bg-surface w-full border-0 ring-1 ring-black/5">
+            <SelectTrigger
+              aria-label="Ordem da lista"
+              className="bg-surface w-full border-0 ring-1 ring-black/5 max-sm:h-11"
+            >
               <SelectValue placeholder="Ordenar registros" />
             </SelectTrigger>
             <SelectContent>
@@ -203,117 +277,192 @@ function EventosPage() {
               <SelectItem value={MAIS_ANTIGOS}>Registros mais antigos</SelectItem>
             </SelectContent>
           </Select>
+          {filtrosAtivos ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="justify-self-start max-sm:h-11 sm:col-span-2 xl:col-span-4"
+              onClick={limparFiltros}
+            >
+              Limpar filtros
+            </Button>
+          ) : null}
         </div>
       </Panel>
 
       <Tabs defaultValue="lista">
-        <TabsList>
-          <TabsTrigger value="lista">
+        <TabsList className="max-sm:h-12 max-sm:w-full">
+          <TabsTrigger value="lista" className="max-sm:h-10 max-sm:flex-1">
             <List className="size-4" /> Lista
           </TabsTrigger>
-          <TabsTrigger value="calendario">
+          <TabsTrigger value="calendario" className="max-sm:h-10 max-sm:flex-1">
             <CalendarDays className="size-4" /> Calendário
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="lista" className="mt-4">
-          <Panel className="p-5">
+          <Panel className="p-2 sm:p-5">
             {lista.length === 0 ? (
               <EmptyState
                 title="Nenhum evento encontrado"
                 description="Ajuste os filtros aplicados."
               />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full sm:min-w-[840px] text-left text-sm">
-                  <thead>
-                    <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
-                      <th className="pb-2 font-medium">Evento</th>
-                      <th className="pb-2 font-medium max-sm:hidden">Cliente</th>
-                      <th className="pb-2 font-medium max-sm:hidden">Data</th>
-                      <th className="pb-2 font-medium max-sm:hidden">Local</th>
-                      <th className="pb-2 font-medium max-sm:hidden">Convidados</th>
-                      <th className="pb-2 font-medium max-sm:hidden">Valor</th>
-                      <th className="pb-2 font-medium text-right sm:text-left">Status</th>
-                      <th className="pb-2 font-medium text-right">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {lista.map((e) => (
-                      <tr key={e.id}>
-                        <td className="py-3 pr-3">
-                          <Link
-                            to="/admin/eventos/$id"
-                            params={{ id: e.id }}
-                            className="font-medium hover:underline"
-                          >
-                            {e.tipo}
-                          </Link>
-                          {e.formatoServico ? (
-                            <p className="text-muted-foreground text-[11px] max-sm:hidden">
-                              {e.formatoServico}
-                            </p>
-                          ) : null}
-                          <p className="text-muted-foreground text-xs sm:hidden">
-                            {e.cliente.nome} · {formatDate(e.dataEvento)}
-                          </p>
+              <>
+                {/* Celular: um cartão por evento. Tocar abre o evento; excluir fica no menu ⋯. */}
+                <ul className="grid gap-2 sm:hidden">
+                  {lista.map((e) => (
+                    <li
+                      key={e.id}
+                      className="bg-surface flex items-start gap-1 rounded-xl ring-1 ring-black/5"
+                    >
+                      <Link
+                        to="/admin/eventos/$id"
+                        params={{ id: e.id }}
+                        className="hover:bg-secondary/60 focus-visible:ring-ring flex min-h-16 min-w-0 flex-1 items-start gap-3 rounded-xl p-3 focus-visible:ring-2 focus-visible:outline-none"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-medium">{e.tipo}</span>
+                          <span className="text-muted-foreground block text-sm">
+                            {e.cliente.nome}
+                          </span>
+                          <span className="text-muted-foreground mt-1 flex flex-wrap gap-x-3 text-sm">
+                            <span className="text-foreground">{formatDate(e.dataEvento)}</span>
+                            <span>{e.quantidadeConvidados} convidados</span>
+                            {e.orcamentos[0] ? (
+                              <span className="text-foreground font-medium">
+                                {formatBRL(Number(e.orcamentos[0].total))}
+                              </span>
+                            ) : null}
+                          </span>
                           {e.cliente.acesso === "SEM_ACESSO" ? (
-                            <StatusBadge
-                              status={e.cliente.acesso}
-                              dot={false}
-                              className="mt-1 sm:hidden"
-                            />
+                            <StatusBadge status={e.cliente.acesso} dot={false} className="mt-2" />
                           ) : null}
-                          {e.orcamentos[0] ? (
-                            <p className="text-xs font-medium sm:hidden">
-                              {formatBRL(Number(e.orcamentos[0].total))}
-                            </p>
-                          ) : null}
-                        </td>
-                        <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
-                          {e.cliente.nome}
-                          {e.cliente.acesso === "SEM_ACESSO" ? (
-                            <StatusBadge
-                              status={e.cliente.acesso}
-                              dot={false}
-                              className="ml-2 align-middle"
-                            />
-                          ) : null}
-                        </td>
-                        <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
-                          {formatDate(e.dataEvento)}
-                        </td>
-                        <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
-                          {e.localNome ?? "—"}
-                        </td>
-                        <td className="py-3 pr-3 max-sm:hidden">{e.quantidadeConvidados}</td>
-                        <td className="py-3 pr-3 font-medium whitespace-nowrap max-sm:hidden">
-                          {e.orcamentos[0] ? formatBRL(Number(e.orcamentos[0].total)) : "—"}
-                        </td>
-                        <td className="py-3 pr-3 text-right sm:text-left">
-                          <StatusBadge status={e.status} />
-                        </td>
-                        <td className="py-2 text-right">
-                          {/* No celular o botão mostra só o ícone; o nome fica no aria-label. */}
+                        </span>
+                        <StatusBadge status={e.status} className="shrink-0" />
+                      </Link>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                           <Button
                             type="button"
-                            size="sm"
                             variant="ghost"
-                            className="text-destructive hover:text-destructive"
-                            aria-label={`Excluir o evento de ${e.nome}`}
-                            title="Excluir evento"
-                            disabled={excluindoId !== null}
-                            onClick={() => void remover(e)}
+                            size="icon"
+                            className="mt-2 mr-1 size-11 shrink-0"
+                            aria-label={`Mais ações para o evento de ${e.nome}`}
                           >
-                            <Trash2 className="size-4" />
-                            <span className="hidden sm:inline">Excluir</span>
+                            <MoreVertical className="size-5" />
                           </Button>
-                        </td>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem asChild className="min-h-11">
+                            <Link to="/admin/eventos/$id" params={{ id: e.id }}>
+                              Abrir evento
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive min-h-11 [&_svg]:text-destructive"
+                            disabled={excluindoId !== null}
+                            onSelect={() => void remover(e)}
+                          >
+                            <Trash2 className="size-4" /> Excluir evento
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="hidden overflow-x-auto sm:block">
+                  <table className="w-full min-w-[840px] text-left text-sm">
+                    <thead>
+                      <tr className="text-muted-foreground border-b border-border text-xs">
+                        <th className="pb-2 font-medium">Evento</th>
+                        <th className="pb-2 font-medium max-sm:hidden">Cliente</th>
+                        <th className="pb-2 font-medium max-sm:hidden">Data</th>
+                        <th className="pb-2 font-medium max-sm:hidden">Local</th>
+                        <th className="pb-2 font-medium max-sm:hidden">Convidados</th>
+                        <th className="pb-2 font-medium max-sm:hidden">Valor</th>
+                        <th className="pb-2 font-medium text-right sm:text-left">Status</th>
+                        <th className="pb-2 font-medium text-right">Ações</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {lista.map((e) => (
+                        <tr key={e.id}>
+                          <td className="py-3 pr-3">
+                            <Link
+                              to="/admin/eventos/$id"
+                              params={{ id: e.id }}
+                              className="font-medium hover:underline"
+                            >
+                              {e.tipo}
+                            </Link>
+                            {e.formatoServico ? (
+                              <p className="text-muted-foreground text-[11px] max-sm:hidden">
+                                {e.formatoServico}
+                              </p>
+                            ) : null}
+                            <p className="text-muted-foreground text-xs sm:hidden">
+                              {e.cliente.nome} · {formatDate(e.dataEvento)}
+                            </p>
+                            {e.cliente.acesso === "SEM_ACESSO" ? (
+                              <StatusBadge
+                                status={e.cliente.acesso}
+                                dot={false}
+                                className="mt-1 sm:hidden"
+                              />
+                            ) : null}
+                            {e.orcamentos[0] ? (
+                              <p className="text-xs font-medium sm:hidden">
+                                {formatBRL(Number(e.orcamentos[0].total))}
+                              </p>
+                            ) : null}
+                          </td>
+                          <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                            {e.cliente.nome}
+                            {e.cliente.acesso === "SEM_ACESSO" ? (
+                              <StatusBadge
+                                status={e.cliente.acesso}
+                                dot={false}
+                                className="ml-2 align-middle"
+                              />
+                            ) : null}
+                          </td>
+                          <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                            {formatDate(e.dataEvento)}
+                          </td>
+                          <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                            {e.localNome ?? "—"}
+                          </td>
+                          <td className="py-3 pr-3 max-sm:hidden">{e.quantidadeConvidados}</td>
+                          <td className="py-3 pr-3 font-medium whitespace-nowrap max-sm:hidden">
+                            {e.orcamentos[0] ? formatBRL(Number(e.orcamentos[0].total)) : "—"}
+                          </td>
+                          <td className="py-3 pr-3 text-right sm:text-left">
+                            <StatusBadge status={e.status} />
+                          </td>
+                          <td className="py-2 text-right">
+                            {/* No celular o botão mostra só o ícone; o nome fica no aria-label. */}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              aria-label={`Excluir o evento de ${e.nome}`}
+                              title="Excluir evento"
+                              disabled={excluindoId !== null}
+                              onClick={() => void remover(e)}
+                            >
+                              <Trash2 className="size-4" />
+                              <span className="hidden sm:inline">Excluir</span>
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </Panel>
         </TabsContent>
