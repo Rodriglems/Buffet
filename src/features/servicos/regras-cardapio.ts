@@ -1,4 +1,5 @@
 import { normalizarBusca } from "@/features/orcamentos/formulario-publico";
+import { formatBRL } from "@/lib/format";
 
 type ItemBasico = { id: string; nome: string; categoria: string; cardapios: string[] };
 
@@ -92,6 +93,35 @@ export function alteracoesDoCardapio(
     .filter((item) => !escolhidos.has(item.id) && item.cardapios.includes(cardapio))
     .map((item) => item.id);
   return { adicionar, remover };
+}
+
+/** Unidades já usadas no cardápio, da mais comum para a menos comum (sugestões de um toque). */
+export function unidadesMaisUsadas(itens: { unidade: string }[], limite = 5): string[] {
+  const contagem = new Map<string, { texto: string; vezes: number }>();
+  for (const { unidade } of itens) {
+    const texto = unidade.trim();
+    if (!texto) continue;
+    const chave = texto.toLowerCase();
+    const atual = contagem.get(chave);
+    contagem.set(chave, { texto: atual?.texto ?? texto, vezes: (atual?.vezes ?? 0) + 1 });
+  }
+  return [...contagem.values()]
+    .sort((a, b) => b.vezes - a.vezes || a.texto.localeCompare(b.texto, "pt-BR"))
+    .slice(0, limite)
+    .map((item) => item.texto);
+}
+
+/** O que o cliente vê no formulário de orçamento para este preço. */
+export function previaDoPreco(valor: number, unidade: string, visivel: boolean): string {
+  if (valor <= 0) return "Sob consulta";
+  if (!visivel) return "Preço escondido: aparece só no orçamento";
+  return `${formatBRL(valor)} / ${unidade.trim() || "unidade"}`;
+}
+
+/** "nenhum item", "1 item", "181 itens": no lugar de "181 item(ns)". */
+export function contagem(quantidade: number, singular: string, plural: string): string {
+  if (quantidade === 0) return `nenhum ${singular}`;
+  return `${quantidade} ${quantidade === 1 ? singular : plural}`;
 }
 
 /** Texto do campo de preço: vazio quando o valor é "sob consulta" (guardado como 0). */

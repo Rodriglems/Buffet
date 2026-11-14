@@ -138,7 +138,7 @@ function ItemArrastavel({
       {...listeners}
       aria-label={`Arrastar para reordenar ${rotulo}`}
       title="Arraste para mudar a ordem"
-      className="text-muted-foreground hover:text-foreground hover:bg-accent grid size-8 shrink-0 cursor-grab touch-none place-items-center rounded-md active:cursor-grabbing"
+      className="text-muted-foreground hover:text-foreground hover:bg-accent grid size-10 shrink-0 cursor-grab touch-none place-items-center rounded-md active:cursor-grabbing sm:size-8"
     >
       <GripVertical className="size-4" />
     </button>

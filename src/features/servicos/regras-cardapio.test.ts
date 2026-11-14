@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   alteracoesDoCardapio,
+  contagem,
   itemComMesmoNome,
   itensParecidos,
   mensagemNomeRepetido,
+  previaDoPreco,
   textoDoPreco,
+  unidadesMaisUsadas,
 } from "@/features/servicos/regras-cardapio";
+import { formatBRL } from "@/lib/format";
 
 const itens = [
   { id: "1", nome: "Bolinho de bacalhau", categoria: "Salgadinhos", cardapios: ["Coquetel"] },
@@ -91,6 +95,46 @@ describe("alteracoesDoCardapio", () => {
 
   it("não muda nada quando a seleção é a mesma", () => {
     expect(alteracoesDoCardapio(itens, "Coquetel", ["1"])).toEqual({ adicionar: [], remover: [] });
+  });
+});
+
+describe("unidadesMaisUsadas", () => {
+  it("lista as unidades do cardápio da mais usada para a menos usada, sem repetir", () => {
+    const comUnidades = [
+      { unidade: "cento" },
+      { unidade: "por pessoa" },
+      { unidade: "cento" },
+      { unidade: " Cento " },
+      { unidade: "kg" },
+      { unidade: "por pessoa" },
+    ];
+    expect(unidadesMaisUsadas(comUnidades, 2)).toEqual(["cento", "por pessoa"]);
+  });
+
+  it("ignora unidades vazias", () => {
+    expect(unidadesMaisUsadas([{ unidade: "" }, { unidade: "  " }], 3)).toEqual([]);
+  });
+});
+
+describe("previaDoPreco", () => {
+  it("mostra o valor com a unidade, como o cliente vê", () => {
+    expect(previaDoPreco(110, "cento", true)).toBe(`${formatBRL(110)} / cento`);
+  });
+
+  it("mostra sob consulta quando não há valor", () => {
+    expect(previaDoPreco(0, "cento", true)).toBe("Sob consulta");
+  });
+
+  it("explica quando o preço fica escondido do cliente", () => {
+    expect(previaDoPreco(110, "cento", false)).toBe("Preço escondido: aparece só no orçamento");
+  });
+});
+
+describe("contagem", () => {
+  it("usa singular, plural e 'nenhum' corretamente", () => {
+    expect(contagem(0, "item", "itens")).toBe("nenhum item");
+    expect(contagem(1, "item", "itens")).toBe("1 item");
+    expect(contagem(181, "item", "itens")).toBe("181 itens");
   });
 });
 

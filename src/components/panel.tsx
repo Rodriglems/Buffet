@@ -46,7 +46,9 @@ export function PageHeader({
       </div>
       {actions && (
         // ml-auto: quando os botões descem de linha (celular), continuam alinhados à direita.
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{actions}</div>
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:w-full">
+          {actions}
+        </div>
       )}
     </div>
   );

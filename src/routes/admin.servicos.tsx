@@ -2,7 +2,17 @@ import { type ChangeEvent, type FormEvent, type ReactNode, useMemo, useState } f
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronRight, FolderPlus, ListTree, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronRight,
+  FolderPlus,
+  ListTree,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { ListaArrastavel } from "@/components/lista-arrastavel";
@@ -20,7 +30,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -44,13 +61,15 @@ import {
   updateServico,
   type CreateServicoInput,
   type Servico,
-  type ServicoStatus,
 } from "@/features/servicos/server-functions";
 import { CardapiosFormatosDialog } from "@/features/servicos/cardapios-formatos-dialog";
 import {
+  contagem,
   itemComMesmoNome,
   itensParecidos,
+  previaDoPreco,
   textoDoPreco,
+  unidadesMaisUsadas,
 } from "@/features/servicos/regras-cardapio";
 import {
   useCardapiosEFormatos,
@@ -256,18 +275,30 @@ function CardapioPage() {
         title="Cardápio"
         subtitle="Organize os itens por categoria"
         actions={
-          <>
-            <Button variant="outline" onClick={() => setPainelCardapios("formatos")}>
-              <ListTree className="size-4" /> Cardápios e formatos
-            </Button>
-            <Button variant="outline" onClick={() => setCategoriaEditada("nova")}>
-              <FolderPlus className="size-4" /> Nova categoria
-            </Button>
-            <Button onClick={() => abrirNovo()}>
+          // Celular: "Novo item" (ação principal) em largura total, as outras duas lado a lado.
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+            <Button className="col-span-2 max-sm:h-11 sm:order-last" onClick={() => abrirNovo()}>
               <Plus className="size-4" />
               Novo item
             </Button>
-          </>
+            <Button
+              variant="outline"
+              className="max-sm:h-11"
+              onClick={() => setPainelCardapios("cardapios")}
+            >
+              <ListTree className="size-4" />
+              <span>
+                Cardápios<span className="hidden sm:inline"> e formatos</span>
+              </span>
+            </Button>
+            <Button
+              variant="outline"
+              className="max-sm:h-11"
+              onClick={() => setCategoriaEditada("nova")}
+            >
+              <FolderPlus className="size-4" /> Nova categoria
+            </Button>
+          </div>
         }
       />
 
@@ -278,12 +309,12 @@ function CardapioPage() {
             value={busca}
             onChange={(event) => setBusca(event.target.value)}
             placeholder="Buscar item ou categoria"
-            className="bg-surface border-0 pl-9 ring-1 ring-black/5"
+            className="bg-surface border-0 pl-9 ring-1 ring-black/5 max-sm:h-11"
           />
         </div>
         <Select value={cardapioFiltro} onValueChange={setCardapioFiltro}>
           <SelectTrigger
-            className="bg-surface w-full border-0 ring-1 ring-black/5 sm:w-72"
+            className="bg-surface w-full border-0 ring-1 ring-black/5 max-sm:h-11 sm:w-72"
             aria-label="Filtrar por cardápio"
           >
             <SelectValue />
@@ -330,15 +361,15 @@ function CardapioPage() {
               // Começam recolhidas; a busca abre as categorias com resultado.
               const aberta = Boolean(termo) || abertas.has(categoria.id);
               return (
-                <Panel className="p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                <Panel className="p-3 sm:p-5">
+                  <div className="flex items-center justify-between gap-2 sm:gap-3">
                     {alca}
                     <button
                       type="button"
                       onClick={() => alternarCategoria(categoria.id)}
                       aria-expanded={aberta}
                       aria-controls={`itens-${categoria.id}`}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 text-left sm:gap-3"
                     >
                       <ChevronRight
                         className={cn(
@@ -351,15 +382,16 @@ function CardapioPage() {
                           {categoria.nome}
                         </span>
                         <span className="text-muted-foreground block text-xs">
-                          {doGrupo.length} item(ns)
+                          {contagem(doGrupo.length, "item", "itens")}
                         </span>
                       </span>
                     </button>
-                    <div className="flex flex-wrap items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                       {/* No celular os botões mostram só o ícone; o nome fica no aria-label. */}
                       <Button
                         size="sm"
                         variant="outline"
+                        className="max-sm:size-11"
                         aria-label={`Renomear a categoria ${categoria.nome}`}
                         title="Renomear"
                         onClick={() => setCategoriaEditada(categoria)}
@@ -371,6 +403,7 @@ function CardapioPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          className="max-sm:size-11"
                           aria-label={`Excluir a categoria ${categoria.nome}`}
                           title="Excluir"
                           onClick={() => void removerCategoria(categoria)}
@@ -381,6 +414,7 @@ function CardapioPage() {
                       )}
                       <Button
                         size="sm"
+                        className="max-sm:size-11"
                         aria-label={`Adicionar item em ${categoria.nome}`}
                         title="Adicionar item"
                         onClick={() => {
@@ -396,7 +430,7 @@ function CardapioPage() {
                   {aberta ? (
                     <div id={`itens-${categoria.id}`}>
                       {doGrupo.length ? (
-                        <div className="mt-4">{linhasDoItem(doGrupo)}</div>
+                        <div className="mt-3 sm:mt-4">{linhasDoItem(doGrupo)}</div>
                       ) : (
                         <p className="text-muted-foreground mt-3 text-sm">
                           Nenhum item nesta categoria ainda.
@@ -447,7 +481,7 @@ function CardapioPage() {
       <CardapiosFormatosDialog
         aberto={painelCardapios !== null}
         onOpenChange={(aberto) => (aberto ? null : setPainelCardapios(null))}
-        abaInicial={painelCardapios ?? "formatos"}
+        abaInicial={painelCardapios ?? "cardapios"}
         itens={itens.data ?? []}
       />
       <CategoriaDialog
@@ -473,46 +507,99 @@ function ItemLinha({
   onEditar: () => void;
   onRemover: () => void;
 }) {
+  const inativo = item.status === "Inativo";
   return (
-    <article className="bg-surface flex items-start gap-2 rounded-xl p-4 ring-1 ring-black/5 sm:items-center">
+    <article
+      className={cn(
+        "bg-surface flex items-center gap-1 rounded-xl py-1 pr-1 pl-1 ring-1 ring-black/5 sm:gap-2 sm:py-2 sm:pr-3",
+        inativo && "bg-muted/40",
+      )}
+    >
       {alca}
-      <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center">
+      {/* A linha inteira abre a edição: alvo grande e fácil de tocar no celular. */}
+      <button
+        type="button"
+        onClick={onEditar}
+        aria-label={`Editar ${item.nome}`}
+        className="hover:bg-secondary/60 focus-visible:ring-ring flex min-h-14 min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
+      >
         {item.imagemUrl ? (
           <img
             src={item.imagemUrl}
             alt=""
-            className="h-24 w-full rounded-lg object-cover sm:size-16"
+            loading="lazy"
+            className="size-12 shrink-0 rounded-lg object-cover sm:size-14"
           />
         ) : null}
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-medium">{item.nome}</h3>
-            <StatusBadge status={item.status} />
-            {!item.precoVisivel ? (
-              <span className="text-muted-foreground text-xs">Preço oculto</span>
-            ) : null}
+        <span className="min-w-0 flex-1">
+          <span className={cn("block font-medium", inativo && "text-muted-foreground")}>
+            {item.nome}
+          </span>
+          {item.descricao ? (
+            <span className="text-muted-foreground mt-0.5 line-clamp-1 block text-xs">
+              {item.descricao}
+            </span>
+          ) : null}
+          <span className="text-muted-foreground mt-0.5 flex flex-wrap gap-x-2 text-sm">
+            <span className="text-foreground">
+              {item.valorBase > 0
+                ? `${formatBRL(item.valorBase)} / ${item.unidade}`
+                : "Sob consulta"}
+            </span>
+            {!item.precoVisivel && item.valorBase > 0 ? <span>preço escondido</span> : null}
             {item.opcoesIds.length ? (
-              <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px]">
-                {item.opcoesIds.length} opção(ões) de {item.opcoesRotulo.toLowerCase() || "escolha"}
+              <span>
+                {contagem(item.opcoesIds.length, "opção", "opções")} de{" "}
+                {item.opcoesRotulo.toLowerCase() || "escolha"}
               </span>
             ) : null}
-          </div>
-          {item.descricao ? (
-            <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{item.descricao}</p>
-          ) : null}
-          <p className="mt-1 text-sm">
-            {item.valorBase > 0 ? `${formatBRL(item.valorBase)} · ${item.unidade}` : "Sob consulta"}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-1 sm:justify-end">
-          <Button type="button" size="sm" variant="outline" onClick={onEditar}>
-            <Pencil className="size-4" /> Editar
-          </Button>
-          <Button type="button" size="sm" variant="outline" disabled={ocupado} onClick={onRemover}>
-            <Trash2 className="size-4" /> Remover
-          </Button>
-        </div>
+          </span>
+        </span>
+        {/* Status fixo no canto direito: Ativo (verde) ou Inativo (cinza), sempre no mesmo lugar. */}
+        <StatusBadge status={item.status} className="shrink-0 self-start sm:self-center" />
+      </button>
+
+      {/* Computador: as duas ações à vista. Celular: menu ⋯, para não remover sem querer. */}
+      <div className="hidden shrink-0 gap-1 sm:flex">
+        <Button type="button" size="sm" variant="outline" onClick={onEditar}>
+          <Pencil className="size-4" /> Editar
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="text-destructive hover:text-destructive"
+          disabled={ocupado}
+          onClick={onRemover}
+        >
+          <Trash2 className="size-4" /> Remover
+        </Button>
       </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-11 shrink-0 sm:hidden"
+            aria-label={`Mais ações para ${item.nome}`}
+          >
+            <MoreVertical className="size-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuItem className="min-h-11" onSelect={onEditar}>
+            <Pencil className="size-4" /> Editar
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive min-h-11 [&_svg]:text-destructive"
+            disabled={ocupado}
+            onSelect={onRemover}
+          >
+            <Trash2 className="size-4" /> Remover
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </article>
   );
 }
@@ -626,6 +713,7 @@ function ItemDialog({
   const [buscaOpcao, setBuscaOpcao] = useState("");
   // A seção de opções só aparece para itens que pedem uma escolha (ex.: massa recheada).
   const [comOpcoes, setComOpcoes] = useState(false);
+  const [maisOpcoes, setMaisOpcoes] = useState(false);
   // Reinicia os campos ao abrir e também ao trocar de item com a janela aberta
   // ("Abrir este item" passa do cadastro para a edição do item existente).
   const chaveAbertura = aberto ? `aberto:${editandoId ?? "novo"}` : "fechado";
@@ -636,6 +724,7 @@ function ItemDialog({
       setPrecoTexto(editandoId ? textoDoPreco(form.valorBase) : "");
       setBuscaOpcao("");
       setComOpcoes(form.opcoesIds.length > 0);
+      setMaisOpcoes(form.opcoesIds.length > 0 || form.tiposEvento.length > 0);
     }
   }
 
@@ -706,335 +795,454 @@ function ItemDialog({
     ? categorias
     : [form.categoria, ...categorias];
 
+  const unidadesSugeridas = unidadesMaisUsadas(todosItens, 5);
+  const previa = previaDoPreco(form.valorBase, form.unidade, form.precoVisivel);
+  const cardapiosDoItem = [
+    ...cardapios,
+    // Cardápio que o item ainda tem, mas foi excluído: aparece para poder desmarcar.
+    ...form.cardapios.filter((nome) => !cardapios.includes(nome)),
+  ];
+  const resumoMaisOpcoes = [
+    form.opcoesIds.length ? `${form.opcoesIds.length} opção(ões) de escolha` : "",
+    form.tiposEvento.length ? `${form.tiposEvento.length} tipo(s) de evento` : "",
+  ]
+    .filter(Boolean)
+    .join(" e ");
+
   return (
     <Dialog open={aberto} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <form onSubmit={submit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>{editandoId ? "Editar" : "Cadastrar"} item</DialogTitle>
+      {/* Topo e rodapé fixos: só o meio rola, e o Salvar fica sempre à vista (no celular também). */}
+      <DialogContent className="flex max-h-[92vh] flex-col gap-0 p-0 sm:max-w-2xl">
+        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader className="border-border border-b px-6 pt-6 pb-4 text-left">
+            <DialogTitle>{editandoId ? "Editar item" : "Novo item do cardápio"}</DialogTitle>
             <DialogDescription>
-              O preço oculto continua disponível para os cálculos internos.
+              {editandoId
+                ? "As mudanças valem para todos os cardápios em que o item aparece."
+                : "Cadastre o prato uma vez e escolha em quais cardápios ele aparece."}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-1.5 sm:col-span-2">
-              <Label htmlFor="item-nome">Nome</Label>
-              <Input
-                id="item-nome"
-                required
-                minLength={2}
-                value={form.nome}
-                onChange={(event) => atualizar({ nome: event.target.value })}
-                aria-describedby={repetido ? "item-nome-repetido" : undefined}
-              />
-              {repetido ? (
-                <div
-                  id="item-nome-repetido"
-                  role="status"
-                  className="bg-warning/12 text-warning-foreground flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm"
+
+          <div className="grid min-h-0 flex-1 gap-8 overflow-y-auto px-6 py-6">
+            {/* ------------------------------ O prato ------------------------------ */}
+            <Secao titulo="O prato">
+              <div className="grid gap-1.5">
+                <Label htmlFor="item-nome">Nome</Label>
+                <Input
+                  id="item-nome"
+                  required
+                  minLength={2}
+                  placeholder="Ex.: Bolinho de bacalhau"
+                  value={form.nome}
+                  onChange={(event) => atualizar({ nome: event.target.value })}
+                  aria-describedby={repetido ? "item-nome-repetido" : undefined}
+                />
+                {repetido ? (
+                  <div
+                    id="item-nome-repetido"
+                    role="status"
+                    className="bg-warning/12 text-warning-foreground flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <span>
+                      Já existe “{repetido.nome}” na categoria {repetido.categoria}
+                      {repetido.status === "Inativo" ? " (inativo)" : ""}. Para colocá-lo em outro
+                      cardápio, abra esse item.
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onAbrirExistente(repetido)}
+                    >
+                      Abrir este item
+                    </Button>
+                  </div>
+                ) : parecidos.length ? (
+                  <div
+                    role="status"
+                    className="bg-secondary grid gap-1 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <p className="text-muted-foreground text-xs">
+                      Itens parecidos já cadastrados. Se for um deles, abra em vez de cadastrar de
+                      novo:
+                    </p>
+                    <ul className="grid gap-0.5">
+                      {parecidos.map((item) => (
+                        <li key={item.id} className="flex items-center justify-between gap-2">
+                          <span className="min-w-0">
+                            {item.nome}
+                            <span className="text-muted-foreground"> — {item.categoria}</span>
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 shrink-0"
+                            onClick={() => onAbrirExistente(item)}
+                          >
+                            Abrir
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="item-categoria">Categoria</Label>
+                <Select
+                  value={form.categoria}
+                  onValueChange={(categoria) => atualizar({ categoria })}
                 >
-                  <span>
-                    Já existe “{repetido.nome}” na categoria {repetido.categoria}
-                    {repetido.status === "Inativo" ? " (inativo)" : ""}. Para colocá-lo em outro
-                    cardápio, abra esse item.
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onAbrirExistente(repetido)}
-                  >
-                    Abrir este item
-                  </Button>
-                </div>
-              ) : parecidos.length ? (
-                <div role="status" className="bg-secondary grid gap-1 rounded-lg px-3 py-2 text-sm">
-                  <p className="text-muted-foreground text-xs">
-                    Itens parecidos já cadastrados. Se for um deles, abra em vez de cadastrar de
-                    novo:
-                  </p>
-                  <ul className="grid gap-0.5">
-                    {parecidos.map((item) => (
-                      <li key={item.id} className="flex items-center justify-between gap-2">
-                        <span className="min-w-0">
-                          {item.nome}
-                          <span className="text-muted-foreground"> · {item.categoria}</span>
-                        </span>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 shrink-0"
-                          onClick={() => onAbrirExistente(item)}
-                        >
-                          Abrir
-                        </Button>
-                      </li>
+                  <SelectTrigger id="item-categoria" aria-describedby="item-categoria-ajuda">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {opcoesCategoria.map((categoria) => (
+                      <SelectItem key={categoria} value={categoria}>
+                        {categoria}
+                      </SelectItem>
                     ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="item-categoria">Categoria</Label>
-              <Select
-                value={form.categoria}
-                onValueChange={(categoria) => atualizar({ categoria })}
-              >
-                <SelectTrigger id="item-categoria">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {opcoesCategoria.map((categoria) => (
-                    <SelectItem key={categoria} value={categoria}>
-                      {categoria}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-muted-foreground text-xs">
-                O tipo do prato, ex.: Salgadinhos. Cada item tem uma só.
-              </p>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="item-status">Status</Label>
-              <Select
-                value={form.status}
-                onValueChange={(status) => atualizar({ status: status as ServicoStatus })}
-              >
-                <SelectTrigger id="item-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Ativo">Ativo</SelectItem>
-                  <SelectItem value="Inativo">Inativo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="item-valor">Preço</Label>
-              <Input
-                id="item-valor"
-                inputMode="decimal"
-                placeholder="Sob consulta"
-                value={precoTexto}
-                onChange={(event) => {
-                  const texto = limparNumeroDigitado(event.target.value);
-                  setPrecoTexto(texto);
-                  atualizar({ valorBase: Number(texto.replace(",", ".")) || 0 });
-                }}
-              />
-              <p className="text-muted-foreground text-xs">Em branco, aparece como sob consulta.</p>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="item-unidade">Unidade</Label>
-              <Input
-                id="item-unidade"
-                required
-                placeholder="por pessoa, por evento…"
-                value={form.unidade}
-                onChange={(event) => atualizar({ unidade: event.target.value })}
-              />
-            </div>
-            <label className="flex items-center gap-2 text-sm sm:col-span-2">
-              <Checkbox
-                checked={form.precoVisivel}
-                onCheckedChange={(checked) => atualizar({ precoVisivel: checked === true })}
-              />
-              Exibir o preço para clientes
-            </label>
-            <div className="grid gap-1.5 sm:col-span-2">
-              <Label htmlFor="item-descricao">Descrição</Label>
-              <Textarea
-                id="item-descricao"
-                rows={3}
-                value={form.descricao}
-                onChange={(event) => atualizar({ descricao: event.target.value })}
-              />
-            </div>
-            <div className="grid gap-2 sm:col-span-2">
-              <Label htmlFor="item-imagem">Foto do item (opcional)</Label>
-              <SeletorImagem
-                id="item-imagem"
-                temImagem={Boolean(form.imagemUrl)}
-                enviando={enviandoImagem}
-                onChange={(event) => void escolherImagem(event)}
-              />
-              {form.imagemUrl ? (
-                <div className="bg-surface flex items-center gap-3 rounded-xl p-3 ring-1 ring-black/5">
-                  <img
-                    src={form.imagemUrl}
-                    alt="Pré-visualização"
-                    className="size-20 rounded-lg object-cover"
+                  </SelectContent>
+                </Select>
+                <p id="item-categoria-ajuda" className="text-muted-foreground text-xs">
+                  O tipo do prato, ex.: Salgadinhos. Cada item tem uma só.
+                </p>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="item-descricao">
+                  Descrição <span className="text-muted-foreground font-normal">(opcional)</span>
+                </Label>
+                <Textarea
+                  id="item-descricao"
+                  rows={2}
+                  placeholder="O que vai no prato, como é servido…"
+                  value={form.descricao}
+                  onChange={(event) => atualizar({ descricao: event.target.value })}
+                />
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="item-imagem">
+                  Foto <span className="text-muted-foreground font-normal">(opcional)</span>
+                </Label>
+                <div className="flex flex-wrap items-center gap-3">
+                  {form.imagemUrl ? (
+                    <img
+                      src={form.imagemUrl}
+                      alt={`Foto de ${form.nome || "item"}`}
+                      className="size-16 rounded-lg object-cover ring-1 ring-black/5"
+                    />
+                  ) : null}
+                  <SeletorImagem
+                    id="item-imagem"
+                    temImagem={Boolean(form.imagemUrl)}
+                    enviando={enviandoImagem}
+                    onChange={(event) => void escolherImagem(event)}
                   />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => atualizar({ imagemUrl: "" })}
-                  >
-                    Remover imagem
-                  </Button>
+                  {form.imagemUrl ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => atualizar({ imagemUrl: "" })}
+                    >
+                      Remover
+                    </Button>
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
-            <div className="grid gap-2 sm:col-span-2">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <Label>Cardápios públicos</Label>
-                  <p className="text-muted-foreground text-xs">
-                    Em que tipo de festa o item é servido, ex.: Feijoada, Coquetel. Marque quantos
-                    quiser. Sem seleção, o cliente não vê o item.
+              </div>
+            </Secao>
+
+            {/* ------------------------------- Preço ------------------------------- */}
+            <Secao titulo="Preço">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="item-valor">Valor</Label>
+                  <div className="relative">
+                    <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm">
+                      R$
+                    </span>
+                    <Input
+                      id="item-valor"
+                      inputMode="decimal"
+                      placeholder="Sob consulta"
+                      className="pl-9"
+                      aria-describedby="item-valor-ajuda"
+                      value={precoTexto}
+                      onChange={(event) => {
+                        const texto = limparNumeroDigitado(event.target.value);
+                        setPrecoTexto(texto);
+                        atualizar({ valorBase: Number(texto.replace(",", ".")) || 0 });
+                      }}
+                    />
+                  </div>
+                  <p id="item-valor-ajuda" className="text-muted-foreground text-xs">
+                    Em branco, aparece como sob consulta.
                   </p>
                 </div>
+                <div className="grid content-start gap-1.5">
+                  <Label htmlFor="item-unidade">Cobrado</Label>
+                  <Input
+                    id="item-unidade"
+                    required
+                    placeholder="por pessoa, cento, kg…"
+                    value={form.unidade}
+                    onChange={(event) => atualizar({ unidade: event.target.value })}
+                  />
+                  {unidadesSugeridas.length ? (
+                    <div className="flex flex-wrap gap-1.5" aria-label="Unidades mais usadas">
+                      {unidadesSugeridas.map((unidade) => (
+                        <button
+                          key={unidade}
+                          type="button"
+                          aria-pressed={form.unidade.trim().toLowerCase() === unidade.toLowerCase()}
+                          onClick={() => atualizar({ unidade })}
+                          className="bg-secondary text-secondary-foreground hover:bg-muted aria-pressed:bg-primary aria-pressed:text-primary-foreground rounded-full px-2.5 py-1 text-xs transition-colors"
+                        >
+                          {unidade}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <label className="flex items-center justify-between gap-4 text-sm">
+                <span>
+                  Mostrar o preço para o cliente
+                  <span className="text-muted-foreground block text-xs">
+                    Desligado, o valor só entra no orçamento que a equipe envia.
+                  </span>
+                </span>
+                <Switch
+                  checked={form.precoVisivel}
+                  onCheckedChange={(precoVisivel) => atualizar({ precoVisivel })}
+                />
+              </label>
+              <p className="bg-secondary rounded-lg px-3 py-2 text-sm" aria-live="polite">
+                <span className="text-muted-foreground">O cliente vê: </span>
+                <strong className="font-semibold">{previa}</strong>
+              </p>
+            </Secao>
+
+            {/* ---------------------------- Onde aparece ---------------------------- */}
+            <Secao
+              titulo="Onde aparece"
+              acao={
                 <Button type="button" size="sm" variant="ghost" onClick={onGerenciarCardapios}>
                   <ListTree className="size-4" /> Gerenciar cardápios
                 </Button>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {[
-                  ...cardapios,
-                  // Cardápio que o item ainda tem, mas foi excluído: aparece para poder desmarcar.
-                  ...form.cardapios.filter((nome) => !cardapios.includes(nome)),
-                ].map((cardapio) => (
-                  <label key={cardapio} className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={form.cardapios.includes(cardapio)}
-                      onCheckedChange={(checked) =>
-                        atualizar({
-                          cardapios: checked
-                            ? [...form.cardapios, cardapio]
-                            : form.cardapios.filter((item) => item !== cardapio),
-                        })
-                      }
-                    />
-                    {cardapio}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <label className="flex items-start gap-2 text-sm sm:col-span-2">
-              <Checkbox
-                className="mt-0.5"
-                checked={comOpcoes}
-                onCheckedChange={(checked) => {
-                  setComOpcoes(checked === true);
-                  // Desmarcar remove as opções: o item volta a ser uma escolha simples.
-                  if (checked !== true) atualizar({ opcoesIds: [], opcoesRotulo: "" });
-                }}
-              />
-              <span>
-                Este item tem opções para o cliente escolher
-                <span className="text-muted-foreground block text-xs">
-                  Ex.: uma massa recheada em que o cliente escolhe o recheio.
-                </span>
-              </span>
-            </label>
-            {comOpcoes ? (
-              <div className="bg-surface grid gap-3 rounded-xl p-4 ring-1 ring-black/5 sm:col-span-2">
-                <div>
-                  <p className="text-sm font-semibold">Opções para o cliente escolher</p>
-                  <ol className="text-muted-foreground mt-1 list-decimal space-y-0.5 pl-4 text-xs">
-                    <li>
-                      Em <strong>Nome da escolha</strong>, escreva a palavra que o cliente vê (ex.:
-                      Recheio, Molho, Sabor).
-                    </li>
-                    <li>Busque abaixo e marque os itens que servem como opção deste item.</li>
-                    <li>
-                      Salve. No formulário, ao marcar este item, o cliente escolhe uma das opções
-                      (ex.: “Recheio para Conchiglioni”).
-                    </li>
-                  </ol>
-                </div>
-                <div className="grid gap-1.5 sm:max-w-xs">
-                  <Label htmlFor="item-opcoes-rotulo">Nome da escolha</Label>
-                  <Input
-                    id="item-opcoes-rotulo"
-                    placeholder="Recheio"
-                    aria-describedby="item-opcoes-rotulo-ajuda"
-                    value={form.opcoesRotulo}
-                    onChange={(event) => atualizar({ opcoesRotulo: event.target.value })}
-                  />
-                  <p id="item-opcoes-rotulo-ajuda" className="text-muted-foreground text-xs">
-                    Se ficar vazio, aparece “Opção”.
-                  </p>
-                </div>
-                <div className="relative">
-                  <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-                  <Input
-                    value={buscaOpcao}
-                    onChange={(event) => setBuscaOpcao(event.target.value)}
-                    placeholder="Buscar itens para usar como opção…"
-                    className="pl-9"
-                  />
-                </div>
-                {candidatas.length ? (
-                  <div className="grid max-h-56 gap-1 overflow-y-auto">
-                    {candidatas.map((item) => (
-                      <label key={item.id} className="flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={form.opcoesIds.includes(item.id)}
-                          onCheckedChange={(checked) =>
-                            atualizar({
-                              opcoesIds: checked
-                                ? [...form.opcoesIds, item.id]
-                                : form.opcoesIds.filter((opcaoId) => opcaoId !== item.id),
-                            })
-                          }
-                        />
-                        {item.nome}
-                        <span className="text-muted-foreground text-xs">{item.categoria}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-xs">
-                    {termoOpcao
-                      ? "Nenhum item encontrado. Cadastre a opção como item do cardápio primeiro."
-                      : "Nenhuma opção. Busque um item para adicionar."}
-                  </p>
-                )}
-                <div className="bg-primary/5 text-muted-foreground grid gap-1 rounded-lg p-3 text-xs">
-                  <p>
-                    <strong className="text-foreground">A opção precisa existir como item.</strong>{" "}
-                    Para um recheio novo, cadastre-o antes (ex.: na categoria “Recheios para
-                    massas”) e depois marque-o aqui.
-                  </p>
-                  <p>
-                    Itens usados como opção não aparecem soltos no formulário: o cliente só os
-                    escolhe dentro deste item.
-                  </p>
-                  <p>Cada item tem a própria lista: marque só as opções que combinam com ele.</p>
-                </div>
-              </div>
-            ) : null}
-            <div className="grid gap-2 sm:col-span-2">
-              <div>
-                <Label>Tipos de evento</Label>
-                <p className="text-muted-foreground text-xs">
-                  Sem seleção, o item será válido para todos.
+              }
+            >
+              <div className="grid gap-2">
+                <p className="text-muted-foreground text-xs" id="item-cardapios-ajuda">
+                  Em que tipo de festa o item é servido. Toque para marcar quantos quiser; sem
+                  nenhum, o cliente não vê o item.
                 </p>
+                <div
+                  className="flex flex-wrap gap-2"
+                  role="group"
+                  aria-describedby="item-cardapios-ajuda"
+                >
+                  {cardapiosDoItem.map((cardapio) => {
+                    const marcado = form.cardapios.includes(cardapio);
+                    return (
+                      <button
+                        key={cardapio}
+                        type="button"
+                        aria-pressed={marcado}
+                        onClick={() =>
+                          atualizar({
+                            cardapios: marcado
+                              ? form.cardapios.filter((item) => item !== cardapio)
+                              : [...form.cardapios, cardapio],
+                          })
+                        }
+                        className={cn(
+                          "inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm ring-1 transition-colors",
+                          marcado
+                            ? "bg-primary text-primary-foreground ring-primary"
+                            : "bg-surface ring-input hover:bg-secondary",
+                        )}
+                      >
+                        {marcado ? <Check className="size-3.5" /> : <Plus className="size-3.5" />}
+                        {cardapio}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!cardapiosDoItem.length ? (
+                  <p className="text-muted-foreground text-sm">
+                    Nenhum cardápio cadastrado. Crie um em “Gerenciar cardápios”.
+                  </p>
+                ) : null}
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {TIPOS_EVENTO.map((tipo) => (
-                  <label key={tipo} className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={form.tiposEvento.includes(tipo)}
-                      onCheckedChange={(checked) =>
-                        atualizar({
-                          tiposEvento: checked
-                            ? [...form.tiposEvento, tipo as TipoEvento]
-                            : form.tiposEvento.filter((item) => item !== tipo),
-                        })
-                      }
-                    />
-                    {tipo}
-                  </label>
-                ))}
-              </div>
-            </div>
+              <label className="flex items-center justify-between gap-4 text-sm">
+                <span>
+                  Disponível para clientes
+                  <span className="text-muted-foreground block text-xs">
+                    Desligado, o item some do formulário, mas continua nos orçamentos já feitos.
+                  </span>
+                </span>
+                <Switch
+                  checked={form.status === "Ativo"}
+                  onCheckedChange={(ativo) => atualizar({ status: ativo ? "Ativo" : "Inativo" })}
+                />
+              </label>
+            </Secao>
+
+            {/* ---------------------------- Mais opções ----------------------------- */}
+            <section className="border-border rounded-xl border">
+              <button
+                type="button"
+                aria-expanded={maisOpcoes}
+                aria-controls="item-mais-opcoes"
+                onClick={() => setMaisOpcoes((atual) => !atual)}
+                className="hover:bg-secondary/60 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors"
+              >
+                <ChevronRight
+                  className={cn(
+                    "text-muted-foreground size-4 shrink-0 transition-transform",
+                    maisOpcoes && "rotate-90",
+                  )}
+                />
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold">Mais opções</span>
+                  <span className="text-muted-foreground block text-xs">
+                    {resumoMaisOpcoes || "Escolhas para o cliente (ex.: recheio) e tipos de evento"}
+                  </span>
+                </span>
+              </button>
+              {maisOpcoes ? (
+                <div id="item-mais-opcoes" className="grid gap-6 px-4 pt-1 pb-4">
+                  <div className="grid gap-3">
+                    <label className="flex items-center justify-between gap-4 text-sm">
+                      <span>
+                        O cliente escolhe uma opção deste item
+                        <span className="text-muted-foreground block text-xs">
+                          Ex.: uma massa recheada em que o cliente escolhe o recheio.
+                        </span>
+                      </span>
+                      <Switch
+                        checked={comOpcoes}
+                        onCheckedChange={(ligado) => {
+                          setComOpcoes(ligado);
+                          // Desligar remove as opções: o item volta a ser uma escolha simples.
+                          if (!ligado) atualizar({ opcoesIds: [], opcoesRotulo: "" });
+                        }}
+                      />
+                    </label>
+                    {comOpcoes ? (
+                      <div className="bg-secondary/60 grid gap-3 rounded-lg p-4">
+                        <div className="grid gap-1.5 sm:max-w-xs">
+                          <Label htmlFor="item-opcoes-rotulo">Nome da escolha</Label>
+                          <Input
+                            id="item-opcoes-rotulo"
+                            placeholder="Recheio"
+                            aria-describedby="item-opcoes-rotulo-ajuda"
+                            value={form.opcoesRotulo}
+                            onChange={(event) => atualizar({ opcoesRotulo: event.target.value })}
+                          />
+                          <p
+                            id="item-opcoes-rotulo-ajuda"
+                            className="text-muted-foreground text-xs"
+                          >
+                            A palavra que o cliente vê, ex.: Recheio, Molho, Sabor.
+                          </p>
+                        </div>
+                        <div className="relative">
+                          <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+                          <Input
+                            aria-label="Buscar itens para usar como opção"
+                            value={buscaOpcao}
+                            onChange={(event) => setBuscaOpcao(event.target.value)}
+                            placeholder="Buscar itens para usar como opção…"
+                            className="pl-9"
+                          />
+                        </div>
+                        {candidatas.length ? (
+                          <div className="grid max-h-56 gap-0.5 overflow-y-auto">
+                            {candidatas.map((item) => (
+                              <label
+                                key={item.id}
+                                className="hover:bg-surface flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm"
+                              >
+                                <Checkbox
+                                  checked={form.opcoesIds.includes(item.id)}
+                                  onCheckedChange={(checked) =>
+                                    atualizar({
+                                      opcoesIds: checked
+                                        ? [...form.opcoesIds, item.id]
+                                        : form.opcoesIds.filter((opcaoId) => opcaoId !== item.id),
+                                    })
+                                  }
+                                />
+                                <span className="flex-1">{item.nome}</span>
+                                <span className="text-muted-foreground text-xs">
+                                  {item.categoria}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-muted-foreground text-xs">
+                            {termoOpcao
+                              ? "Nenhum item encontrado. Cadastre a opção como item do cardápio primeiro."
+                              : "Busque e marque os itens que servem de opção (ex.: os recheios)."}
+                          </p>
+                        )}
+                        <p className="text-muted-foreground text-xs">
+                          A opção precisa existir como item (ex.: na categoria “Recheios para
+                          massas”). Itens usados como opção não aparecem soltos para o cliente: ele
+                          só os escolhe dentro deste item.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="grid gap-2">
+                    <div>
+                      <p className="text-sm font-medium">Tipos de evento</p>
+                      <p className="text-muted-foreground text-xs">
+                        Sem nenhum marcado, o item vale para todos os eventos.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="Tipos de evento">
+                      {TIPOS_EVENTO.map((tipo) => {
+                        const marcado = form.tiposEvento.includes(tipo);
+                        return (
+                          <button
+                            key={tipo}
+                            type="button"
+                            aria-pressed={marcado}
+                            onClick={() =>
+                              atualizar({
+                                tiposEvento: marcado
+                                  ? form.tiposEvento.filter((item) => item !== tipo)
+                                  : [...form.tiposEvento, tipo as TipoEvento],
+                              })
+                            }
+                            className={cn(
+                              "min-h-8 rounded-full px-3 py-1 text-xs ring-1 transition-colors",
+                              marcado
+                                ? "bg-primary text-primary-foreground ring-primary"
+                                : "bg-surface ring-input hover:bg-secondary",
+                            )}
+                          >
+                            {tipo}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </section>
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="border-border bg-background flex-row justify-end gap-2 border-t px-6 py-4">
             <Button
               type="button"
               variant="outline"
@@ -1044,11 +1252,36 @@ function ItemDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={salvarMutation.isPending || enviandoImagem}>
-              {salvarMutation.isPending ? "Salvando…" : "Salvar"}
+              {salvarMutation.isPending
+                ? "Salvando…"
+                : editandoId
+                  ? "Salvar alterações"
+                  : "Cadastrar item"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Bloco com título dentro da janela do item (O prato, Preço, Onde aparece). */
+function Secao({
+  titulo,
+  acao,
+  children,
+}: {
+  titulo: string;
+  acao?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="grid gap-4">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-foreground text-sm font-semibold">{titulo}</h3>
+        {acao}
+      </div>
+      {children}
+    </section>
   );
 }

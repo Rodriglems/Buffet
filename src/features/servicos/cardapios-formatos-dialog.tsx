@@ -1,7 +1,17 @@
 import { type FormEvent, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, Check, ListChecks, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  ListChecks,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { ListaArrastavel } from "@/components/lista-arrastavel";
@@ -31,7 +41,7 @@ import {
   type FormatoServico,
 } from "@/features/servicos/cardapios-formatos";
 import { normalizarBusca } from "@/features/orcamentos/formulario-publico";
-import { alteracoesDoCardapio } from "@/features/servicos/regras-cardapio";
+import { alteracoesDoCardapio, contagem } from "@/features/servicos/regras-cardapio";
 import type { Servico } from "@/features/servicos/server-functions";
 import {
   CHAVE_CARDAPIOS_FORMATOS,
@@ -39,6 +49,7 @@ import {
   type AbaCardapiosFormatos,
 } from "@/features/servicos/use-cardapios-formatos";
 import { useConfirmar } from "@/lib/confirmacao";
+import { cn } from "@/lib/utils";
 
 const mensagem = (error: unknown, padrao: string) =>
   error instanceof Error ? error.message : padrao;
@@ -50,7 +61,7 @@ const mensagem = (error: unknown, padrao: string) =>
 export function CardapiosFormatosDialog({
   aberto,
   onOpenChange,
-  abaInicial = "formatos",
+  abaInicial = "cardapios",
   itens,
 }: {
   aberto: boolean;
@@ -72,33 +83,29 @@ export function CardapiosFormatosDialog({
 
   return (
     <Dialog open={aberto} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
+      {/* Topo fixo (título, explicação e abas): só a lista rola. */}
+      <DialogContent className="flex max-h-[92vh] flex-col gap-0 p-0 sm:max-w-2xl">
+        <DialogHeader className="px-6 pt-6 pb-4 text-left">
           <DialogTitle>Cardápios e formatos</DialogTitle>
           <DialogDescription>
-            Defina como o cliente monta o pedido no formulário de orçamento.
+            Como o cliente monta o pedido no formulário de orçamento.
           </DialogDescription>
         </DialogHeader>
 
-        <ol className="bg-surface text-muted-foreground grid gap-2 rounded-xl p-4 text-xs ring-1 ring-black/5 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-center">
+        <ol className="text-muted-foreground mx-6 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
           <li>
-            <strong className="text-foreground block">1. Formato</strong>O cliente responde “Qual
-            formato deseja servir?”
+            <strong className="text-foreground">1.</strong> Monte cada cardápio com os itens
           </li>
-          <li aria-hidden className="hidden sm:block">
-            <ArrowRight className="text-primary size-4" />
-          </li>
-          <li>
-            <strong className="text-foreground block">2. Cardápios</strong>O formato abre os
-            cardápios ligados a ele.
-          </li>
-          <li aria-hidden className="hidden sm:block">
-            <ArrowRight className="text-primary size-4" />
+          <li aria-hidden>
+            <ArrowRight className="text-primary size-3.5" />
           </li>
           <li>
-            <strong className="text-foreground block">3. Itens</strong>Cada item aparece nos
-            cardápios marcados nele.
+            <strong className="text-foreground">2.</strong> Ligue cada formato aos cardápios
           </li>
+          <li aria-hidden>
+            <ArrowRight className="text-primary size-3.5" />
+          </li>
+          <li>o cliente escolhe o formato e vê esses cardápios</li>
         </ol>
 
         {dados.isPending ? (
@@ -106,20 +113,26 @@ export function CardapiosFormatosDialog({
         ) : dados.isError ? (
           <ErrorState onRetry={() => void dados.refetch()} />
         ) : (
-          <Tabs value={aba} onValueChange={(valor) => setAba(valor as AbaCardapiosFormatos)}>
-            <TabsList className="w-full">
-              <TabsTrigger value="formatos" className="flex-1">
-                Formatos ({formatos.length})
-              </TabsTrigger>
-              <TabsTrigger value="cardapios" className="flex-1">
-                Cardápios ({cardapios.length})
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="formatos" className="mt-4">
-              <AbaFormatos formatos={formatos} cardapios={cardapios} />
-            </TabsContent>
-            <TabsContent value="cardapios" className="mt-4">
+          <Tabs
+            value={aba}
+            onValueChange={(valor) => setAba(valor as AbaCardapiosFormatos)}
+            className="mt-4 flex min-h-0 flex-1 flex-col"
+          >
+            <div className="border-border border-b px-6 pb-3">
+              <TabsList className="w-full">
+                <TabsTrigger value="cardapios" className="flex-1">
+                  Cardápios ({cardapios.length})
+                </TabsTrigger>
+                <TabsTrigger value="formatos" className="flex-1">
+                  Formatos ({formatos.length})
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent value="cardapios" className="mt-0 min-h-0 flex-1 overflow-y-auto p-6">
               <AbaCardapios cardapios={cardapios} formatos={formatos} itens={itens} />
+            </TabsContent>
+            <TabsContent value="formatos" className="mt-0 min-h-0 flex-1 overflow-y-auto p-6">
+              <AbaFormatos formatos={formatos} cardapios={cardapios} />
             </TabsContent>
           </Tabs>
         )}
@@ -327,27 +340,40 @@ function EditorFormato({
       </div>
       <div className="grid gap-2">
         <div>
-          <Label>Cardápios que este formato mostra</Label>
+          <p className="text-sm font-medium" id={`${idNome}-cardapios`}>
+            Cardápios que este formato abre
+          </p>
           <p className="text-muted-foreground text-xs">
-            Sem seleção, o cliente vê todos os cardápios.
+            Toque para marcar. Sem nenhum marcado, o cliente vê todos os cardápios.
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {cardapios.map((cardapio) => (
-            <label key={cardapio.id} className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={marcados.includes(cardapio.nome)}
-                onCheckedChange={(checked) =>
+        <div className="flex flex-wrap gap-2" role="group" aria-labelledby={`${idNome}-cardapios`}>
+          {cardapios.map((cardapio) => {
+            const marcado = marcados.includes(cardapio.nome);
+            return (
+              <button
+                key={cardapio.id}
+                type="button"
+                aria-pressed={marcado}
+                onClick={() =>
                   setMarcados((atuais) =>
-                    checked === true
-                      ? [...atuais, cardapio.nome]
-                      : atuais.filter((nomeAtual) => nomeAtual !== cardapio.nome),
+                    marcado
+                      ? atuais.filter((nomeAtual) => nomeAtual !== cardapio.nome)
+                      : [...atuais, cardapio.nome],
                   )
                 }
-              />
-              {cardapio.nome}
-            </label>
-          ))}
+                className={cn(
+                  "inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm ring-1 transition-colors",
+                  marcado
+                    ? "bg-primary text-primary-foreground ring-primary"
+                    : "bg-surface ring-input hover:bg-secondary",
+                )}
+              >
+                {marcado ? <Check className="size-3.5" /> : <Plus className="size-3.5" />}
+                {cardapio.nome}
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className="flex justify-end gap-2">
@@ -386,7 +412,7 @@ function AbaCardapios({
 
   const itensEm = (nome: string) => itens.filter((item) => item.cardapios.includes(nome)).length;
   const formatosCom = (nome: string) =>
-    formatos.filter((formato) => formato.cardapios.includes(nome)).length;
+    formatos.filter((formato) => formato.cardapios.includes(nome)).map((formato) => formato.nome);
 
   async function executar(acao: () => Promise<unknown>, sucesso: string, erro: string) {
     setSalvando(true);
@@ -409,12 +435,18 @@ function AbaCardapios({
       toast.error("Informe o nome do cardápio.");
       return;
     }
+    let criado: CardapioPublico | null = null;
     const ok = await executar(
-      () => criar({ data: { nome: novo.trim() } }),
-      "Cardápio criado. Use “Escolher itens” para montá-lo e ligue-o a um formato.",
+      async () => {
+        criado = await criar({ data: { nome: novo.trim() } });
+      },
+      "Cardápio criado. Agora marque os itens dele.",
       "Não foi possível criar o cardápio.",
     );
-    if (ok) setNovo("");
+    if (!ok) return;
+    setNovo("");
+    // Cardápio novo começa vazio: já abre a lista para montá-lo.
+    if (criado) setEscolhendoItensDe(criado);
   }
 
   async function salvarNome(event: FormEvent) {
@@ -433,7 +465,7 @@ function AbaCardapios({
     const ok = await confirmar({
       titulo: `Excluir o cardápio “${cardapio.nome}”?`,
       descricao: quantidade
-        ? `${quantidade} item(ns) deixam de aparecer neste cardápio do formulário. Os itens continuam cadastrados.`
+        ? `${contagem(quantidade, "item deixa", "itens deixam")} de aparecer neste cardápio do formulário. Os itens continuam cadastrados.`
         : "Ele deixa de aparecer no formulário de orçamento.",
       textoConfirmar: "Excluir cardápio",
       perigoso: true,
@@ -481,7 +513,7 @@ function AbaCardapios({
         className="grid gap-2"
       >
         {(cardapio, alca) => (
-          <div className="bg-surface flex items-center gap-2 rounded-xl p-3 ring-1 ring-black/5">
+          <div className="bg-surface flex flex-wrap items-center gap-x-2 gap-y-3 rounded-xl p-3 ring-1 ring-black/5">
             {alca}
             {editando?.id === cardapio.id ? (
               <form onSubmit={salvarNome} className="flex flex-1 items-center gap-1">
@@ -514,13 +546,12 @@ function AbaCardapios({
               </form>
             ) : (
               <>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{cardapio.nome}</p>
-                  <p className="text-muted-foreground text-[11px]">
-                    {itensEm(cardapio.nome)} item(ns) · em {formatosCom(cardapio.nome)} formato(s)
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-1">
+                <ResumoCardapio
+                  nome={cardapio.nome}
+                  quantidadeItens={itensEm(cardapio.nome)}
+                  formatos={formatosCom(cardapio.nome)}
+                />
+                <div className="flex shrink-0 gap-1 max-sm:w-full max-sm:justify-end">
                   <Button
                     type="button"
                     size="sm"
@@ -531,7 +562,7 @@ function AbaCardapios({
                     onClick={() => setEscolhendoItensDe(cardapio)}
                   >
                     <ListChecks className="size-4" />
-                    <span className="hidden sm:inline">Escolher itens</span>
+                    <span>Escolher itens</span>
                   </Button>
                   <Button
                     type="button"
@@ -572,6 +603,38 @@ function AbaCardapios({
           itens={itens}
           onFechar={() => setEscolhendoItensDe(null)}
         />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Nome do cardápio, quantos itens tem e quais formatos o abrem, com alerta quando ele está
+ * vazio ou quando nenhum formato o abre (aí o cliente quase não o encontra).
+ */
+function ResumoCardapio({
+  nome,
+  quantidadeItens,
+  formatos,
+}: {
+  nome: string;
+  quantidadeItens: number;
+  formatos: string[];
+}) {
+  return (
+    <div className="min-w-0 flex-1 basis-48">
+      <p className="text-sm font-medium">{nome}</p>
+      <p className="text-muted-foreground text-xs">
+        {contagem(quantidadeItens, "item", "itens")}
+        {formatos.length ? ` — aberto por ${formatos.join(", ")}` : ""}
+      </p>
+      {quantidadeItens === 0 || !formatos.length ? (
+        <p className="text-warning-foreground mt-1 flex items-center gap-1 text-xs">
+          <AlertTriangle className="size-3.5 shrink-0" />
+          {quantidadeItens === 0
+            ? "Vazio: use “Escolher itens” para montá-lo."
+            : "Nenhum formato abre este cardápio. Ligue-o a um formato na aba Formatos."}
+        </p>
       ) : null}
     </div>
   );
@@ -639,7 +702,7 @@ function EscolherItensDialog({
   return (
     <Dialog open onOpenChange={(aberto) => (aberto ? null : onFechar())}>
       <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-xl">
-        <DialogHeader>
+        <DialogHeader className="pr-8 text-left">
           <DialogTitle>Itens do cardápio “{cardapio.nome}”</DialogTitle>
           <DialogDescription>
             Marque os itens que o cliente vê neste cardápio. Cada item continua com um cadastro só e
