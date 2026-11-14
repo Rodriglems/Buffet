@@ -135,7 +135,6 @@ async function dadosPdfDoEvento(auth: Autenticacao, id: string, logos: CacheLogo
     horarioFim: evento.horaFim,
     endereco: montarEndereco(evento),
     itens: orcamento?.itens.map((item) => item.descricao) ?? [],
-    formatoServico: evento.formatoServico,
     servicosAdicionais: evento.servicosAdicionais,
     subtotal: Number(orcamento?.subtotal ?? 0),
     desconto: Number(orcamento?.desconto ?? 0),
