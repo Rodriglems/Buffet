@@ -3,8 +3,7 @@
  * fechada). O motivo do bloqueio é interno: o cliente só vê que a data está indisponível.
  */
 
-export const MENSAGEM_DATA_BLOQUEADA =
-  "Esta data não está disponível para eventos. Escolha outra data.";
+export const MENSAGEM_DATA_BLOQUEADA = "Esta data não está mais disponível. Escolha outra data.";
 
 /** AAAA-MM-DD: datas do banco (coluna date, meia-noite UTC) ou o texto do campo de data. */
 export function chaveDaData(data: Date | string): string {

@@ -66,8 +66,6 @@ describe("resumoDatasBloqueadas", () => {
 
 describe("MENSAGEM_DATA_BLOQUEADA", () => {
   it("não revela o motivo interno do bloqueio", () => {
-    expect(MENSAGEM_DATA_BLOQUEADA).toBe(
-      "Esta data não está disponível para eventos. Escolha outra data.",
-    );
+    expect(MENSAGEM_DATA_BLOQUEADA).toBe("Esta data não está mais disponível. Escolha outra data.");
   });
 });
