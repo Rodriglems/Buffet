@@ -63,7 +63,12 @@ function textoSeguro(texto: string): string {
 
 export function formatarDataEvento(data: Date): string {
   const opcoes = { timeZone: "UTC" } as const;
-  const diaMes = data.toLocaleDateString("pt-BR", { ...opcoes, day: "2-digit", month: "2-digit" });
+  const diaMes = data.toLocaleDateString("pt-BR", {
+    ...opcoes,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
   const semana = data.toLocaleDateString("pt-BR", { ...opcoes, weekday: "long" });
   return `${diaMes} (${semana})`;
 }
