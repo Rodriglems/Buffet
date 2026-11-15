@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { KeyRound, MoreHorizontal, Plus, Search, Trash2, UserPlus } from "lucide-react";
+import {
+  KeyRound,
+  MessageCircleMore,
+  MoreHorizontal,
+  Plus,
+  Search,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -32,6 +40,7 @@ import { useConfirmar } from "@/lib/confirmacao";
 import { formatDate } from "@/lib/format";
 import { telefoneDe } from "@/lib/empresa-cabecalho";
 import { usePlaceholderBusca } from "@/lib/placeholder-busca";
+import { createWhatsAppChatUrl } from "@/lib/sharing";
 import { digitosDoTelefone } from "@/lib/telefone";
 
 export const Route = createFileRoute("/admin/clientes/")({
@@ -49,6 +58,16 @@ export const Route = createFileRoute("/admin/clientes/")({
   loader: () => listarClientes({ data: { page: 1, pageSize: 2000, busca: "" } }),
   component: ClientesPage,
 });
+
+/** Conversa no WhatsApp do cliente, sem mensagem pronta; null quando o número não serve. */
+function linkDoWhatsApp(numero: string | null | undefined): string | null {
+  if (!numero) return null;
+  try {
+    return createWhatsAppChatUrl(numero);
+  } catch {
+    return null;
+  }
+}
 
 function ClientesPage() {
   const placeholderBusca = usePlaceholderBusca("Buscar por nome, telefone, documento ou e-mail");
@@ -230,6 +249,23 @@ function ClientesPage() {
                             <KeyRound className="size-4" />
                             {c.usuarioId ? "Redefinir senha" : "Criar acesso ao portal"}
                           </DropdownMenuItem>
+                          {linkDoWhatsApp(c.whatsapp ?? c.telefone) ? (
+                            <DropdownMenuItem asChild>
+                              <a
+                                href={linkDoWhatsApp(c.whatsapp ?? c.telefone)!}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <MessageCircleMore className="size-4" />
+                                Abrir WhatsApp
+                              </a>
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem disabled>
+                              <MessageCircleMore className="size-4" />
+                              Sem WhatsApp cadastrado
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onSelect={() => void remover(c.id, c.nome)}
