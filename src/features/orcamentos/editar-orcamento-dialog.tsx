@@ -15,6 +15,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { normalizarBusca } from "@/features/orcamentos/formulario-publico";
 import { ITEM_VALOR_DO_CONTRATO } from "@/features/eventos/contrato";
 import { atualizarItensOrcamento } from "@/features/orcamentos/server-functions";
@@ -43,6 +50,14 @@ type ItemOrcamento = {
   valorUnitario: string | number;
   desconto: string | number;
 };
+
+const UNIDADES = ["por evento", "por pessoa"];
+
+/** Por evento e por pessoa; uma unidade antiga diferente (ex.: "kit") continua na lista. */
+function opcoesDeUnidade(atual: string): string[] {
+  const valor = atual.trim();
+  return valor && !UNIDADES.includes(valor) ? [...UNIDADES, valor] : UNIDADES;
+}
 
 type ErrosLinha = Partial<Record<"descricao" | "quantidade" | "unidade" | "valorUnitario", string>>;
 
@@ -234,13 +249,25 @@ export function EditarOrcamentoDialog({
                         />
                       </td>
                       <td className="py-2 pr-2">
-                        <Input
-                          aria-label="Unidade"
-                          aria-invalid={Boolean(tentouSalvar && erros.unidade)}
-                          className={cn("w-28", classeErro(erros.unidade))}
+                        <Select
                           value={linha.unidade}
-                          onChange={(event) => alterar(linha.chave, "unidade", event.target.value)}
-                        />
+                          onValueChange={(valor) => alterar(linha.chave, "unidade", valor)}
+                        >
+                          <SelectTrigger
+                            aria-label="Unidade"
+                            aria-invalid={Boolean(tentouSalvar && erros.unidade)}
+                            className={cn("w-32", classeErro(erros.unidade))}
+                          >
+                            <SelectValue placeholder="Unidade" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcoesDeUnidade(linha.unidade).map((unidade) => (
+                              <SelectItem key={unidade} value={unidade}>
+                                {unidade}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </td>
                       <td className="py-2 pr-2">
                         <Input
