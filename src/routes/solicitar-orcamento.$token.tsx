@@ -42,6 +42,11 @@ import {
   type DadosFormularioOrcamento,
 } from "@/features/orcamentos/formulario-publico";
 import {
+  dataEstaBloqueada,
+  MENSAGEM_DATA_BLOQUEADA,
+  resumoDatasBloqueadas,
+} from "@/features/eventos/datas-bloqueadas";
+import {
   obterClienteConectado,
   obterFormularioOrcamento,
   enviarSolicitacaoOrcamento,
@@ -129,6 +134,9 @@ export function FormularioOrcamento({
   const [adicionais, setAdicionais] = useState<ServicoAdicional[]>([]);
 
   const formato = dados.formatoServico;
+  // Datas que a equipe bloqueou (só as datas; o motivo é interno).
+  const datasBloqueadas = empresa.datasBloqueadas;
+  const dataIndisponivel = dataEstaBloqueada(dados.dataEvento, datasBloqueadas);
   const todosCardapios = useMemo(
     () => empresa.cardapiosPublicos.map((cardapio) => cardapio.nome),
     [empresa.cardapiosPublicos],
@@ -306,6 +314,11 @@ export function FormularioOrcamento({
 
   function avancarParaCardapio(event: MouseEvent<HTMLButtonElement>) {
     const formulario = event.currentTarget.form;
+    if (dataIndisponivel) {
+      // O aviso já está junto do campo; aqui só impede avançar e leva a pessoa até ele.
+      document.getElementById("dataEvento")?.focus();
+      return;
+    }
     if (!conectado && modo === "cliente") {
       setErro("Entre com seu e-mail e senha ou escolha “É meu primeiro pedido”.");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -816,15 +829,38 @@ export function FormularioOrcamento({
                       required
                     />
                   ) : null}
-                  <Field
-                    label="Data do evento"
-                    name="dataEvento"
-                    type="date"
-                    min={obterDataMinimaEvento()}
-                    value={dados.dataEvento}
-                    onChange={(e) => atualizar("dataEvento", e.target.value)}
-                    required
-                  />
+                  <div className="grid content-start gap-1.5">
+                    <Field
+                      label="Data do evento"
+                      name="dataEvento"
+                      type="date"
+                      min={obterDataMinimaEvento()}
+                      value={dados.dataEvento}
+                      onChange={(e) => atualizar("dataEvento", e.target.value)}
+                      aria-invalid={dataIndisponivel || undefined}
+                      aria-describedby={
+                        dataIndisponivel
+                          ? "dataEvento-indisponivel"
+                          : datasBloqueadas.length
+                            ? "dataEvento-bloqueadas"
+                            : undefined
+                      }
+                      required
+                    />
+                    {dataIndisponivel ? (
+                      <p
+                        id="dataEvento-indisponivel"
+                        role="alert"
+                        className="text-destructive text-sm"
+                      >
+                        {MENSAGEM_DATA_BLOQUEADA}
+                      </p>
+                    ) : datasBloqueadas.length ? (
+                      <p id="dataEvento-bloqueadas" className="text-muted-foreground text-xs">
+                        Datas indisponíveis: {resumoDatasBloqueadas(datasBloqueadas)}.
+                      </p>
+                    ) : null}
+                  </div>
                   <Field
                     label="Horário de início"
                     name="horaInicio"

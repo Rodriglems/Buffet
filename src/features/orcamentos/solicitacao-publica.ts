@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { criarConvite } from "@/features/clientes/convites.server";
 import { dataEventoEhFutura } from "@/features/eventos/data-evento";
+import { chaveDaData, MENSAGEM_DATA_BLOQUEADA } from "@/features/eventos/datas-bloqueadas";
 import { descreverEscolha } from "@/features/orcamentos/formulario-publico";
 import { phoneSchema, whatsappSchema } from "@/features/shared/validation/primitives";
 import { SERVICOS_ADICIONAIS } from "@/lib/catalogo";
@@ -136,14 +137,24 @@ async function carregarFormularioOrcamento(token?: string) {
         select: { nome: true, cardapios: true },
         orderBy: [{ ordem: "asc" }, { nome: "asc" }],
       },
+      // Só a data: o motivo do bloqueio é interno e nunca vai para o formulário público.
+      datasBloqueadas: {
+        where: { data: { gte: new Date(`${chaveDaData(new Date())}T00:00:00.000Z`) } },
+        select: { data: true },
+        orderBy: { data: "asc" },
+      },
     },
   });
   if (!empresa) throw new Error("Link de orçamento inválido ou desativado.");
 
-  const { linkOrcamentoToken, ...formulario } = empresa;
+  const { linkOrcamentoToken, datasBloqueadas, ...formulario } = empresa;
   return {
     token: linkOrcamentoToken,
-    formulario: serialize({ ...formulario, urlPublica: urlFormularioPublico() }),
+    formulario: serialize({
+      ...formulario,
+      datasBloqueadas: datasBloqueadas.map((bloqueio) => chaveDaData(bloqueio.data)),
+      urlPublica: urlFormularioPublico(),
+    }),
   };
 }
 
@@ -242,6 +253,14 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
       select: { id: true, nomeFantasia: true, email: true, whatsapp: true },
     });
     if (!empresa) throw new Error("Link de orçamento inválido ou desativado.");
+    // A tela já avisa, mas o servidor também recusa: ninguém contorna o bloqueio pelo navegador.
+    const dataBloqueada = await getPrisma().dataBloqueada.count({
+      where: {
+        empresaId: empresa.id,
+        data: new Date(`${chaveDaData(data.dataEvento)}T00:00:00.000Z`),
+      },
+    });
+    if (dataBloqueada) throw new Error(MENSAGEM_DATA_BLOQUEADA);
     const formatoExiste = await getPrisma().formatoServico.count({
       where: { empresaId: empresa.id, nome: data.formatoServico },
     });

@@ -107,6 +107,7 @@ model Empresa {
   updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   usuarios           Usuario[]
+  datasBloqueadas    DataBloqueada[]
   clientes           Cliente[]
   leads              Lead[]
   eventos            Evento[]
@@ -517,4 +518,18 @@ model Compromisso {
 
   @@index([empresaId, data])
   @@map("compromissos")
+}
+
+/// Datas que a equipe bloqueia para o formulário público de orçamento (feriado, folga, data já
+/// fechada). O motivo é interno: o cliente só vê que a data está indisponível.
+model DataBloqueada {
+  id        String   @id @default(uuid()) @db.Uuid
+  empresaId String   @map("empresa_id") @db.Uuid
+  data      DateTime @db.Date
+  motivo    String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([empresaId, data])
+  @@map("datas_bloqueadas")
 }

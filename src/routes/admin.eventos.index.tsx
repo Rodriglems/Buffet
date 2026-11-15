@@ -3,6 +3,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   CalendarDays,
+  CalendarX2,
   ChevronDown,
   Copy,
   ExternalLink,
@@ -28,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DatasBloqueadasDialog } from "@/features/eventos/datas-bloqueadas-dialog";
 import { excluirEvento, listarEventos } from "@/features/eventos/server-functions";
 import { obterLinkFormularioOrcamento } from "@/features/orcamentos/solicitacao-publica";
 import { useConfirmar } from "@/lib/confirmacao";
@@ -72,6 +74,8 @@ function EventosPage() {
   const excluir = useServerFn(excluirEvento);
   const confirmar = useConfirmar();
   const [busca, setBusca] = useState("");
+  // Janela "Datas bloqueadas" (dias sem orçamento no formulário público).
+  const [datasAbertas, setDatasAbertas] = useState(false);
   const [tipo, setTipo] = useState(TODOS);
   const [status, setStatus] = useState(TODOS);
   const [data, setData] = useState("");
@@ -176,9 +180,18 @@ function EventosPage() {
                 Abrir formulário
               </a>
             </Button>
+            <Button
+              variant="outline"
+              className="col-span-2 max-sm:h-11"
+              onClick={() => setDatasAbertas(true)}
+            >
+              <CalendarX2 className="size-4" />
+              Datas bloqueadas
+            </Button>
           </div>
         }
       />
+      <DatasBloqueadasDialog aberto={datasAbertas} onOpenChange={setDatasAbertas} />
       <Panel className="grid gap-3 p-3 sm:p-5">
         <div className="flex gap-2">
           <div className="relative flex-1">
