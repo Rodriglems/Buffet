@@ -2,17 +2,16 @@ import { useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  CalendarDays,
   CalendarX2,
-  ChevronDown,
   Copy,
   ExternalLink,
-  List,
   Loader2,
+  MoreHorizontal,
   Plus,
   Search,
   SlidersHorizontal,
   Trash2,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -20,6 +19,12 @@ import { PageHeader, Panel } from "@/components/panel";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -28,12 +33,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DatasBloqueadasDialog } from "@/features/eventos/datas-bloqueadas-dialog";
 import { excluirEvento, listarEventos } from "@/features/eventos/server-functions";
 import { obterLinkFormularioOrcamento } from "@/features/orcamentos/solicitacao-publica";
 import { useConfirmar } from "@/lib/confirmacao";
-import { formatBRL, formatDate, formatTime } from "@/lib/format";
+import { formatBRL, formatDate } from "@/lib/format";
 import { rotuloStatusEvento } from "@/lib/status-evento";
 import { usePlaceholderBusca } from "@/lib/placeholder-busca";
 import { copiarTexto } from "@/lib/copiar-texto";
@@ -63,8 +68,25 @@ export const Route = createFileRoute("/admin/eventos/")({
 });
 
 const TODOS = "todos";
+
 const MAIS_RECENTES = "recentes";
 const MAIS_ANTIGOS = "antigos";
+const DATA_MAIS_RECENTE = "data-recente";
+const DATA_MAIS_ANTIGA = "data-antiga";
+
+/** Abas da situação: a lista principal mostra só o que ainda está em andamento. */
+const ABAS_SITUACAO = [
+  { valor: "andamento", rotulo: "Em andamento", curto: "Ativos" },
+  { valor: "finalizados", rotulo: "Finalizados", curto: "Finalizados" },
+  { valor: "cancelados", rotulo: "Cancelados", curto: "Cancelados" },
+] as const;
+type AbaSituacao = (typeof ABAS_SITUACAO)[number]["valor"];
+
+function estaNaAba(status: string, aba: AbaSituacao): boolean {
+  if (aba === "finalizados") return status === "FINALIZADO";
+  if (aba === "cancelados") return status === "CANCELADO";
+  return status !== "FINALIZADO" && status !== "CANCELADO";
+}
 
 function EventosPage() {
   const placeholderBusca = usePlaceholderBusca("Buscar por evento ou cliente");
@@ -77,6 +99,7 @@ function EventosPage() {
   // Janela "Datas bloqueadas" (dias sem orçamento no formulário público).
   const [datasAbertas, setDatasAbertas] = useState(false);
   const [tipo, setTipo] = useState(TODOS);
+  const [aba, setAba] = useState<AbaSituacao>("andamento");
   const [status, setStatus] = useState(TODOS);
   const [data, setData] = useState("");
   const [ordem, setOrdem] = useState(MAIS_RECENTES);
@@ -122,24 +145,43 @@ function EventosPage() {
         (e.nome.toLowerCase().includes(busca.toLowerCase()) ||
           e.tipo.toLowerCase().includes(busca.toLowerCase()) ||
           e.cliente.nome.toLowerCase().includes(busca.toLowerCase())) &&
+        estaNaAba(e.status, aba) &&
         (tipo === TODOS || e.tipo === tipo) &&
         (status === TODOS || e.status === status) &&
         (!data || e.dataEvento.slice(0, 10) === data),
     )
     .sort((a, b) => {
-      const diferenca = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      return ordem === MAIS_RECENTES ? diferenca : -diferenca;
+      // Data do evento ou data do cadastro, da mais recente para a mais antiga (ou o contrário).
+      const porDataDoEvento = ordem === DATA_MAIS_RECENTE || ordem === DATA_MAIS_ANTIGA;
+      const campo = porDataDoEvento ? "dataEvento" : "createdAt";
+      const diferenca = new Date(b[campo]).getTime() - new Date(a[campo]).getTime();
+      // Data do evento: "mais recente" começa pela data mais cedo do calendário (crescente).
+      return ordem === MAIS_RECENTES || ordem === DATA_MAIS_ANTIGA ? diferenca : -diferenca;
     });
 
   const tipos = Array.from(new Set(eventos.map((e) => e.tipo)));
-  const statusList = Array.from(new Set(eventos.map((e) => e.status)));
+  // O filtro de status só oferece os status da aba aberta.
+  const statusList = Array.from(
+    new Set(eventos.filter((e) => estaNaAba(e.status, aba)).map((e) => e.status)),
+  );
+  const totalPorAba = Object.fromEntries(
+    ABAS_SITUACAO.map(({ valor }) => [
+      valor,
+      eventos.filter((e) => estaNaAba(e.status, valor)).length,
+    ]),
+  ) as Record<AbaSituacao, number>;
 
-  // Calendário simples do mês com maior concentração de eventos.
-  const porData = lista.reduce<Record<string, typeof eventos>>((acc, e) => {
-    const data = new Date(e.dataEvento).toISOString().slice(0, 10);
-    (acc[data] ||= []).push(e);
-    return acc;
-  }, {});
+  const linkFormulario = formulario.url ?? "/orcamento";
+  function copiarLink() {
+    const link = formulario.url ?? `${window.location.origin}/orcamento`;
+    void copiarTexto(link).then(
+      () =>
+        toast.success("Link do formulário copiado!", {
+          description: "Cole no WhatsApp ou e-mail para enviar ao cliente.",
+        }),
+      () => toast.error("Não foi possível copiar o link."),
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -147,172 +189,220 @@ function EventosPage() {
         title="Eventos"
         subtitle={`${eventos.length} eventos cadastrados`}
         actions={
-          // Celular: "Novo evento" em largura total; os dois atalhos do formulário lado a lado.
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-            <Button asChild className="col-span-2 max-sm:h-11 sm:order-last">
+          // Celular: só "Novo evento" à vista; o resto fica no menu ⋯ (uma ação principal por tela).
+          <div className="flex w-full gap-2 sm:w-auto">
+            <Button asChild className="h-11 flex-1 sm:order-last sm:h-9 sm:flex-none">
               <Link to="/admin/eventos/novo">
                 <Plus className="size-4" />
                 Novo evento
               </Link>
             </Button>
-            <Button
-              variant="outline"
-              className="max-sm:h-11"
-              title="Copiar o link do formulário de orçamento"
-              onClick={() => {
-                const caminho = "/orcamento";
-                const link = formulario.url ?? `${window.location.origin}${caminho}`;
-                void copiarTexto(link).then(
-                  () =>
-                    toast.success("Link do formulário copiado!", {
-                      description: "Cole no WhatsApp ou e-mail para enviar ao cliente.",
-                    }),
-                  () => toast.error("Não foi possível copiar o link."),
-                );
-              }}
-            >
+            <Button variant="outline" className="max-sm:hidden" onClick={copiarLink}>
               <Copy className="size-4" />
               Copiar link
             </Button>
-            <Button variant="outline" asChild className="max-sm:h-11">
-              <a href={formulario.url ?? "/orcamento"} target="_blank" rel="noreferrer">
+            <Button variant="outline" asChild className="max-sm:hidden">
+              <a href={linkFormulario} target="_blank" rel="noreferrer">
                 <ExternalLink className="size-4" />
                 Abrir formulário
               </a>
             </Button>
             <Button
               variant="outline"
-              className="col-span-2 max-sm:h-11"
+              className="max-sm:hidden"
               onClick={() => setDatasAbertas(true)}
             >
               <CalendarX2 className="size-4" />
               Datas bloqueadas
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-11 shrink-0 sm:hidden"
+                  aria-label="Mais ações de eventos"
+                >
+                  <MoreHorizontal className="size-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuItem className="min-h-11" onSelect={copiarLink}>
+                  <Copy className="size-4" />
+                  Copiar link do formulário
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="min-h-11">
+                  <a href={linkFormulario} target="_blank" rel="noreferrer">
+                    <ExternalLink className="size-4" />
+                    Abrir formulário
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11" onSelect={() => setDatasAbertas(true)}>
+                  <CalendarX2 className="size-4" />
+                  Datas bloqueadas
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         }
       />
       <DatasBloqueadasDialog aberto={datasAbertas} onOpenChange={setDatasAbertas} />
-      <Panel className="grid gap-3 p-3 sm:p-5">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-            <Input
-              aria-label="Buscar evento ou cliente"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder={placeholderBusca}
-              className="bg-surface border-0 pl-9 ring-1 ring-black/5 max-sm:h-11"
-            />
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 shrink-0 sm:hidden"
-            aria-expanded={filtrosAbertos}
-            aria-controls="eventos-filtros"
-            onClick={() => setFiltrosAbertos((atual) => !atual)}
-          >
-            <SlidersHorizontal className="size-4" />
-            Filtros
-            {filtrosAtivos ? (
-              <span className="bg-primary text-primary-foreground grid size-5 place-items-center rounded-full text-[11px]">
-                {filtrosAtivos}
-              </span>
-            ) : (
-              <ChevronDown
-                className={cn("size-4 transition-transform", filtrosAbertos && "rotate-180")}
+      <div className="flex flex-col gap-4">
+        <Panel className="grid gap-3 p-3 sm:p-5">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+              <Input
+                aria-label="Buscar evento ou cliente"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder={placeholderBusca}
+                className="bg-surface border-0 pl-9 ring-1 ring-black/5 max-sm:h-11"
               />
-            )}
-          </Button>
-        </div>
-        <div
-          id="eventos-filtros"
-          className={cn(
-            "grid grid-cols-1 gap-3 sm:grid sm:grid-cols-2 xl:grid-cols-4",
-            !filtrosAbertos && "max-sm:hidden",
-          )}
-        >
-          <Select value={tipo} onValueChange={setTipo}>
-            <SelectTrigger
-              aria-label="Tipo de evento"
-              className="bg-surface w-full border-0 ring-1 ring-black/5 max-sm:h-11"
-            >
-              <SelectValue placeholder="Tipo de evento" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS}>Todos os tipos</SelectItem>
-              {tipos.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger
-              aria-label="Status do evento"
-              className="bg-surface w-full border-0 ring-1 ring-black/5 max-sm:h-11"
-            >
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS}>Todos os status</SelectItem>
-              {statusList.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {rotuloStatusEvento(s)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            type="date"
-            aria-label="Data do evento"
-            title="Data do evento"
-            value={data}
-            onChange={(event) => setData(event.target.value)}
-            className="bg-surface border-0 ring-1 ring-black/5 max-sm:h-11"
-          />
-          <Select value={ordem} onValueChange={setOrdem}>
-            <SelectTrigger
-              aria-label="Ordem da lista"
-              className="bg-surface w-full border-0 ring-1 ring-black/5 max-sm:h-11"
-            >
-              <SelectValue placeholder="Ordenar registros" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={MAIS_RECENTES}>Registros mais recentes</SelectItem>
-              <SelectItem value={MAIS_ANTIGOS}>Registros mais antigos</SelectItem>
-            </SelectContent>
-          </Select>
-          {filtrosAtivos ? (
+            </div>
             <Button
               type="button"
-              variant="ghost"
-              className="justify-self-start max-sm:h-11 sm:col-span-2 xl:col-span-4"
-              onClick={limparFiltros}
+              variant="outline"
+              size="icon"
+              className="relative size-11 shrink-0 sm:hidden"
+              aria-label={filtrosAtivos ? `Filtros (${filtrosAtivos} ativos)` : "Filtros"}
+              aria-expanded={filtrosAbertos}
+              aria-controls="eventos-filtros"
+              onClick={() => setFiltrosAbertos((atual) => !atual)}
             >
-              Limpar filtros
+              <SlidersHorizontal className="size-5" />
+              {filtrosAtivos ? (
+                <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 grid size-5 place-items-center rounded-full text-[11px] font-semibold">
+                  {filtrosAtivos}
+                </span>
+              ) : null}
             </Button>
-          ) : null}
+          </div>
+          <div
+            id="eventos-filtros"
+            className={cn(
+              "grid grid-cols-1 gap-3 sm:grid sm:grid-cols-2 xl:grid-cols-4",
+              !filtrosAbertos && "max-sm:hidden",
+            )}
+          >
+            <Select value={tipo} onValueChange={setTipo}>
+              <SelectTrigger
+                aria-label="Tipo de evento"
+                className="bg-surface w-full border-0 ring-1 ring-black/5 max-sm:h-11"
+              >
+                <SelectValue placeholder="Tipo de evento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TODOS}>Todos os tipos</SelectItem>
+                {tipos.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger
+                aria-label="Status do evento"
+                className="bg-surface w-full border-0 ring-1 ring-black/5 max-sm:h-11"
+              >
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TODOS}>Todos os status</SelectItem>
+                {statusList.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {rotuloStatusEvento(s)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="date"
+              aria-label="Data do evento"
+              title="Data do evento"
+              value={data}
+              onChange={(event) => setData(event.target.value)}
+              className="bg-surface border-0 ring-1 ring-black/5 max-sm:h-11"
+            />
+            <Select value={ordem} onValueChange={setOrdem}>
+              <SelectTrigger
+                aria-label="Ordem da lista"
+                className="bg-surface w-full border-0 ring-1 ring-black/5 max-sm:h-11"
+              >
+                <SelectValue placeholder="Ordenar registros" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={MAIS_RECENTES}>Registros mais recentes</SelectItem>
+                <SelectItem value={MAIS_ANTIGOS}>Registros mais antigos</SelectItem>
+                <SelectItem value={DATA_MAIS_RECENTE}>Data do evento: mais recente</SelectItem>
+                <SelectItem value={DATA_MAIS_ANTIGA}>Data do evento: mais antiga</SelectItem>
+              </SelectContent>
+            </Select>
+            {filtrosAtivos ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="justify-self-start max-sm:h-11 sm:col-span-2 xl:col-span-4"
+                onClick={limparFiltros}
+              >
+                Limpar filtros
+              </Button>
+            ) : null}
+          </div>
+        </Panel>
+
+        {/* Barra da lista: situação dos eventos. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Tabs
+            value={aba}
+            onValueChange={(valor) => {
+              setAba(valor as AbaSituacao);
+              setStatus(TODOS);
+            }}
+          >
+            <TabsList
+              aria-label="Situação dos eventos"
+              className="bg-surface flex h-11 w-full gap-1 rounded-xl p-1 ring-1 ring-black/5 sm:inline-flex sm:w-auto"
+            >
+              {ABAS_SITUACAO.map(({ valor, rotulo, curto }) => (
+                <TabsTrigger
+                  key={valor}
+                  value={valor}
+                  className="group data-[state=active]:bg-primary/8 data-[state=active]:text-primary h-9 min-w-0 flex-auto gap-1 rounded-lg px-1.5 text-[13px] sm:flex-none data-[state=active]:shadow-none sm:gap-2 sm:px-4 sm:text-sm"
+                >
+                  {/* No celular o nome curto cabe com o número ao lado. */}
+                  <span className="truncate sm:hidden">{curto}</span>
+                  <span className="max-sm:hidden">{rotulo}</span>
+                  <span className="bg-muted text-muted-foreground group-data-[state=active]:bg-primary group-data-[state=active]:text-primary-foreground inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums transition-colors">
+                    {totalPorAba[valor]}
+                  </span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </div>
-      </Panel>
 
-      <Tabs defaultValue="lista">
-        <TabsList className="max-sm:h-12 max-sm:w-full">
-          <TabsTrigger value="lista" className="max-sm:h-10 max-sm:flex-1">
-            <List className="size-4" /> Lista
-          </TabsTrigger>
-          <TabsTrigger value="calendario" className="max-sm:h-10 max-sm:flex-1">
-            <CalendarDays className="size-4" /> Calendário
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="lista" className="mt-4">
+        <div>
           <Panel className="p-2 sm:p-5">
             {lista.length === 0 ? (
               <EmptyState
-                title="Nenhum evento encontrado"
-                description="Ajuste os filtros aplicados."
+                title={
+                  filtrosAtivos || busca
+                    ? "Nenhum evento encontrado"
+                    : aba === "finalizados"
+                      ? "Nenhum evento finalizado"
+                      : aba === "cancelados"
+                        ? "Nenhum evento cancelado"
+                        : "Nenhum evento em andamento"
+                }
+                description={
+                  filtrosAtivos || busca
+                    ? "Ajuste a busca ou os filtros aplicados."
+                    : aba === "andamento"
+                      ? "Crie um evento ou envie o formulário de orçamento ao cliente."
+                      : "Os eventos aparecem aqui quando mudam para esta situação."
+                }
               />
             ) : (
               <>
@@ -321,49 +411,79 @@ function EventosPage() {
                   {lista.map((e) => (
                     <li
                       key={e.id}
-                      className="bg-surface flex items-start gap-1 rounded-xl ring-1 ring-black/5"
+                      className="bg-surface relative min-w-0 rounded-xl ring-1 ring-black/5"
                     >
                       <Link
                         to="/admin/eventos/$id"
                         params={{ id: e.id }}
-                        className="hover:bg-secondary/60 focus-visible:ring-ring flex min-h-16 min-w-0 flex-1 items-start gap-3 rounded-xl p-3 focus-visible:ring-2 focus-visible:outline-none"
+                        className="hover:bg-secondary/60 focus-visible:ring-ring grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5 rounded-xl p-3 focus-visible:ring-2 focus-visible:outline-none"
                       >
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-medium">{e.tipo}</span>
-                          <span className="text-muted-foreground block text-sm">
-                            {e.cliente.nome}
-                          </span>
-                          <span className="text-muted-foreground mt-1 flex flex-wrap gap-x-3 text-sm">
+                        <span className="flex items-start justify-between gap-2 pr-9">
+                          <span className="min-w-0 flex-1 truncate font-medium">{e.tipo}</span>
+                          <StatusBadge status={e.status} className="shrink-0" />
+                        </span>
+                        <span className="text-muted-foreground truncate text-sm">
+                          {e.cliente.nome}
+                        </span>
+                        {/* Data e convidados juntos; o valor em destaque à direita. */}
+                        <span className="mt-1.5 flex items-baseline justify-between gap-3 text-sm">
+                          <span className="text-muted-foreground flex min-w-0 items-center gap-1.5">
                             <span className="text-foreground">{formatDate(e.dataEvento)}</span>
-                            <span>{e.quantidadeConvidados} convidados</span>
-                            {e.orcamentos[0] ? (
-                              <span className="text-foreground font-medium">
-                                {formatBRL(Number(e.orcamentos[0].total))}
-                              </span>
-                            ) : null}
+                            <span aria-hidden>·</span>
+                            <Users className="size-3.5 shrink-0" aria-hidden />
+                            <span className="truncate">
+                              {e.quantidadeConvidados}
+                              <span className="sr-only"> convidados</span>
+                            </span>
                           </span>
-                          {e.cliente.acesso === "SEM_ACESSO" ? (
-                            <StatusBadge status={e.cliente.acesso} dot={false} className="mt-2" />
+                          {e.orcamentos[0] ? (
+                            <span className="shrink-0 font-semibold tabular-nums">
+                              {formatBRL(Number(e.orcamentos[0].total))}
+                            </span>
                           ) : null}
                         </span>
-                        <StatusBadge status={e.status} className="shrink-0" />
+                        {e.cliente.acesso === "SEM_ACESSO" ? (
+                          <StatusBadge
+                            status={e.cliente.acesso}
+                            dot={false}
+                            className="mt-1.5 justify-self-start"
+                          />
+                        ) : null}
                       </Link>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive mt-2 mr-2 shrink-0"
-                        disabled={excluindoId !== null}
-                        aria-label={`Excluir evento ${e.tipo} de ${e.cliente.nome}`}
-                        title="Excluir evento"
-                        onClick={() => void apagarEvento(e)}
-                      >
-                        {excluindoId === e.id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="size-4" />
-                        )}
-                      </Button>
+                      {/* Excluir fica no menu ⋯: não dá para tocar sem querer ao rolar a lista. */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="text-muted-foreground absolute top-0.5 right-0.5 size-11"
+                            disabled={excluindoId !== null}
+                            aria-label={`Ações do evento ${e.tipo} de ${e.cliente.nome}`}
+                          >
+                            {excluindoId === e.id ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <MoreHorizontal className="size-5" />
+                            )}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                          <DropdownMenuItem asChild className="min-h-11">
+                            <Link to="/admin/eventos/$id" params={{ id: e.id }}>
+                              <ExternalLink className="size-4" />
+                              Abrir evento
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive [&_svg]:text-destructive min-h-11"
+                            onSelect={() => void apagarEvento(e)}
+                          >
+                            <Trash2 className="size-4" />
+                            Excluir evento
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </li>
                   ))}
                 </ul>
@@ -465,42 +585,8 @@ function EventosPage() {
               </>
             )}
           </Panel>
-        </TabsContent>
-
-        <TabsContent value="calendario" className="mt-4">
-          <Panel className="p-5">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {Object.entries(porData)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([data, itens]) => (
-                  <div key={data} className="bg-surface rounded-xl p-4 ring-1 ring-black/5">
-                    <p className="font-display text-sm font-semibold">{formatDate(data)}</p>
-                    <ul className="mt-2 flex flex-col gap-2">
-                      {itens.map((e) => (
-                        <li key={e.id} className="flex items-start justify-between gap-2">
-                          <div>
-                            <Link
-                              to="/admin/eventos/$id"
-                              params={{ id: e.id }}
-                              className="text-xs font-medium hover:underline"
-                            >
-                              {e.nome}
-                            </Link>
-                            <p className="text-muted-foreground text-[11px]">
-                              {e.horaInicio ? formatTime(e.horaInicio) : "Horário a definir"} ·{" "}
-                              {e.localNome ?? "Local a definir"}
-                            </p>
-                          </div>
-                          <StatusBadge status={e.status} dot={false} />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-            </div>
-          </Panel>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
     </div>
   );
 }
