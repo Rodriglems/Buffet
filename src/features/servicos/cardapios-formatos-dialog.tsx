@@ -126,9 +126,6 @@ function AbaFormatos({
       <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="font-display text-xl font-semibold">Formatos de serviço</h2>
-          <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
-            Defina como o serviço será oferecido e quais cardápios aparecem em cada formato.
-          </p>
         </div>
         {editando === "novo" ? null : (
           <Button
@@ -452,9 +449,6 @@ function AbaCardapios({
       <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="font-display text-xl font-semibold">Cardápios do formulário</h2>
-          <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
-            Organize os grupos de itens que o cliente encontra ao montar o pedido.
-          </p>
         </div>
         {criando ? null : (
           <Button

@@ -371,7 +371,8 @@ function CardapioPage() {
               />
             </Panel>
           ) : (
-            <div className="grid gap-4">
+            // minmax(0,1fr): a coluna não cresce além da tela por causa de um texto comprido.
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
               <ListaArrastavel
                 // Durante uma busca ou filtro, categorias sem resultado ficam ocultas.
                 itens={listaCategorias.filter(
@@ -381,7 +382,7 @@ function CardapioPage() {
                 onReordenar={reordenarListaDeCategorias}
                 desativado={filtrando}
                 rotuloDoItem={(categoria) => `a categoria ${categoria.nome}`}
-                className="grid gap-4"
+                className="grid grid-cols-[minmax(0,1fr)] gap-4"
               >
                 {(categoria, alca) => {
                   const doGrupo = visiveis.filter((item) => item.categoria === categoria.nome);
