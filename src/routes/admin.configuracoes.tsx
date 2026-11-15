@@ -299,17 +299,18 @@ function Configuracoes() {
                     Opcional. Sem uma imagem específica, será usada a logo geral da empresa.
                   </p>
                   {logoOrcamento || empresa.logoUrl ? (
-                    <div className="bg-surface flex min-h-24 items-center justify-between gap-4 rounded-xl p-4 ring-1 ring-black/5">
+                    <div className="bg-surface flex min-h-24 flex-col items-stretch gap-4 rounded-xl p-4 ring-1 ring-black/5 sm:flex-row sm:items-center sm:justify-between">
                       <img
                         src={logoOrcamento || empresa.logoUrl || undefined}
                         alt="Pré-visualização da logo"
-                        className="h-16 max-w-56 object-contain"
+                        className="h-16 w-full max-w-full object-contain sm:w-auto sm:max-w-56"
                       />
                       {logoOrcamento ? (
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
+                          className="h-auto min-h-9 w-full whitespace-normal sm:w-auto"
                           onClick={() => {
                             setLogoOrcamento("");
                             setLogoAlterada(true);
