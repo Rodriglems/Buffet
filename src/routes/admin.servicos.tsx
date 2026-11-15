@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   Check,
   ChevronRight,
+  FolderTree,
   FolderPlus,
   ListTree,
   MoreVertical,
@@ -48,6 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { normalizarBusca } from "@/features/orcamentos/formulario-publico";
 import {
   createServico,
@@ -63,7 +65,7 @@ import {
   type CreateServicoInput,
   type Servico,
 } from "@/features/servicos/server-functions";
-import { CardapiosFormatosDialog } from "@/features/servicos/cardapios-formatos-dialog";
+import { CardapiosFormatosPainel } from "@/features/servicos/cardapios-formatos-dialog";
 import {
   contagem,
   itemComMesmoNome,
@@ -90,6 +92,7 @@ export const Route = createFileRoute("/admin/servicos")({
 });
 
 type Categoria = { id: string; nome: string; ordem: number };
+type AbaCardapio = "categorias" | AbaCardapiosFormatos;
 const TODOS = "todos";
 
 function novoItem(categoria: string, ordem = 0): CreateServicoInput {
@@ -137,8 +140,7 @@ function CardapioPage() {
   });
   const cardapiosEFormatos = useCardapiosEFormatos();
   const nomesCardapios = (cardapiosEFormatos.data?.cardapios ?? []).map((c) => c.nome);
-  // Painel "Cardápios e formatos": null fechado; senão, a aba que abre primeiro.
-  const [painelCardapios, setPainelCardapios] = useState<AbaCardapiosFormatos | null>(null);
+  const [abaAtiva, setAbaAtiva] = useState<AbaCardapio>("categorias");
   const reordenar = useServerFn(reordenarCategorias);
   const excluirCat = useServerFn(excluirCategoria);
   const confirmar = useConfirmar();
@@ -272,203 +274,225 @@ function CardapioPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        title="Cardápio"
-        subtitle="Organize itens, cardápios e formatos"
-        actions={
-          // Celular: ação principal em largura total; Cardápios e Formatos lado a lado.
+      <PageHeader title="Cardápio" />
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Tabs
+          value={abaAtiva}
+          onValueChange={(valor) => setAbaAtiva(valor as AbaCardapio)}
+          className="min-w-0"
+        >
+          <TabsList
+            className="grid h-auto w-full grid-cols-3 p-1 sm:inline-grid sm:w-auto"
+            aria-label="Seções do cardápio"
+          >
+            <TabsTrigger
+              value="categorias"
+              className="min-h-10 gap-2 px-3 max-sm:gap-1 max-sm:px-1 max-sm:text-xs"
+            >
+              <FolderTree className="size-4 max-sm:hidden" />
+              Categorias
+            </TabsTrigger>
+            <TabsTrigger
+              value="cardapios"
+              className="min-h-10 gap-2 px-3 max-sm:gap-1 max-sm:px-1 max-sm:text-xs"
+            >
+              <ListTree className="size-4 max-sm:hidden" />
+              Cardápios
+            </TabsTrigger>
+            <TabsTrigger
+              value="formatos"
+              className="min-h-10 gap-2 px-3 max-sm:gap-1 max-sm:px-1 max-sm:text-xs"
+            >
+              <Settings2 className="size-4 max-sm:hidden" />
+              Formatos
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {abaAtiva === "categorias" ? (
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-            <Button className="col-span-2 max-sm:h-11 sm:order-last" onClick={() => abrirNovo()}>
-              <Plus className="size-4" />
-              Novo item
-            </Button>
             <Button
               variant="outline"
-              className="max-sm:h-11"
-              onClick={() => setPainelCardapios("cardapios")}
-            >
-              <ListTree className="size-4" />
-              <span>Cardápios</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="max-sm:h-11"
-              title="Editar formatos de serviço"
-              onClick={() => setPainelCardapios("formatos")}
-            >
-              <Settings2 className="size-4" />
-              <span>Formatos</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="col-span-2 max-sm:h-11"
+              className="min-h-10 w-full sm:w-auto"
               onClick={() => setCategoriaEditada("nova")}
             >
               <FolderPlus className="size-4" />
               <span>Nova categoria</span>
             </Button>
+            <Button className="min-h-10 w-full sm:w-auto" onClick={() => abrirNovo()}>
+              <Plus className="size-4" />
+              Novo item
+            </Button>
           </div>
-        }
-      />
+        ) : null}
+      </div>
 
-      <Panel className="flex flex-col gap-3 p-4 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-          <Input
-            value={busca}
-            onChange={(event) => setBusca(event.target.value)}
-            placeholder="Buscar item ou categoria"
-            className="bg-surface border-0 pl-9 ring-1 ring-black/5 max-sm:h-11"
-          />
-        </div>
-        <Select value={cardapioFiltro} onValueChange={setCardapioFiltro}>
-          <SelectTrigger
-            className="bg-surface w-full border-0 ring-1 ring-black/5 max-sm:h-11 sm:w-72"
-            aria-label="Filtrar por cardápio"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={TODOS}>Todos os cardápios</SelectItem>
-            {nomesCardapios.map((cardapio) => (
-              <SelectItem key={cardapio} value={cardapio}>
-                {cardapio}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Panel>
+      {abaAtiva === "categorias" ? (
+        <>
+          <Panel className="flex flex-col gap-3 p-4 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+              <Input
+                value={busca}
+                onChange={(event) => setBusca(event.target.value)}
+                placeholder="Buscar item ou categoria"
+                className="bg-surface border-0 pl-9 ring-1 ring-black/5 max-sm:h-11"
+              />
+            </div>
+            <Select value={cardapioFiltro} onValueChange={setCardapioFiltro}>
+              <SelectTrigger
+                className="bg-surface w-full border-0 ring-1 ring-black/5 max-sm:h-11 sm:w-72"
+                aria-label="Filtrar por cardápio"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TODOS}>Todos os cardápios</SelectItem>
+                {nomesCardapios.map((cardapio) => (
+                  <SelectItem key={cardapio} value={cardapio}>
+                    {cardapio}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Panel>
 
-      {carregando ? (
-        <Panel className="p-5">
-          <LoadingState label="Carregando cardápio…" />
-        </Panel>
-      ) : erro ? (
-        <Panel className="p-5">
-          <ErrorState
-            onRetry={() => {
-              void itens.refetch();
-              void categorias.refetch();
-            }}
-          />
-        </Panel>
-      ) : (
-        <div className="grid gap-4">
-          <ListaArrastavel
-            // Durante uma busca ou filtro, categorias sem resultado ficam ocultas.
-            itens={listaCategorias.filter(
-              (categoria) =>
-                !filtrando || visiveis.some((item) => item.categoria === categoria.nome),
-            )}
-            onReordenar={reordenarListaDeCategorias}
-            desativado={filtrando}
-            rotuloDoItem={(categoria) => `a categoria ${categoria.nome}`}
-            className="grid gap-4"
-          >
-            {(categoria, alca) => {
-              const doGrupo = visiveis.filter((item) => item.categoria === categoria.nome);
-              // Começam recolhidas; a busca abre as categorias com resultado.
-              const aberta = Boolean(termo) || abertas.has(categoria.id);
-              return (
-                <Panel className="p-3 sm:p-5">
-                  <div className="flex items-center justify-between gap-2 sm:gap-3">
-                    {alca}
-                    <button
-                      type="button"
-                      onClick={() => alternarCategoria(categoria.id)}
-                      aria-expanded={aberta}
-                      aria-controls={`itens-${categoria.id}`}
-                      className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 text-left sm:gap-3"
-                    >
-                      <ChevronRight
-                        className={cn(
-                          "text-primary size-5 shrink-0 transition-transform",
-                          aberta && "rotate-90",
-                        )}
-                      />
-                      <span>
-                        <span className="font-display block text-lg font-semibold">
-                          {categoria.nome}
-                        </span>
-                        <span className="text-muted-foreground block text-xs">
-                          {contagem(doGrupo.length, "item", "itens")}
-                        </span>
-                      </span>
-                    </button>
-                    <div className="flex shrink-0 items-center gap-1">
-                      {/* No celular os botões mostram só o ícone; o nome fica no aria-label. */}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="max-sm:size-11"
-                        aria-label={`Renomear a categoria ${categoria.nome}`}
-                        title="Renomear"
-                        onClick={() => setCategoriaEditada(categoria)}
-                      >
-                        <Pencil className="size-4" />
-                        <span className="hidden sm:inline">Renomear</span>
-                      </Button>
-                      {doGrupo.length ? null : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="max-sm:size-11"
-                          aria-label={`Excluir a categoria ${categoria.nome}`}
-                          title="Excluir"
-                          onClick={() => void removerCategoria(categoria)}
-                        >
-                          <Trash2 className="size-4" />
-                          <span className="hidden sm:inline">Excluir</span>
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        className="max-sm:size-11"
-                        aria-label={`Adicionar item em ${categoria.nome}`}
-                        title="Adicionar item"
-                        onClick={() => {
-                          setAbertas((atuais) => new Set(atuais).add(categoria.id));
-                          abrirNovo(categoria.nome);
-                        }}
-                      >
-                        <Plus className="size-4" />
-                        <span className="hidden sm:inline">Adicionar item</span>
-                      </Button>
-                    </div>
-                  </div>
-                  {aberta ? (
-                    <div id={`itens-${categoria.id}`}>
-                      {doGrupo.length ? (
-                        <div className="mt-3 sm:mt-4">{linhasDoItem(doGrupo)}</div>
-                      ) : (
-                        <p className="text-muted-foreground mt-3 text-sm">
-                          Nenhum item nesta categoria ainda.
-                        </p>
-                      )}
-                    </div>
-                  ) : null}
-                </Panel>
-              );
-            }}
-          </ListaArrastavel>
-          {semCategoria.length ? (
+          {carregando ? (
             <Panel className="p-5">
-              <h2 className="font-display text-lg font-semibold">Sem categoria cadastrada</h2>
-              <p className="text-muted-foreground text-xs">
-                Edite os itens abaixo e escolha uma categoria existente.
-              </p>
-              <div className="mt-4">{linhasDoItem(semCategoria)}</div>
+              <LoadingState label="Carregando cardápio…" />
             </Panel>
-          ) : null}
-          {(termo || cardapioFiltro !== TODOS) && !visiveis.length ? (
+          ) : erro ? (
             <Panel className="p-5">
-              <EmptyState
-                title="Nenhum item encontrado"
-                description="Ajuste a busca ou o filtro de cardápio."
+              <ErrorState
+                onRetry={() => {
+                  void itens.refetch();
+                  void categorias.refetch();
+                }}
               />
             </Panel>
-          ) : null}
-        </div>
+          ) : (
+            <div className="grid gap-4">
+              <ListaArrastavel
+                // Durante uma busca ou filtro, categorias sem resultado ficam ocultas.
+                itens={listaCategorias.filter(
+                  (categoria) =>
+                    !filtrando || visiveis.some((item) => item.categoria === categoria.nome),
+                )}
+                onReordenar={reordenarListaDeCategorias}
+                desativado={filtrando}
+                rotuloDoItem={(categoria) => `a categoria ${categoria.nome}`}
+                className="grid gap-4"
+              >
+                {(categoria, alca) => {
+                  const doGrupo = visiveis.filter((item) => item.categoria === categoria.nome);
+                  // Começam recolhidas; a busca abre as categorias com resultado.
+                  const aberta = Boolean(termo) || abertas.has(categoria.id);
+                  return (
+                    <Panel className="p-3 sm:p-5">
+                      <div className="flex items-center justify-between gap-2 sm:gap-3">
+                        {alca}
+                        <button
+                          type="button"
+                          onClick={() => alternarCategoria(categoria.id)}
+                          aria-expanded={aberta}
+                          aria-controls={`itens-${categoria.id}`}
+                          className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 text-left sm:gap-3"
+                        >
+                          <ChevronRight
+                            className={cn(
+                              "text-primary size-5 shrink-0 transition-transform",
+                              aberta && "rotate-90",
+                            )}
+                          />
+                          <span>
+                            <span className="font-display block text-lg font-semibold">
+                              {categoria.nome}
+                            </span>
+                            <span className="text-muted-foreground block text-xs">
+                              {contagem(doGrupo.length, "item", "itens")}
+                            </span>
+                          </span>
+                        </button>
+                        <div className="flex shrink-0 items-center gap-1">
+                          {/* No celular os botões mostram só o ícone; o nome fica no aria-label. */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="max-sm:size-11"
+                            aria-label={`Renomear a categoria ${categoria.nome}`}
+                            title="Renomear"
+                            onClick={() => setCategoriaEditada(categoria)}
+                          >
+                            <Pencil className="size-4" />
+                            <span className="hidden sm:inline">Renomear</span>
+                          </Button>
+                          {doGrupo.length ? null : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="max-sm:size-11"
+                              aria-label={`Excluir a categoria ${categoria.nome}`}
+                              title="Excluir"
+                              onClick={() => void removerCategoria(categoria)}
+                            >
+                              <Trash2 className="size-4" />
+                              <span className="hidden sm:inline">Excluir</span>
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            className="max-sm:size-11"
+                            aria-label={`Adicionar item em ${categoria.nome}`}
+                            title="Adicionar item"
+                            onClick={() => {
+                              setAbertas((atuais) => new Set(atuais).add(categoria.id));
+                              abrirNovo(categoria.nome);
+                            }}
+                          >
+                            <Plus className="size-4" />
+                            <span className="hidden sm:inline">Adicionar item</span>
+                          </Button>
+                        </div>
+                      </div>
+                      {aberta ? (
+                        <div id={`itens-${categoria.id}`}>
+                          {doGrupo.length ? (
+                            <div className="mt-3 sm:mt-4">{linhasDoItem(doGrupo)}</div>
+                          ) : (
+                            <p className="text-muted-foreground mt-3 text-sm">
+                              Nenhum item nesta categoria ainda.
+                            </p>
+                          )}
+                        </div>
+                      ) : null}
+                    </Panel>
+                  );
+                }}
+              </ListaArrastavel>
+              {semCategoria.length ? (
+                <Panel className="p-5">
+                  <h2 className="font-display text-lg font-semibold">Sem categoria cadastrada</h2>
+                  <p className="text-muted-foreground text-xs">
+                    Edite os itens abaixo e escolha uma categoria existente.
+                  </p>
+                  <div className="mt-4">{linhasDoItem(semCategoria)}</div>
+                </Panel>
+              ) : null}
+              {(termo || cardapioFiltro !== TODOS) && !visiveis.length ? (
+                <Panel className="p-5">
+                  <EmptyState
+                    title="Nenhum item encontrado"
+                    description="Ajuste a busca ou o filtro de cardápio."
+                  />
+                </Panel>
+              ) : null}
+            </div>
+          )}
+        </>
+      ) : (
+        <Panel className="p-4 sm:p-6">
+          <CardapiosFormatosPainel aba={abaAtiva} itens={itens.data ?? []} />
+        </Panel>
       )}
 
       <ItemDialog
@@ -479,19 +503,16 @@ function CardapioPage() {
         setForm={setForm}
         categorias={nomesCategorias}
         cardapios={nomesCardapios}
-        onGerenciarCardapios={() => setPainelCardapios("cardapios")}
+        onGerenciarCardapios={() => {
+          setItemAberto(false);
+          setAbaAtiva("cardapios");
+        }}
         todosItens={itens.data ?? []}
         onSalvo={atualizarTudo}
         onAbrirExistente={(item) => {
           abrirEdicao(item);
           toast.info(`Editando “${item.nome}”. Marque o cardápio e salve.`);
         }}
-      />
-      <CardapiosFormatosDialog
-        aberto={painelCardapios !== null}
-        onOpenChange={(aberto) => (aberto ? null : setPainelCardapios(null))}
-        abaInicial={painelCardapios ?? "cardapios"}
-        itens={itens.data ?? []}
       />
       <CategoriaDialog
         categoria={categoriaEditada}

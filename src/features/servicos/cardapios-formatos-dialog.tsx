@@ -1,17 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import {
-  AlertTriangle,
-  ArrowRight,
-  Check,
-  ListChecks,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-  X,
-} from "lucide-react";
+import { AlertTriangle, Check, ListChecks, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { ListaArrastavel } from "@/components/lista-arrastavel";
@@ -27,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   criarCardapio,
   definirItensDoCardapio,
@@ -54,91 +43,24 @@ import { cn } from "@/lib/utils";
 const mensagem = (error: unknown, padrao: string) =>
   error instanceof Error ? error.message : padrao;
 
-/**
- * Painel onde a equipe define como o cliente navega no formulário de orçamento:
- * ele escolhe um FORMATO e vê primeiro os CARDÁPIOS ligados a esse formato.
- */
-export function CardapiosFormatosDialog({
-  aberto,
-  onOpenChange,
-  abaInicial = "cardapios",
+/** Conteúdo das abas Cardápios e Formatos, exibido diretamente na página do cardápio. */
+export function CardapiosFormatosPainel({
+  aba,
   itens,
 }: {
-  aberto: boolean;
-  onOpenChange: (aberto: boolean) => void;
-  abaInicial?: AbaCardapiosFormatos;
-  /** Itens do cardápio, para mostrar quantos estão em cada cardápio. */
+  aba: AbaCardapiosFormatos;
   itens: Servico[];
 }) {
   const dados = useCardapiosEFormatos();
-  const [aba, setAba] = useState<AbaCardapiosFormatos>(abaInicial);
-  const [aberturaAnterior, setAberturaAnterior] = useState(false);
-  if (aberto !== aberturaAnterior) {
-    setAberturaAnterior(aberto);
-    if (aberto) setAba(abaInicial);
-  }
-
   const cardapios = dados.data?.cardapios ?? [];
   const formatos = dados.data?.formatos ?? [];
 
-  return (
-    <Dialog open={aberto} onOpenChange={onOpenChange}>
-      {/* Topo fixo (título, explicação e abas): só a lista rola. */}
-      <DialogContent className="flex max-h-[92vh] flex-col gap-0 p-0 sm:max-w-2xl">
-        <DialogHeader className="px-6 pt-6 pb-4 text-left">
-          <DialogTitle>Cardápios e formatos</DialogTitle>
-          <DialogDescription>
-            Como o cliente monta o pedido no formulário de orçamento.
-          </DialogDescription>
-        </DialogHeader>
-
-        <ol className="text-muted-foreground mx-6 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-          <li>
-            <strong className="text-foreground">1.</strong> Monte cada cardápio com os itens
-          </li>
-          <li aria-hidden>
-            <ArrowRight className="text-primary size-3.5" />
-          </li>
-          <li>
-            <strong className="text-foreground">2.</strong> Ligue cada formato aos cardápios
-          </li>
-          <li aria-hidden>
-            <ArrowRight className="text-primary size-3.5" />
-          </li>
-          <li>o cliente escolhe o formato e vê esses cardápios</li>
-        </ol>
-
-        {dados.isPending ? (
-          <LoadingState label="Carregando…" />
-        ) : dados.isError ? (
-          <ErrorState onRetry={() => void dados.refetch()} />
-        ) : (
-          <Tabs
-            value={aba}
-            onValueChange={(valor) => setAba(valor as AbaCardapiosFormatos)}
-            className="mt-4 flex min-h-0 flex-1 flex-col"
-          >
-            <div className="border-border border-b px-6 pb-3">
-              <TabsList className="w-full">
-                <TabsTrigger value="cardapios" className="flex-1">
-                  Cardápios ({cardapios.length})
-                </TabsTrigger>
-                <TabsTrigger value="formatos" className="flex-1">
-                  Formatos ({formatos.length})
-                </TabsTrigger>
-              </TabsList>
-            </div>
-            <TabsContent value="cardapios" className="mt-0 min-h-0 flex-1 overflow-y-auto p-6">
-              <AbaCardapios cardapios={cardapios} formatos={formatos} itens={itens} />
-            </TabsContent>
-            <TabsContent value="formatos" className="mt-0 min-h-0 flex-1 overflow-y-auto p-6">
-              <AbaFormatos formatos={formatos} cardapios={cardapios} />
-            </TabsContent>
-          </Tabs>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
+  if (dados.isPending) return <LoadingState label="Carregando…" />;
+  if (dados.isError) return <ErrorState onRetry={() => void dados.refetch()} />;
+  if (aba === "cardapios") {
+    return <AbaCardapios cardapios={cardapios} formatos={formatos} itens={itens} />;
+  }
+  return <AbaFormatos formatos={formatos} cardapios={cardapios} />;
 }
 
 function useAtualizar() {
@@ -165,6 +87,11 @@ function AbaFormatos({
   const excluir = useServerFn(excluirFormato);
   // null: nenhum em edição; "novo": formulário de criação no topo.
   const [editando, setEditando] = useState<string | "novo" | null>(null);
+  const [busca, setBusca] = useState("");
+  const termoBusca = normalizarBusca(busca);
+  const formatosVisiveis = termoBusca
+    ? formatos.filter((formato) => normalizarBusca(formato.nome).includes(termoBusca))
+    : formatos;
 
   async function remover(formato: FormatoServico) {
     const ok = await confirmar({
@@ -196,15 +123,35 @@ function AbaFormatos({
 
   return (
     <div className="grid gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-muted-foreground text-xs">
-          Opções da pergunta “Qual formato deseja servir?”, na ordem em que aparecem.
-        </p>
+      <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="font-display text-xl font-semibold">Formatos de serviço</h2>
+          <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
+            Defina como o serviço será oferecido e quais cardápios aparecem em cada formato.
+          </p>
+        </div>
         {editando === "novo" ? null : (
-          <Button type="button" size="sm" onClick={() => setEditando("novo")}>
+          <Button
+            type="button"
+            className="w-full sm:w-auto"
+            onClick={() => {
+              setBusca("");
+              setEditando("novo");
+            }}
+          >
             <Plus className="size-4" /> Novo formato
           </Button>
         )}
+      </div>
+      <div className="relative">
+        <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+        <Input
+          aria-label="Pesquisar formatos"
+          placeholder="Pesquisar formato"
+          className="pl-9"
+          value={busca}
+          onChange={(event) => setBusca(event.target.value)}
+        />
       </div>
       {editando === "novo" ? (
         <EditorFormato
@@ -214,9 +161,9 @@ function AbaFormatos({
         />
       ) : null}
       <ListaArrastavel
-        itens={formatos}
+        itens={formatosVisiveis}
         onReordenar={aoReordenar}
-        desativado={editando !== null}
+        desativado={editando !== null || Boolean(termoBusca)}
         rotuloDoItem={(formato) => `o formato ${formato.nome}`}
         className="grid gap-2"
       >
@@ -278,6 +225,11 @@ function AbaFormatos({
           )
         }
       </ListaArrastavel>
+      {formatos.length && !formatosVisiveis.length ? (
+        <p className="text-muted-foreground py-6 text-center text-sm">
+          Nenhum formato encontrado para “{busca.trim()}”.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -405,7 +357,9 @@ function AbaCardapios({
   const renomear = useServerFn(renomearCardapio);
   const excluir = useServerFn(excluirCardapio);
   const reordenar = useServerFn(reordenarCardapios);
+  const [busca, setBusca] = useState("");
   const [novo, setNovo] = useState("");
+  const [criando, setCriando] = useState(false);
   const [editando, setEditando] = useState<{ id: string; nome: string } | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [escolhendoItensDe, setEscolhendoItensDe] = useState<CardapioPublico | null>(null);
@@ -413,6 +367,10 @@ function AbaCardapios({
   const itensEm = (nome: string) => itens.filter((item) => item.cardapios.includes(nome)).length;
   const formatosCom = (nome: string) =>
     formatos.filter((formato) => formato.cardapios.includes(nome)).map((formato) => formato.nome);
+  const termoBusca = normalizarBusca(busca);
+  const cardapiosVisiveis = termoBusca
+    ? cardapios.filter((cardapio) => normalizarBusca(cardapio.nome).includes(termoBusca))
+    : cardapios;
 
   async function executar(acao: () => Promise<unknown>, sucesso: string, erro: string) {
     setSalvando(true);
@@ -445,6 +403,7 @@ function AbaCardapios({
     );
     if (!ok) return;
     setNovo("");
+    setCriando(false);
     // Cardápio novo começa vazio: já abre a lista para montá-lo.
     if (criado) setEscolhendoItensDe(criado);
   }
@@ -490,25 +449,71 @@ function AbaCardapios({
 
   return (
     <div className="grid gap-3">
-      <p className="text-muted-foreground text-xs">
-        Abas do formulário onde o cliente escolhe os pratos, na ordem em que aparecem.
-      </p>
-      <form onSubmit={adicionar} className="flex gap-2">
+      <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="font-display text-xl font-semibold">Cardápios do formulário</h2>
+          <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
+            Organize os grupos de itens que o cliente encontra ao montar o pedido.
+          </p>
+        </div>
+        {criando ? null : (
+          <Button
+            type="button"
+            className="w-full sm:w-auto"
+            disabled={salvando}
+            onClick={() => {
+              setBusca("");
+              setCriando(true);
+            }}
+          >
+            <Plus className="size-4" /> Novo cardápio
+          </Button>
+        )}
+      </div>
+      <div className="relative">
+        <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         <Input
-          aria-label="Nome do novo cardápio"
-          placeholder="Novo cardápio, ex.: Churrasco"
-          maxLength={80}
-          value={novo}
-          onChange={(event) => setNovo(event.target.value)}
+          aria-label="Pesquisar cardápios"
+          placeholder="Pesquisar cardápio"
+          className="pl-9"
+          value={busca}
+          onChange={(event) => setBusca(event.target.value)}
         />
-        <Button type="submit" disabled={salvando || novo.trim().length < 2}>
-          <Plus className="size-4" /> Adicionar
-        </Button>
-      </form>
+      </div>
+      {criando ? (
+        <form
+          onSubmit={adicionar}
+          className="bg-secondary/50 flex flex-col gap-2 rounded-xl p-3 ring-1 ring-black/5 sm:flex-row"
+        >
+          <Input
+            autoFocus
+            aria-label="Nome do novo cardápio"
+            placeholder="Nome do cardápio, ex.: Churrasco"
+            maxLength={80}
+            value={novo}
+            onChange={(event) => setNovo(event.target.value)}
+          />
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setNovo("");
+                setCriando(false);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={salvando}>
+              {salvando ? "Criando…" : "Criar cardápio"}
+            </Button>
+          </div>
+        </form>
+      ) : null}
       <ListaArrastavel
-        itens={cardapios}
+        itens={cardapiosVisiveis}
         onReordenar={aoReordenar}
-        desativado={editando !== null}
+        desativado={editando !== null || Boolean(termoBusca) || criando}
         rotuloDoItem={(cardapio) => `o cardápio ${cardapio.nome}`}
         className="grid gap-2"
       >
@@ -597,6 +602,11 @@ function AbaCardapios({
           Nenhum cardápio ainda. Sem cardápios, o formulário não mostra itens.
         </p>
       ) : null}
+      {cardapios.length && !cardapiosVisiveis.length ? (
+        <p className="text-muted-foreground py-6 text-center text-sm">
+          Nenhum cardápio encontrado para “{busca.trim()}”.
+        </p>
+      ) : null}
       {escolhendoItensDe ? (
         <EscolherItensDialog
           cardapio={escolhendoItensDe}
@@ -629,7 +639,7 @@ function ResumoCardapio({
         {formatos.length ? ` — aberto por ${formatos.join(", ")}` : ""}
       </p>
       {quantidadeItens === 0 || !formatos.length ? (
-        <p className="text-warning-foreground mt-1 flex items-center gap-1 text-xs">
+        <p className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
           <AlertTriangle className="size-3.5 shrink-0" />
           {quantidadeItens === 0
             ? "Vazio: use “Escolher itens” para montá-lo."
