@@ -6,6 +6,7 @@ import {
   FileText,
   Loader2,
   MessageCircle,
+  MessageCircleMore,
   Pencil,
   Plus,
   Trash2,
@@ -51,7 +52,7 @@ import {
 import { caminhoDoConvite } from "@/lib/acesso-cliente";
 import { useConfirmar } from "@/lib/confirmacao";
 import { formatBRL, formatDate, formatTimeRange } from "@/lib/format";
-import { createWhatsAppUrl } from "@/lib/sharing";
+import { createWhatsAppChatUrl, createWhatsAppUrl } from "@/lib/sharing";
 import { acaoDaEtapa, ETAPAS_EVENTO, rotuloStatusEvento } from "@/lib/status-evento";
 import { cn } from "@/lib/utils";
 import { telefoneDe } from "@/lib/empresa-cabecalho";
@@ -333,6 +334,13 @@ function EnviarOrcamentoAoCliente({
   const gerarConvite = useServerFn(gerarConviteCliente);
   const [enviando, setEnviando] = useState(false);
   const whatsapp = evento.cliente.whatsapp;
+  // Atalho para conversar com o cliente sem mensagem pronta (número inválido: sem atalho).
+  let conversaWhatsApp: string | null = null;
+  try {
+    conversaWhatsApp = whatsapp ? createWhatsAppChatUrl(whatsapp) : null;
+  } catch {
+    conversaWhatsApp = null;
+  }
 
   async function enviarAoCliente() {
     // A aba é aberta já no clique para o navegador não bloquear o pop-up após a espera.
@@ -375,23 +383,38 @@ function EnviarOrcamentoAoCliente({
 
   return (
     <div className="mt-4 flex flex-col items-stretch gap-1.5 sm:items-end">
-      <Button
-        variant={orcamento.enviadoEm ? "outline" : "default"}
-        className="min-w-60 shrink-0"
-        disabled={enviando}
-        onClick={() => void enviarAoCliente()}
-      >
-        {enviando ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <MessageCircle className="size-4" />
-        )}
-        {whatsapp
-          ? orcamento.enviadoEm
-            ? "Reenviar no WhatsApp"
-            : "Enviar orçamento no WhatsApp"
-          : "Liberar orçamento ao cliente"}
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          variant={orcamento.enviadoEm ? "outline" : "default"}
+          className="min-w-60 flex-1 shrink-0 max-sm:h-11 sm:flex-none"
+          disabled={enviando}
+          onClick={() => void enviarAoCliente()}
+        >
+          {enviando ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <MessageCircle className="size-4" />
+          )}
+          {whatsapp
+            ? orcamento.enviadoEm
+              ? "Reenviar no WhatsApp"
+              : "Enviar orçamento no WhatsApp"
+            : "Liberar orçamento ao cliente"}
+        </Button>
+        {conversaWhatsApp ? (
+          <Button variant="outline" size="icon" asChild className="size-11 shrink-0 sm:size-9">
+            <a
+              href={conversaWhatsApp}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Abrir conversa no WhatsApp com ${evento.cliente.nome}, sem mensagem`}
+              title="Abrir conversa no WhatsApp (sem mensagem)"
+            >
+              <MessageCircleMore className="size-4" />
+            </a>
+          </Button>
+        ) : null}
+      </div>
       <p className="text-muted-foreground text-center text-xs sm:min-w-60">
         {orcamento.enviadoEm
           ? `Enviado ao cliente em ${formatDate(orcamento.enviadoEm)}.`

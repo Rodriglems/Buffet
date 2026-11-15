@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createCalendarFile, createWhatsAppUrl } from "./sharing";
+import { createCalendarFile, createWhatsAppChatUrl, createWhatsAppUrl } from "./sharing";
 
 describe("calendar and sharing", () => {
   it("gera um calendário compatível com evento de dia inteiro", () => {
@@ -21,5 +21,19 @@ describe("calendar and sharing", () => {
       "https://wa.me/5511912345678?text=Ol%C3%A1%20Jo%C3%A3o",
     );
     expect(() => createWhatsAppUrl("123", "Teste")).toThrow("WhatsApp inválido.");
+  });
+});
+
+describe("createWhatsAppChatUrl", () => {
+  it("abre a conversa sem mensagem pronta", () => {
+    expect(createWhatsAppChatUrl("(11) 91234-5678")).toBe("https://wa.me/5511912345678");
+  });
+
+  it("mantém o código do país quando já vem informado", () => {
+    expect(createWhatsAppChatUrl("+55 86 99999-1234")).toBe("https://wa.me/5586999991234");
+  });
+
+  it("recusa número incompleto", () => {
+    expect(() => createWhatsAppChatUrl("9999-1234")).toThrow("WhatsApp inválido.");
   });
 });

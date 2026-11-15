@@ -80,9 +80,19 @@ export function downloadCalendarFile(event: CalendarEvent): void {
   URL.revokeObjectURL(url);
 }
 
-export function createWhatsAppUrl(phone: string, message: string): string {
+/** Número no formato do wa.me: só dígitos, com 55 quando vem só DDD + número. */
+function numeroWhatsApp(phone: string): string {
   let digits = phone.replace(/\D/g, "");
   if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
   if (digits.length < 12 || digits.length > 15) throw new Error("WhatsApp inválido.");
-  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  return digits;
+}
+
+export function createWhatsAppUrl(phone: string, message: string): string {
+  return `https://wa.me/${numeroWhatsApp(phone)}?text=${encodeURIComponent(message)}`;
+}
+
+/** Abre a conversa com a pessoa, sem mensagem pronta. */
+export function createWhatsAppChatUrl(phone: string): string {
+  return `https://wa.me/${numeroWhatsApp(phone)}`;
 }
