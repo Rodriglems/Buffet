@@ -138,7 +138,18 @@ export function EditarOrcamentoDialog({
     const limpo =
       campo === "quantidade" || campo === "valorUnitario" ? limparNumeroDigitado(valor) : valor;
     setLinhas((atuais) =>
-      atuais.map((linha) => (linha.chave === chave ? { ...linha, [campo]: limpo } : linha)),
+      atuais.map((linha) => {
+        if (linha.chave !== chave) return linha;
+        if (campo !== "unidade") return { ...linha, [campo]: limpo };
+        // Trocar a unidade acerta a quantidade: por pessoa = convidados, por evento = 1.
+        const quantidade =
+          limpo === "por pessoa"
+            ? String(convidados)
+            : limpo === "por evento"
+              ? "1"
+              : linha.quantidade;
+        return { ...linha, unidade: limpo, quantidade };
+      }),
     );
   }
 
@@ -322,8 +333,9 @@ export function EditarOrcamentoDialog({
                   adicionar({
                     servicoId: null,
                     descricao: "",
-                    quantidade: "1",
-                    unidade: "por evento",
+                    // Padrão do buffet: cobrado por pessoa, para todos os convidados.
+                    quantidade: String(convidados),
+                    unidade: "por pessoa",
                     valorUnitario: "",
                     desconto: 0,
                   })
