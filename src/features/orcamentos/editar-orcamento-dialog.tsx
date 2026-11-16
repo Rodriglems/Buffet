@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -26,6 +27,19 @@ import { normalizarBusca } from "@/features/orcamentos/formulario-publico";
 import { ITEM_VALOR_DO_CONTRATO } from "@/features/eventos/contrato";
 import { atualizarItensOrcamento } from "@/features/orcamentos/server-functions";
 import { listServicos } from "@/features/servicos/server-functions";
+import {
+  cobrancaDasLinhas,
+  comCobranca,
+  DESCRICAO_FRETE,
+  ehFrete,
+  linhaComUnidadePadrao,
+  POR_PESSOA,
+  POR_PRATO,
+  segueACobranca,
+  UNIDADE_FRETE,
+  unidadeNoOrcamento,
+  type Cobranca,
+} from "@/features/orcamentos/unidade-item";
 import { formatBRL } from "@/lib/format";
 import { lerNumero, limparNumeroDigitado } from "@/lib/numero";
 import { cn } from "@/lib/utils";
@@ -51,26 +65,29 @@ type ItemOrcamento = {
   desconto: string | number;
 };
 
-const UNIDADES = ["por evento", "por pessoa"];
-
-/** Por evento e por pessoa; uma unidade antiga diferente (ex.: "kit") continua na lista. */
-function opcoesDeUnidade(atual: string): string[] {
-  const valor = atual.trim();
-  return valor && !UNIDADES.includes(valor) ? [...UNIDADES, valor] : UNIDADES;
-}
-
 type ErrosLinha = Partial<Record<"descricao" | "quantidade" | "unidade" | "valorUnitario", string>>;
 
-function paraLinhas(itens: ItemOrcamento[]): Linha[] {
-  return itens.map((item) => ({
-    chave: item.id,
-    servicoId: item.servicoId,
-    descricao: item.descricao,
-    quantidade: String(Number(item.quantidade)),
-    unidade: item.unidade,
-    valorUnitario: String(Number(item.valorUnitario)),
-    desconto: Number(item.desconto),
-  }));
+/** Linhas sob consulta ainda "por evento" abrem como "por pessoa", com os convidados. */
+function paraLinhas(itens: ItemOrcamento[], convidados: number): Linha[] {
+  return itens.map((item) => {
+    const { unidade, quantidade, valorUnitario } = linhaComUnidadePadrao(
+      {
+        unidade: item.unidade,
+        quantidade: Number(item.quantidade),
+        valorUnitario: Number(item.valorUnitario),
+      },
+      convidados,
+    );
+    return {
+      chave: item.id,
+      servicoId: item.servicoId,
+      descricao: item.descricao,
+      quantidade: String(quantidade),
+      unidade,
+      valorUnitario: String(valorUnitario),
+      desconto: Number(item.desconto),
+    };
+  });
 }
 
 function totalLinha(linha: Linha) {
@@ -86,6 +103,26 @@ function validarLinha(linha: Linha): ErrosLinha {
     erros.valorUnitario = "Informe o valor (use 0 se for sob consulta).";
   }
   return erros;
+}
+
+/** Linhas da tabela, sem o frete (ele tem a linha fixa própria). */
+function itensSemFrete(itens: ItemOrcamento[], convidados: number): Linha[] {
+  return paraLinhas(
+    itens.filter((item) => !ehFrete(item.unidade)),
+    convidados,
+  );
+}
+
+/** Valor do frete já salvo, como texto do campo. */
+function freteSalvo(itens: ItemOrcamento[]): string {
+  const item = itens.find((linha) => ehFrete(linha.unidade));
+  return item ? String(Number(item.valorUnitario)) : "";
+}
+
+/** Por prato quando já há linhas assim ou um frete salvo; senão por pessoa. */
+function cobrancaInicial(itens: ItemOrcamento[], convidados: number): Cobranca {
+  if (itens.some((item) => ehFrete(item.unidade))) return POR_PRATO;
+  return cobrancaDasLinhas(itensSemFrete(itens, convidados).map((linha) => linha.unidade));
 }
 
 export function EditarOrcamentoDialog({
@@ -104,7 +141,13 @@ export function EditarOrcamentoDialog({
 }) {
   const router = useRouter();
   const salvar = useServerFn(atualizarItensOrcamento);
-  const [linhas, setLinhas] = useState<Linha[]>(() => paraLinhas(orcamento.itens));
+  const [linhas, setLinhas] = useState<Linha[]>(() => itensSemFrete(orcamento.itens, convidados));
+  // Um select só para o orçamento inteiro: por pessoa (quantidade = convidados) ou por prato.
+  const [cobranca, setCobranca] = useState<Cobranca>(() =>
+    cobrancaInicial(orcamento.itens, convidados),
+  );
+  // Frete: linha fixa no fim da tabela, só na cobrança por prato.
+  const [frete, setFrete] = useState(() => freteSalvo(orcamento.itens));
   const [busca, setBusca] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [tentouSalvar, setTentouSalvar] = useState(false);
@@ -112,11 +155,13 @@ export function EditarOrcamentoDialog({
 
   useEffect(() => {
     if (aberto) {
-      setLinhas(paraLinhas(orcamento.itens));
+      setLinhas(itensSemFrete(orcamento.itens, convidados));
+      setCobranca(cobrancaInicial(orcamento.itens, convidados));
+      setFrete(freteSalvo(orcamento.itens));
       setBusca("");
       setTentouSalvar(false);
     }
-  }, [aberto, orcamento.itens]);
+  }, [aberto, orcamento.itens, convidados]);
 
   const termo = normalizarBusca(busca.trim());
   const sugestoes = termo
@@ -128,7 +173,9 @@ export function EditarOrcamentoDialog({
         )
         .slice(0, 8)
     : [];
-  const subtotal = linhas.reduce((soma, linha) => soma + totalLinha(linha), 0);
+  const comFrete = cobranca === POR_PRATO;
+  const valorFrete = comFrete ? lerNumero(frete) || 0 : 0;
+  const subtotal = linhas.reduce((soma, linha) => soma + totalLinha(linha), 0) + valorFrete;
   const errosPorLinha = new Map(linhas.map((linha) => [linha.chave, validarLinha(linha)]));
   const itemDoContratoJunto =
     linhas.length > 1 && linhas.some((linha) => linha.descricao === ITEM_VALOR_DO_CONTRATO);
@@ -138,23 +185,33 @@ export function EditarOrcamentoDialog({
     const limpo =
       campo === "quantidade" || campo === "valorUnitario" ? limparNumeroDigitado(valor) : valor;
     setLinhas((atuais) =>
+      atuais.map((linha) => (linha.chave === chave ? { ...linha, [campo]: limpo } : linha)),
+    );
+  }
+
+  /** Troca a cobrança de todas as linhas; unidades específicas (ex.: cento) ficam. */
+  function trocarCobranca(nova: Cobranca) {
+    setCobranca(nova);
+    setLinhas((atuais) =>
       atuais.map((linha) => {
-        if (linha.chave !== chave) return linha;
-        if (campo !== "unidade") return { ...linha, [campo]: limpo };
-        // Trocar a unidade acerta a quantidade: por pessoa = convidados, por evento = 1.
-        const quantidade =
-          limpo === "por pessoa"
-            ? String(convidados)
-            : limpo === "por evento"
-              ? "1"
-              : linha.quantidade;
-        return { ...linha, unidade: limpo, quantidade };
+        const { unidade, quantidade } = comCobranca(
+          linha.unidade,
+          lerNumero(linha.quantidade),
+          nova,
+          convidados,
+        );
+        return { ...linha, unidade, quantidade: String(quantidade) };
       }),
     );
   }
 
-  function adicionar(linha: Omit<Linha, "chave">) {
-    setLinhas((atuais) => [...atuais, { ...linha, chave: crypto.randomUUID() }]);
+  /** Linha nova já entra na cobrança escolhida acima da tabela. */
+  function adicionar(linha: Omit<Linha, "chave" | "quantidade">) {
+    const { unidade, quantidade } = comCobranca(linha.unidade, 1, cobranca, convidados);
+    setLinhas((atuais) => [
+      ...atuais,
+      { ...linha, unidade, quantidade: String(quantidade), chave: crypto.randomUUID() },
+    ]);
   }
 
   async function submit(event: FormEvent) {
@@ -181,14 +238,29 @@ export function EditarOrcamentoDialog({
       await salvar({
         data: {
           id: orcamento.id,
-          itens: linhas.map((linha) => ({
-            servicoId: linha.servicoId,
-            descricao: linha.descricao.trim(),
-            quantidade: lerNumero(linha.quantidade),
-            unidade: linha.unidade.trim(),
-            valorUnitario: lerNumero(linha.valorUnitario),
-            desconto: linha.desconto,
-          })),
+          itens: [
+            ...linhas.map((linha) => ({
+              servicoId: linha.servicoId,
+              descricao: linha.descricao.trim(),
+              quantidade: lerNumero(linha.quantidade),
+              unidade: linha.unidade.trim(),
+              valorUnitario: lerNumero(linha.valorUnitario),
+              desconto: linha.desconto,
+            })),
+            // Frete zerado não vira item: não aparece no PDF nem para o cliente.
+            ...(valorFrete > 0
+              ? [
+                  {
+                    servicoId: null,
+                    descricao: DESCRICAO_FRETE,
+                    quantidade: 1,
+                    unidade: UNIDADE_FRETE,
+                    valorUnitario: valorFrete,
+                    desconto: 0,
+                  },
+                ]
+              : []),
+          ],
         },
       });
       toast.success("Orçamento atualizado.");
@@ -210,13 +282,35 @@ export function EditarOrcamentoDialog({
         <form className="grid gap-4" onSubmit={submit} noValidate>
           <DialogHeader>
             <DialogTitle>Editar orçamento</DialogTitle>
-            <DialogDescription>
-              Tire, adicione ou altere itens. O desconto combinado é mantido e o total recalculado.
+            <DialogDescription className="sr-only">
+              Itens, quantidades e valores do orçamento.
             </DialogDescription>
           </DialogHeader>
 
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Label htmlFor="orcamento-cobranca" className="text-sm font-semibold">
+              Cobrança
+            </Label>
+            <Select value={cobranca} onValueChange={(valor) => trocarCobranca(valor as Cobranca)}>
+              <SelectTrigger id="orcamento-cobranca" className="w-60">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={POR_PESSOA}>
+                  Por pessoa ({convidados} {convidados === 1 ? "convidado" : "convidados"})
+                </SelectItem>
+                <SelectItem value={POR_PRATO}>Por prato</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              {cobranca === POR_PESSOA
+                ? "A quantidade de cada item é o número de convidados."
+                : "Cada item conta uma vez (quantidade 1). O frete fica no fim da tabela."}
+            </p>
+          </div>
+
           <div className="overflow-x-auto">
-            <table className="tabela-formulario w-full min-w-[720px] text-left text-sm">
+            <table className="tabela-formulario w-full min-w-[680px] text-left text-sm">
               <thead>
                 <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                   <th className="pb-2 font-medium">Item</th>
@@ -259,26 +353,12 @@ export function EditarOrcamentoDialog({
                           }
                         />
                       </td>
-                      <td className="py-2 pr-2">
-                        <Select
-                          value={linha.unidade}
-                          onValueChange={(valor) => alterar(linha.chave, "unidade", valor)}
-                        >
-                          <SelectTrigger
-                            aria-label="Unidade"
-                            aria-invalid={Boolean(tentouSalvar && erros.unidade)}
-                            className={cn("w-32", classeErro(erros.unidade))}
-                          >
-                            <SelectValue placeholder="Unidade" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {opcoesDeUnidade(linha.unidade).map((unidade) => (
-                              <SelectItem key={unidade} value={unidade}>
-                                {unidade}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <td className="text-muted-foreground py-2 pr-2 pt-4 whitespace-nowrap">
+                        {linha.unidade}
+                        {/* Unidade própria do cardápio (ex.: cento) não segue a cobrança. */}
+                        {segueACobranca(linha.unidade) ? null : (
+                          <span className="block text-[11px]">não muda com a cobrança</span>
+                        )}
                       </td>
                       <td className="py-2 pr-2">
                         <Input
@@ -314,6 +394,29 @@ export function EditarOrcamentoDialog({
                   );
                 })}
               </tbody>
+              {comFrete ? (
+                <tfoot>
+                  <tr className="border-border border-t-2">
+                    <td className="py-2 pt-4 pr-2 font-medium">Frete</td>
+                    <td className="text-muted-foreground py-2 pt-4 pr-2">1</td>
+                    <td className="text-muted-foreground py-2 pt-4 pr-2">{UNIDADE_FRETE}</td>
+                    <td className="py-2 pr-2">
+                      <Input
+                        inputMode="decimal"
+                        aria-label="Valor do frete"
+                        placeholder="0"
+                        className="w-28"
+                        value={frete}
+                        onChange={(event) => setFrete(limparNumeroDigitado(event.target.value))}
+                      />
+                    </td>
+                    <td className="py-2 pt-4 pr-2 font-medium whitespace-nowrap">
+                      {formatBRL(valorFrete)}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              ) : null}
             </table>
             {linhas.length ? null : (
               <p className="text-destructive py-3 text-sm">
@@ -333,9 +436,7 @@ export function EditarOrcamentoDialog({
                   adicionar({
                     servicoId: null,
                     descricao: "",
-                    // Padrão do buffet: cobrado por pessoa, para todos os convidados.
-                    quantidade: String(convidados),
-                    unidade: "por pessoa",
+                    unidade: cobranca,
                     valorUnitario: "",
                     desconto: 0,
                   })
@@ -369,10 +470,7 @@ export function EditarOrcamentoDialog({
                         adicionar({
                           servicoId: servico.id,
                           descricao: servico.nome,
-                          quantidade: String(
-                            servico.unidade.toLowerCase().includes("pessoa") ? convidados : 1,
-                          ),
-                          unidade: servico.unidade,
+                          unidade: unidadeNoOrcamento(servico.unidade),
                           valorUnitario: String(servico.valorBase),
                           desconto: 0,
                         });

@@ -13,6 +13,7 @@ import { notificarNovaSolicitacaoEmpresa } from "@/lib/empresa-notification.serv
 import { urlFormularioPublico } from "@/lib/formulario-publico-url.server";
 import { hashPassword } from "@/lib/password.server";
 import { exigirDentroDoLimite } from "@/lib/limite-taxa.server";
+import { quantidadePadrao, unidadeNoOrcamento } from "@/features/orcamentos/unidade-item";
 import { getPrisma } from "@/lib/prisma.server";
 import { enviarPush } from "@/lib/push.server";
 import { getAuthContext, issueSession, requirePermission } from "@/lib/session.server";
@@ -421,11 +422,10 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
         select: { numero: true },
       });
       const itens = servicos.map((servico) => {
-        const quantidade = servico.unidade.toLowerCase().includes("pessoa")
-          ? data.quantidadeConvidados
-          : 1;
+        const unidade = unidadeNoOrcamento(servico.unidade);
+        const quantidade = quantidadePadrao(unidade, data.quantidadeConvidados);
         const valorUnitario = Number(servico.precoBase);
-        return { servico, quantidade, valorUnitario, total: quantidade * valorUnitario };
+        return { servico, unidade, quantidade, valorUnitario, total: quantidade * valorUnitario };
       });
       const subtotal = itens.reduce((total, item) => total + item.total, 0);
       const orcamento = await tx.orcamento.create({
@@ -446,11 +446,11 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
             .filter(Boolean)
             .join("\n"),
           itens: {
-            create: itens.map(({ servico, quantidade, valorUnitario, total }) => ({
+            create: itens.map(({ servico, unidade, quantidade, valorUnitario, total }) => ({
               servicoId: servico.id,
               descricao: descricoes.get(servico.id) ?? servico.nome,
               quantidade: quantidade.toString(),
-              unidade: servico.unidade,
+              unidade,
               valorUnitario: valorUnitario.toFixed(2),
               desconto: "0.00",
               valorTotal: total.toFixed(2),
