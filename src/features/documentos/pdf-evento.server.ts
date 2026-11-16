@@ -32,6 +32,8 @@ export type DadosPdfEvento = {
   itens: string[];
   /** Serviços adicionais contratados, ex.: "Serviço de garçom". */
   servicosAdicionais: string[];
+  /** Valor do frete do orçamento (cobrança por prato); 0 quando não há. */
+  frete: number;
   subtotal: number;
   desconto: number;
   total: number;
@@ -61,16 +63,14 @@ function textoSeguro(texto: string): string {
     .join("");
 }
 
+/** DD/MM/AAAA, sem o dia da semana. */
 export function formatarDataEvento(data: Date): string {
-  const opcoes = { timeZone: "UTC" } as const;
-  const diaMes = data.toLocaleDateString("pt-BR", {
-    ...opcoes,
+  return data.toLocaleDateString("pt-BR", {
+    timeZone: "UTC",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
-  const semana = data.toLocaleDateString("pt-BR", { ...opcoes, weekday: "long" });
-  return `${diaMes} (${semana})`;
 }
 
 function formatarHora(horario: Date): string {
@@ -253,7 +253,13 @@ function desenharEvento({ pdf, negrito, italico, logo }: Recursos, dados: DadosP
     ? dados.servicosAdicionais.length + 2
     : 0;
   const linhasDoCorpo =
-    4 + 2 + dados.itens.length + linhasAdicionais + 1 + (dados.desconto > 0 ? 3 : 1);
+    4 +
+    2 +
+    dados.itens.length +
+    linhasAdicionais +
+    (dados.frete > 0 ? 1 : 0) +
+    1 +
+    (dados.desconto > 0 ? 3 : 1);
   // Espaço das linhas de fechamento (garantirEspaco(48) lá embaixo) com uma pequena folga.
   const alturaFechamento = 52;
   const espacoDisponivel = y - 60 - alturaFechamento;
@@ -289,6 +295,7 @@ function desenharEvento({ pdf, negrito, italico, logo }: Recursos, dados: DadosP
     y -= entrelinha;
   }
 
+  if (dados.frete > 0) linha(`FRETE ${formatarMoeda(dados.frete)}`);
   if (dados.desconto > 0) {
     linha(`SUBTOTAL ${formatarMoeda(dados.subtotal)}`);
     linha(`DESCONTO ${formatarMoeda(dados.desconto)}`);

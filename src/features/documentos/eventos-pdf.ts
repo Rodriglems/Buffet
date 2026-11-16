@@ -6,6 +6,7 @@ import {
   gerarPdfEventos,
   type DadosPdfEvento,
 } from "@/features/documentos/pdf-evento.server";
+import { ehFrete } from "@/features/orcamentos/unidade-item";
 import type { Prisma } from "@/generated/prisma/client";
 import { serialize } from "@/lib/domain.server";
 import { linhasEnderecoEmpresa, textoTelefonesEmpresa } from "@/lib/empresa-cabecalho";
@@ -134,7 +135,12 @@ async function dadosPdfDoEvento(auth: Autenticacao, id: string, logos: CacheLogo
     horarioInicio: evento.horaInicio,
     horarioFim: evento.horaFim,
     endereco: montarEndereco(evento),
-    itens: orcamento?.itens.map((item) => item.descricao) ?? [],
+    // O frete sai do MENU e aparece com o valor antes do total.
+    itens:
+      orcamento?.itens.filter((item) => !ehFrete(item.unidade)).map((item) => item.descricao) ?? [],
+    frete: (orcamento?.itens ?? [])
+      .filter((item) => ehFrete(item.unidade))
+      .reduce((soma, item) => soma + Number(item.valorTotal), 0),
     servicosAdicionais: evento.servicosAdicionais,
     subtotal: Number(orcamento?.subtotal ?? 0),
     desconto: Number(orcamento?.desconto ?? 0),
