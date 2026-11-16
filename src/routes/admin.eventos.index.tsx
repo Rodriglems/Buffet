@@ -469,12 +469,6 @@ function EventosPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-52">
-                          <DropdownMenuItem asChild className="min-h-11">
-                            <Link to="/admin/eventos/$id" params={{ id: e.id }}>
-                              <ExternalLink className="size-4" />
-                              Abrir evento
-                            </Link>
-                          </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive [&_svg]:text-destructive min-h-11"
                             onSelect={() => void apagarEvento(e)}
