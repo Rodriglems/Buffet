@@ -114,8 +114,8 @@ export function DatasBloqueadasDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto px-6 py-5">
-          <section className="grid gap-3">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
+          <section className="space-y-3">
             <p className="text-sm font-semibold">Bloquear novas datas</p>
             <div className="text-muted-foreground flex flex-wrap gap-4 text-xs">
               <span className="flex items-center gap-1.5">
@@ -138,7 +138,7 @@ export function DatasBloqueadasDialog({
                 bloqueada:
                   "[&_button]:bg-destructive/15 [&_button]:text-destructive [&_button]:line-through [&_button]:opacity-100",
               }}
-              className="bg-surface w-full rounded-xl p-3 ring-1 ring-black/5 [--cell-size:min(2.75rem,calc((100vw_-_6rem)/7))]"
+              className="bg-surface w-full rounded-xl p-3 ring-1 ring-black/5 [--cell-size:min(2.75rem,calc((100vw_-_6rem)/7))] [&_td_button]:aspect-auto [&_td_button]:h-(--cell-size) [&_td]:aspect-auto [&_td]:h-(--cell-size)"
             />
             <div className="grid gap-1.5">
               <Label htmlFor="bloqueio-motivo">
