@@ -365,12 +365,16 @@ model FormatoServico {
   @@map("formatos_servico")
 }
 
-/// Opções que o cliente escolhe para um item (ex.: os recheios possíveis de cada massa).
+/// Opções que o cliente escolhe para um item, em grupos (ex.: os recheios e os molhos de uma massa).
 model ServicoOpcao {
-  servicoId String  @map("servico_id") @db.Uuid
-  opcaoId   String  @map("opcao_id") @db.Uuid
-  servico   Servico @relation("ServicoComOpcoes", fields: [servicoId], references: [id], onDelete: Cascade)
-  opcao     Servico @relation("OpcaoDoServico", fields: [opcaoId], references: [id], onDelete: Cascade)
+  servicoId  String  @map("servico_id") @db.Uuid
+  opcaoId    String  @map("opcao_id") @db.Uuid
+  /// Grupo da escolha que o cliente vê (ex.: "Recheio", "Molho"); um item pode ter vários.
+  grupo      String  @default("Opção")
+  /// Ordem do grupo no item (o primeiro grupo é pedido primeiro).
+  grupoOrdem Int     @default(0) @map("grupo_ordem")
+  servico    Servico @relation("ServicoComOpcoes", fields: [servicoId], references: [id], onDelete: Cascade)
+  opcao      Servico @relation("OpcaoDoServico", fields: [opcaoId], references: [id], onDelete: Cascade)
 
   @@id([servicoId, opcaoId])
   @@index([opcaoId])

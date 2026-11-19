@@ -4,6 +4,12 @@ import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { serialize } from "@/lib/domain.server";
 import { validarCardapios } from "@/features/servicos/cardapios-formatos";
+import {
+  agruparOpcoes,
+  gruposParaSalvar,
+  MAXIMO_GRUPOS,
+  type GrupoOpcoes,
+} from "@/features/servicos/grupos-opcoes";
 import { mensagemNomeRepetido } from "@/features/servicos/regras-cardapio";
 import { TIPOS_EVENTO, type TipoEvento } from "@/lib/catalogo";
 import { getPrisma } from "@/lib/prisma.server";
@@ -24,8 +30,16 @@ const servico = z.object({
   ordem: z.coerce.number().int().min(0).max(100000).default(0),
   sugestaoChef: z.boolean().default(false),
   ativo: z.boolean().default(true),
-  opcoesRotulo: z.string().trim().max(60).nullable().optional(),
-  opcoesIds: z.array(z.string().uuid()).max(100).optional(),
+  // Escolhas do cliente em grupos (ex.: Recheio e Molho), cada um com os itens que servem de opção.
+  gruposOpcoes: z
+    .array(
+      z.object({
+        nome: z.string().trim().max(60),
+        ids: z.array(z.string().uuid()).max(100),
+      }),
+    )
+    .max(MAXIMO_GRUPOS)
+    .optional(),
 });
 const id = z.object({ id: z.string().uuid() });
 const nomeCategoria = z.string().trim().min(2, "Informe o nome da categoria.").max(80);
@@ -62,21 +76,35 @@ async function validarCategoria(tx: Prisma.TransactionClient, empresaId: string,
   if (!existe) throw new Error("Categoria não encontrada. Cadastre-a antes de usar.");
 }
 
-/** Substitui as opções do item (ex.: recheios de uma massa), aceitando só itens da empresa. */
+/**
+ * Substitui as escolhas do item (ex.: recheios e molhos de uma massa), aceitando só itens da
+ * empresa. O nome do primeiro grupo também vai para opcoesRotulo, a coluna antiga.
+ */
 async function salvarOpcoes(
   tx: Prisma.TransactionClient,
   empresaId: string,
   servicoId: string,
-  opcoesIds: string[] | undefined,
+  grupos: GrupoOpcoes[] | undefined,
 ) {
-  if (opcoesIds === undefined) return;
-  const ids = [...new Set(opcoesIds)].filter((opcaoId) => opcaoId !== servicoId);
+  if (grupos === undefined) return;
+  const limpos = gruposParaSalvar(
+    grupos.map((grupo) => ({ ...grupo, ids: grupo.ids.filter((id) => id !== servicoId) })),
+  );
+  const ids = limpos.flatMap((grupo) => grupo.ids);
   const validos = await tx.servico.count({ where: { empresaId, id: { in: ids } } });
   if (validos !== ids.length) throw new Error("Uma ou mais opções são inválidas.");
   await tx.servicoOpcao.deleteMany({ where: { servicoId } });
   if (ids.length) {
-    await tx.servicoOpcao.createMany({ data: ids.map((opcaoId) => ({ servicoId, opcaoId })) });
+    await tx.servicoOpcao.createMany({
+      data: limpos.flatMap((grupo, grupoOrdem) =>
+        grupo.ids.map((opcaoId) => ({ servicoId, opcaoId, grupo: grupo.nome, grupoOrdem })),
+      ),
+    });
   }
+  await tx.servico.update({
+    where: { id: servicoId },
+    data: { opcoesRotulo: limpos[0]?.nome ?? null },
+  });
 }
 
 export const listarServicos = createServerFn({ method: "GET" })
@@ -99,7 +127,7 @@ export const listarServicos = createServerFn({ method: "GET" })
         // Sem o helper pagination(), que limita a 100 itens e cortava o cardápio na tela.
         skip: (data.page - 1) * data.pageSize,
         take: data.pageSize,
-        include: { opcoes: { select: { opcaoId: true } } },
+        include: { opcoes: { select: { opcaoId: true, grupo: true, grupoOrdem: true } } },
         orderBy: [{ sugestaoChef: "asc" }, { ordem: "asc" }, { nome: "asc" }],
       }),
       getPrisma().servico.count({ where }),
@@ -112,13 +140,13 @@ export const criarServico = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const auth = await requirePermission("servicos");
     validarImagem(data.imagemUrl);
-    const { opcoesIds, ...dados } = data;
+    const { gruposOpcoes, ...dados } = data;
     return getPrisma().$transaction(async (tx) => {
       await garantirNomeLivre(tx, auth.empresaId, dados.nome);
       await validarCategoria(tx, auth.empresaId, dados.categoria);
       await validarCardapios(tx, auth.empresaId, dados.cardapios);
       const criado = await tx.servico.create({ data: { ...dados, empresaId: auth.empresaId } });
-      await salvarOpcoes(tx, auth.empresaId, criado.id, opcoesIds);
+      await salvarOpcoes(tx, auth.empresaId, criado.id, gruposOpcoes);
       return serialize(criado);
     });
   });
@@ -132,7 +160,7 @@ export const atualizarServico = createServerFn({ method: "POST" })
     });
     if (!found) throw new Error("Servico nao encontrado.");
     validarImagem(data.dados.imagemUrl, found.imagemUrl);
-    const { opcoesIds, ...dados } = data.dados;
+    const { gruposOpcoes, ...dados } = data.dados;
     const atualizado = await getPrisma().$transaction(async (tx) => {
       if (dados.nome !== undefined && dados.nome !== found.nome) {
         await garantirNomeLivre(tx, auth.empresaId, dados.nome, found.id);
@@ -147,7 +175,7 @@ export const atualizarServico = createServerFn({ method: "POST" })
         dados.cardapios?.filter((nome) => !found.cardapios.includes(nome)),
       );
       const salvo = await tx.servico.update({ where: { id: found.id }, data: dados });
-      await salvarOpcoes(tx, auth.empresaId, found.id, opcoesIds);
+      await salvarOpcoes(tx, auth.empresaId, found.id, gruposOpcoes);
       return salvo;
     });
     if (data.dados.imagemUrl !== undefined && data.dados.imagemUrl !== found.imagemUrl) {
@@ -311,8 +339,8 @@ export interface Servico {
   sugestaoChef: boolean;
   unidade: string;
   status: ServicoStatus;
-  opcoesRotulo: string;
-  opcoesIds: string[];
+  /** Escolhas que o cliente faz neste item, em grupos (ex.: Recheio e Molho). */
+  gruposOpcoes: GrupoOpcoes[];
 }
 
 export type CreateServicoInput = Omit<Servico, "id">;
@@ -333,8 +361,7 @@ export async function listServicos(): Promise<Servico[]> {
     sugestaoChef: entry.sugestaoChef,
     unidade: entry.unidade,
     status: entry.ativo ? "Ativo" : "Inativo",
-    opcoesRotulo: entry.opcoesRotulo ?? "",
-    opcoesIds: entry.opcoes.map((opcao) => opcao.opcaoId),
+    gruposOpcoes: agruparOpcoes(entry.opcoes),
   }));
 }
 
@@ -352,8 +379,7 @@ function paraDados(input: CreateServicoInput) {
     ordem: input.ordem,
     sugestaoChef: input.sugestaoChef,
     ativo: input.status === "Ativo",
-    opcoesRotulo: input.opcoesIds.length ? input.opcoesRotulo.trim() || "Opção" : null,
-    opcoesIds: input.opcoesIds,
+    gruposOpcoes: input.gruposOpcoes,
   };
 }
 

@@ -3,6 +3,7 @@ import { test } from "vitest";
 
 import {
   descreverEscolha,
+  descreverEscolhas,
   montarPedidoParaRefazer,
   intervaloHorarioValido,
   normalizarBusca,
@@ -57,8 +58,8 @@ test("refazer pedido repete os itens do cardápio com a opção escolhida, sem i
         servicoId: "massa",
         descricao: "Conchiglioni — Recheio de bacalhau",
         opcoes: [
-          { id: "r1", nome: "Recheio de queijo" },
-          { id: "r2", nome: "Recheio de bacalhau" },
+          { id: "r1", nome: "Recheio de queijo", grupo: "Recheio" },
+          { id: "r2", nome: "Recheio de bacalhau", grupo: "Recheio" },
         ],
       },
       { servicoId: "bolinho", descricao: "Bolinho de bacalhau", opcoes: [] },
@@ -66,7 +67,7 @@ test("refazer pedido repete os itens do cardápio com a opção escolhida, sem i
     ],
   });
   assert.deepEqual(pedido.servicosIds, ["massa", "bolinho"]);
-  assert.deepEqual(pedido.escolhas, { massa: "r2" });
+  assert.deepEqual(pedido.escolhas, { massa: { Recheio: "r2" } });
   assert.equal(pedido.tipoEvento, "Casamento");
   assert.equal(pedido.quantidadeConvidados, "40");
   assert.deepEqual(pedido.adicionais, ["Serviço de garçom"]);
@@ -76,4 +77,34 @@ test("refazer pedido: tipo de evento fora da lista vira Outros com o nome digita
   const pedido = montarPedidoParaRefazer({ ...basePedido, tipo: "Chá revelação", itens: [] });
   assert.equal(pedido.tipoEvento, "Outros");
   assert.equal(pedido.tipoEventoOutro, "Chá revelação");
+});
+
+test("descreve o item com uma escolha de cada grupo", () => {
+  assert.equal(
+    descreverEscolhas("Rondelle", [
+      { rotulo: "Recheio", opcao: "Recheio de queijo" },
+      { rotulo: "Molho", opcao: "Pomodoro" },
+    ]),
+    "Rondelle — Recheio de queijo · Molho: Pomodoro",
+  );
+  assert.equal(descreverEscolhas("Penne", []), "Penne");
+});
+
+test("refazer pedido reconhece recheio e molho na mesma massa", () => {
+  const pedido = montarPedidoParaRefazer({
+    ...basePedido,
+    tipo: "Casamento",
+    itens: [
+      {
+        servicoId: "rondelle",
+        descricao: "Rondelle — Recheio de queijo · Molho: Pomodoro",
+        opcoes: [
+          { id: "r1", nome: "Recheio de queijo", grupo: "Recheio" },
+          { id: "m1", nome: "Pomodoro", grupo: "Molho" },
+          { id: "m2", nome: "Bolonhesa", grupo: "Molho" },
+        ],
+      },
+    ],
+  });
+  assert.deepEqual(pedido.escolhas, { rondelle: { Recheio: "r1", Molho: "m1" } });
 });

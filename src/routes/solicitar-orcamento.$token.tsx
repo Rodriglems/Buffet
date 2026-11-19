@@ -34,7 +34,7 @@ import {
 } from "@/features/orcamentos/formulario-publico-components";
 import {
   DADOS_INICIAIS_FORMULARIO,
-  descreverEscolha,
+  descreverEscolhas,
   ETAPAS_FORMULARIO,
   intervaloHorarioValido,
   normalizarBusca,
@@ -55,6 +55,11 @@ import {
 } from "@/features/orcamentos/solicitacao-publica";
 import { login, logout } from "@/features/auth/server-functions";
 import { desvincularPushAoSair, sincronizarPush } from "@/features/notificacoes/push-cliente";
+import {
+  agruparOpcoes,
+  gruposSemEscolha,
+  listaDeEscolhas,
+} from "@/features/servicos/grupos-opcoes";
 import { SERVICOS_ADICIONAIS, TIPOS_EVENTO, type ServicoAdicional } from "@/lib/catalogo";
 import { formatBRL } from "@/lib/format";
 import { aplicarCor } from "@/lib/theme-accent";
@@ -134,7 +139,8 @@ export function FormularioOrcamento({
   const [cardapioAtivo, setCardapioAtivo] = useState("");
   // A seleção vale para o pedido inteiro: trocar de cardápio ou categoria nunca a apaga.
   const [servicosSelecionados, setServicosSelecionados] = useState<string[]>([]);
-  const [escolhas, setEscolhas] = useState<Record<string, string>>({});
+  // Por item, a opção escolhida em cada grupo: { [servicoId]: { Recheio: id, Molho: id } }.
+  const [escolhas, setEscolhas] = useState<Record<string, Record<string, string>>>({});
   const [verEscolhidos, setVerEscolhidos] = useState(false);
   // Uma categoria aberta por vez (começam recolhidas); a busca abre as que têm resultado.
   const [categoriaAberta, setCategoriaAberta] = useState<string | null>(null);
@@ -181,10 +187,24 @@ export function FormularioOrcamento({
   );
   const compararCategorias = (a: string, b: string) =>
     (ordemCategoria.get(a) ?? 9999) - (ordemCategoria.get(b) ?? 9999) || a.localeCompare(b);
-  const opcoesDe = (servico: ServicoPublico) =>
-    servico.opcoes
-      .map((opcao) => porId.get(opcao.opcaoId))
-      .filter((opcao): opcao is ServicoPublico => Boolean(opcao));
+  // Escolhas do item em grupos (ex.: Recheio e Molho), só com as opções que estão no cardápio.
+  const gruposDe = (servico: ServicoPublico) =>
+    agruparOpcoes(servico.opcoes)
+      .map((grupo) => ({
+        nome: grupo.nome,
+        opcoes: grupo.ids
+          .map((id) => porId.get(id))
+          .filter((opcao): opcao is ServicoPublico => Boolean(opcao)),
+      }))
+      .filter((grupo) => grupo.opcoes.length);
+  const faltamEm = (servico: ServicoPublico) =>
+    gruposSemEscolha(
+      gruposDe(servico).map((grupo) => ({
+        nome: grupo.nome,
+        ids: grupo.opcoes.map((opcao) => opcao.id),
+      })),
+      escolhas[servico.id],
+    );
 
   const tipoEventoSelecionado = dados.tipoEvento || "";
   const aplicavelAoEvento = (tiposEvento: string[]) =>
@@ -215,9 +235,7 @@ export function FormularioOrcamento({
   const categoriasSelecionadas = Array.from(
     new Set(selecionados.map((servico) => servico.categoria)),
   ).sort(compararCategorias);
-  const semEscolha = selecionados.filter(
-    (servico) => opcoesDe(servico).length && !escolhas[servico.id],
-  );
+  const semEscolha = selecionados.filter((servico) => faltamEm(servico).length > 0);
   const senhasDiferentes = dados.confirmarSenha.length > 0 && dados.senha !== dados.confirmarSenha;
 
   function atualizar<K extends keyof DadosFormularioOrcamento>(
@@ -240,10 +258,11 @@ export function FormularioOrcamento({
   }
 
   function nomeComEscolha(servico: ServicoPublico) {
-    const escolhida = escolhas[servico.id] ? porId.get(escolhas[servico.id]!) : undefined;
-    return escolhida
-      ? descreverEscolha(servico.nome, servico.opcoesRotulo || "Opção", escolhida.nome)
-      : servico.nome;
+    const partes = gruposDe(servico).flatMap((grupo) => {
+      const escolhida = porId.get(escolhas[servico.id]?.[grupo.nome] ?? "");
+      return escolhida ? [{ rotulo: grupo.nome, opcao: escolhida.nome }] : [];
+    });
+    return descreverEscolhas(servico.nome, partes);
   }
 
   /** Abre a categoria (fechando a anterior) e rola até ela, pois o fechamento desloca a página. */
@@ -284,9 +303,14 @@ export function FormularioOrcamento({
         setServicosSelecionados(ids);
         setEscolhas(
           Object.fromEntries(
-            Object.entries(pedido.escolhas).filter(
-              ([id, opcao]) => ids.includes(id) && porId.has(opcao),
-            ),
+            Object.entries(pedido.escolhas)
+              .filter(([id]) => ids.includes(id))
+              .map(([id, porGrupo]) => [
+                id,
+                Object.fromEntries(
+                  Object.entries(porGrupo).filter(([, opcao]) => porId.has(opcao)),
+                ),
+              ]),
           ),
         );
         setAdicionais(
@@ -390,10 +414,8 @@ export function FormularioOrcamento({
     if (semEscolha.length) {
       setErro(
         `Escolha ${semEscolha
-          .map(
-            (servico) => `o ${(servico.opcoesRotulo || "opção").toLowerCase()} de ${servico.nome}`,
-          )
-          .join(", ")}.`,
+          .map((servico) => `${listaDeEscolhas(faltamEm(servico))} de ${servico.nome}`)
+          .join("; ")}.`,
       );
       setVerEscolhidos(true);
       return;
@@ -945,7 +967,7 @@ export function FormularioOrcamento({
                     required
                   />
                   <Field
-                    label="Local ou espaço"
+                    label="Endereço do evento"
                     name="localNome"
                     value={dados.localNome}
                     onChange={(e) => atualizar("localNome", e.target.value)}
@@ -1164,11 +1186,14 @@ export function FormularioOrcamento({
                               key={servico.id}
                               servico={servico}
                               selecionado={servicosSelecionados.includes(servico.id)}
-                              opcoes={opcoesDe(servico)}
-                              escolha={escolhas[servico.id]}
+                              grupos={gruposDe(servico)}
+                              escolhas={escolhas[servico.id]}
                               onAlternar={(marcado) => alternarServico(servico.id, marcado)}
-                              onEscolher={(opcaoId) =>
-                                setEscolhas((atuais) => ({ ...atuais, [servico.id]: opcaoId }))
+                              onEscolher={(grupo, opcaoId) =>
+                                setEscolhas((atuais) => ({
+                                  ...atuais,
+                                  [servico.id]: { ...atuais[servico.id], [grupo]: opcaoId },
+                                }))
                               }
                             />
                           ))}
@@ -1202,8 +1227,7 @@ export function FormularioOrcamento({
                                       {nomeComEscolha(servico)}
                                       {semEscolha.includes(servico) ? (
                                         <span className="text-destructive block text-xs">
-                                          Falta escolher o{" "}
-                                          {(servico.opcoesRotulo || "opção").toLowerCase()}
+                                          Falta escolher {listaDeEscolhas(faltamEm(servico))}
                                         </span>
                                       ) : null}
                                     </span>
@@ -1384,25 +1408,26 @@ export function FormularioOrcamento({
   );
 }
 
-/** Cartão de um item do cardápio; quando escolhido e com opções, pede a escolha (ex.: recheio). */
+/**
+ * Cartão de um item do cardápio; quando escolhido e com opções, pede uma escolha de cada grupo
+ * (ex.: o recheio e o molho da massa).
+ */
 function CartaoItem({
   servico,
   selecionado,
-  opcoes,
-  escolha,
+  grupos,
+  escolhas,
   onAlternar,
   onEscolher,
 }: {
   servico: ServicoPublico;
   selecionado: boolean;
-  opcoes: ServicoPublico[];
-  escolha: string | undefined;
+  grupos: { nome: string; opcoes: ServicoPublico[] }[];
+  escolhas: Record<string, string> | undefined;
   onAlternar: (marcado: boolean) => void;
-  onEscolher: (opcaoId: string) => void;
+  onEscolher: (grupo: string, opcaoId: string) => void;
 }) {
   const preco = Number(servico.precoBase);
-  const rotulo = servico.opcoesRotulo || "Opção";
-  const idCampo = `escolha-${servico.id}`;
   return (
     <div
       className={cn(
@@ -1433,39 +1458,45 @@ function CartaoItem({
               {formatBRL(preco)} · {servico.unidade}
             </span>
           ) : null}
-          {opcoes.length && !selecionado ? (
+          {grupos.length && !selecionado ? (
             <span className="text-muted-foreground mt-1 block text-xs">
-              Você escolhe o {rotulo.toLowerCase()} ao marcar.
+              Você escolhe {listaDeEscolhas(grupos.map((grupo) => grupo.nome))} ao marcar.
             </span>
           ) : null}
         </span>
       </label>
-      {selecionado && opcoes.length ? (
-        <div>
-          <Label htmlFor={idCampo} className="mb-1 block text-xs">
-            {rotulo} para {servico.nome}
-          </Label>
-          <select
-            id={idCampo}
-            value={escolha ?? ""}
-            onChange={(event) => onEscolher(event.target.value)}
-            aria-invalid={!escolha}
-            className={cn(
-              "border-input bg-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-1 focus-visible:outline-none",
-              !escolha && "border-destructive",
-            )}
-          >
-            <option value="" disabled>
-              Escolha o {rotulo.toLowerCase()}
-            </option>
-            {opcoes.map((opcao) => (
-              <option key={opcao.id} value={opcao.id}>
-                {opcao.nome}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : null}
+      {selecionado
+        ? grupos.map((grupo, indice) => {
+            const idCampo = `escolha-${servico.id}-${indice}`;
+            const escolha = escolhas?.[grupo.nome];
+            return (
+              <div key={grupo.nome}>
+                <Label htmlFor={idCampo} className="mb-1 block text-xs">
+                  {grupo.nome} para {servico.nome}
+                </Label>
+                <select
+                  id={idCampo}
+                  value={escolha ?? ""}
+                  onChange={(event) => onEscolher(grupo.nome, event.target.value)}
+                  aria-invalid={!escolha}
+                  className={cn(
+                    "border-input bg-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-1 focus-visible:outline-none",
+                    !escolha && "border-destructive",
+                  )}
+                >
+                  <option value="" disabled>
+                    Escolha {listaDeEscolhas([grupo.nome])}
+                  </option>
+                  {grupo.opcoes.map((opcao) => (
+                    <option key={opcao.id} value={opcao.id}>
+                      {opcao.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          })
+        : null}
     </div>
   );
 }

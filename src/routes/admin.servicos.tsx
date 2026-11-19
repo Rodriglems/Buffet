@@ -51,6 +51,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { normalizarBusca } from "@/features/orcamentos/formulario-publico";
+import { MAXIMO_GRUPOS, type GrupoOpcoes } from "@/features/servicos/grupos-opcoes";
 import {
   createServico,
   criarCategoria,
@@ -108,8 +109,7 @@ function novoItem(categoria: string, ordem = 0): CreateServicoInput {
     sugestaoChef: false,
     unidade: "por evento",
     status: "Ativo",
-    opcoesRotulo: "",
-    opcoesIds: [],
+    gruposOpcoes: [],
   };
 }
 
@@ -577,10 +577,12 @@ function ItemLinha({
                 : "Sob consulta"}
             </span>
             {!item.precoVisivel && item.valorBase > 0 ? <span>preço escondido</span> : null}
-            {item.opcoesIds.length ? (
+            {item.gruposOpcoes.length ? (
               <span>
-                {contagem(item.opcoesIds.length, "opção", "opções")} de{" "}
-                {item.opcoesRotulo.toLowerCase() || "escolha"}
+                Escolhe{" "}
+                {item.gruposOpcoes
+                  .map((grupo) => `${grupo.nome.toLocaleLowerCase("pt-BR")} (${grupo.ids.length})`)
+                  .join(" e ")}
               </span>
             ) : null}
           </span>
@@ -740,7 +742,6 @@ function ItemDialog({
   // Texto do preço separado do número: vazio é "sob consulta" e evita zeros à esquerda.
   const [precoTexto, setPrecoTexto] = useState("");
   const [enviandoImagem, setEnviandoImagem] = useState(false);
-  const [buscaOpcao, setBuscaOpcao] = useState("");
   // A seção de opções só aparece para itens que pedem uma escolha (ex.: massa recheada).
   const [comOpcoes, setComOpcoes] = useState(false);
   const [maisOpcoes, setMaisOpcoes] = useState(false);
@@ -752,9 +753,8 @@ function ItemDialog({
     setAberturaAnterior(chaveAbertura);
     if (aberto) {
       setPrecoTexto(editandoId ? textoDoPreco(form.valorBase) : "");
-      setBuscaOpcao("");
-      setComOpcoes(form.opcoesIds.length > 0);
-      setMaisOpcoes(form.opcoesIds.length > 0 || form.tiposEvento.length > 0);
+      setComOpcoes(form.gruposOpcoes.length > 0);
+      setMaisOpcoes(form.gruposOpcoes.length > 0 || form.tiposEvento.length > 0);
     }
   }
 
@@ -807,20 +807,6 @@ function ItemDialog({
   const parecidos =
     !editandoId && !repetido ? itensParecidos(todosItens, form.nome, editandoId) : [];
 
-  const termoOpcao = normalizarBusca(buscaOpcao.trim());
-  const candidatas = todosItens
-    .filter((item) => item.id !== editandoId)
-    .filter(
-      (item) =>
-        form.opcoesIds.includes(item.id) ||
-        (termoOpcao && normalizarBusca(`${item.nome} ${item.categoria}`).includes(termoOpcao)),
-    )
-    .sort(
-      (a, b) =>
-        Number(form.opcoesIds.includes(b.id)) - Number(form.opcoesIds.includes(a.id)) ||
-        a.nome.localeCompare(b.nome, "pt-BR"),
-    )
-    .slice(0, 40);
   const opcoesCategoria = categorias.includes(form.categoria)
     ? categorias
     : [form.categoria, ...categorias];
@@ -832,7 +818,9 @@ function ItemDialog({
     ...form.cardapios.filter((nome) => !cardapios.includes(nome)),
   ];
   const resumoMaisOpcoes = [
-    form.opcoesIds.length ? `${form.opcoesIds.length} opção(ões) de escolha` : "",
+    form.gruposOpcoes.length
+      ? `escolha de ${form.gruposOpcoes.map((grupo) => grupo.nome.trim() || "opção").join(" e ")}`
+      : "",
     form.tiposEvento.length ? `${form.tiposEvento.length} tipo(s) de evento` : "",
   ]
     .filter(Boolean)
@@ -935,9 +923,6 @@ function ItemDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                <p id="item-categoria-ajuda" className="text-muted-foreground text-xs">
-                  O tipo do prato, ex.: Salgadinhos. Cada item tem uma só.
-                </p>
               </div>
 
               <div className="grid gap-1.5">
@@ -988,7 +973,7 @@ function ItemDialog({
             {/* ------------------------------- Preço ------------------------------- */}
             <Secao titulo="Preço">
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-1.5">
+                <div className="grid content-start gap-1.5">
                   <Label htmlFor="item-valor">Valor</Label>
                   <div className="relative">
                     <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm">
@@ -1127,78 +1112,65 @@ function ItemDialog({
                 <div id="item-mais-opcoes" className="grid gap-6 px-4 pt-1 pb-4">
                   <div className="grid gap-3">
                     <label className="flex items-center justify-between gap-4 text-sm">
-                      <span>O cliente escolhe uma opção deste item</span>
+                      <span>O cliente escolhe opções deste item</span>
                       <Switch
                         checked={comOpcoes}
                         onCheckedChange={(ligado) => {
                           setComOpcoes(ligado);
                           // Desligar remove as opções: o item volta a ser uma escolha simples.
-                          if (!ligado) atualizar({ opcoesIds: [], opcoesRotulo: "" });
+                          atualizar({
+                            gruposOpcoes: ligado ? [{ nome: "", ids: [] }] : [],
+                          });
                         }}
                       />
                     </label>
                     {comOpcoes ? (
-                      <div className="bg-secondary/60 grid gap-3 rounded-lg p-4">
-                        <div className="grid gap-1.5 sm:max-w-xs">
-                          <Label htmlFor="item-opcoes-rotulo">Nome da escolha</Label>
-                          <Input
-                            id="item-opcoes-rotulo"
-                            placeholder="Recheio"
-                            aria-describedby="item-opcoes-rotulo-ajuda"
-                            value={form.opcoesRotulo}
-                            onChange={(event) => atualizar({ opcoesRotulo: event.target.value })}
+                      <div className="grid gap-3">
+                        {form.gruposOpcoes.map((grupo, indice) => (
+                          <EditorGrupoOpcoes
+                            key={indice}
+                            grupo={grupo}
+                            indice={indice}
+                            podeRemover={form.gruposOpcoes.length > 1}
+                            todosItens={todosItens}
+                            editandoId={editandoId}
+                            // Uma opção fica em um grupo só (o recheio não aparece nos molhos).
+                            idsEmOutrosGrupos={
+                              new Set(
+                                form.gruposOpcoes.flatMap((outro, i) =>
+                                  i === indice ? [] : outro.ids,
+                                ),
+                              )
+                            }
+                            onChange={(novo) =>
+                              atualizar({
+                                gruposOpcoes: form.gruposOpcoes.map((atual, i) =>
+                                  i === indice ? novo : atual,
+                                ),
+                              })
+                            }
+                            onRemover={() =>
+                              atualizar({
+                                gruposOpcoes: form.gruposOpcoes.filter((_, i) => i !== indice),
+                              })
+                            }
                           />
-                          <p
-                            id="item-opcoes-rotulo-ajuda"
-                            className="text-muted-foreground text-xs"
+                        ))}
+                        {form.gruposOpcoes.length < MAXIMO_GRUPOS ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="justify-self-start max-sm:h-11"
+                            onClick={() =>
+                              atualizar({
+                                gruposOpcoes: [...form.gruposOpcoes, { nome: "", ids: [] }],
+                              })
+                            }
                           >
-                            A palavra que o cliente vê, ex.: Recheio, Molho, Sabor.
-                          </p>
-                        </div>
-                        <div className="relative">
-                          <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-                          <Input
-                            aria-label="Buscar itens para usar como opção"
-                            value={buscaOpcao}
-                            onChange={(event) => setBuscaOpcao(event.target.value)}
-                            placeholder="Buscar itens para usar como opção…"
-                            className="pl-9"
-                          />
-                        </div>
-                        {candidatas.length ? (
-                          <div className="grid max-h-56 gap-0.5 overflow-y-auto">
-                            {candidatas.map((item) => (
-                              <label
-                                key={item.id}
-                                className="hover:bg-surface flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm"
-                              >
-                                <Checkbox
-                                  checked={form.opcoesIds.includes(item.id)}
-                                  onCheckedChange={(checked) =>
-                                    atualizar({
-                                      opcoesIds: checked
-                                        ? [...form.opcoesIds, item.id]
-                                        : form.opcoesIds.filter((opcaoId) => opcaoId !== item.id),
-                                    })
-                                  }
-                                />
-                                {/* Nome em cima e categoria embaixo: cabe no celular sem quebrar. */}
-                                <span className="min-w-0 flex-1">
-                                  <span className="block leading-5">{item.nome}</span>
-                                  <span className="text-muted-foreground block text-xs">
-                                    {item.categoria}
-                                  </span>
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-muted-foreground text-xs">
-                            {termoOpcao
-                              ? "Nenhum item encontrado. Cadastre a opção como item do cardápio primeiro."
-                              : "Busque e marque os itens que servem de opção (ex.: os recheios)."}
-                          </p>
-                        )}
+                            <Plus className="size-4" /> Adicionar escolha
+                          </Button>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -1267,6 +1239,121 @@ function ItemDialog({
 }
 
 /** Bloco com título dentro da janela do item (O prato, Preço, Onde aparece). */
+const EXEMPLOS_GRUPO = ["Recheio", "Molho", "Sabor", "Acompanhamento"];
+
+/**
+ * Um grupo de escolha do item (ex.: "Molho"): o nome que o cliente lê e os itens do cardápio que
+ * servem de opção. Cada grupo tem a própria busca.
+ */
+function EditorGrupoOpcoes({
+  grupo,
+  indice,
+  podeRemover,
+  todosItens,
+  editandoId,
+  idsEmOutrosGrupos,
+  onChange,
+  onRemover,
+}: {
+  grupo: GrupoOpcoes;
+  indice: number;
+  podeRemover: boolean;
+  todosItens: Servico[];
+  editandoId: string | null;
+  idsEmOutrosGrupos: Set<string>;
+  onChange: (grupo: GrupoOpcoes) => void;
+  onRemover: () => void;
+}) {
+  const [busca, setBusca] = useState("");
+  const termo = normalizarBusca(busca.trim());
+  const idCampo = `item-grupo-${indice}`;
+  const exemplo = EXEMPLOS_GRUPO[indice] ?? "Opção";
+  const candidatas = todosItens
+    .filter((item) => item.id !== editandoId && !idsEmOutrosGrupos.has(item.id))
+    .filter(
+      (item) =>
+        grupo.ids.includes(item.id) ||
+        (termo && normalizarBusca(`${item.nome} ${item.categoria}`).includes(termo)),
+    )
+    .sort(
+      (a, b) =>
+        Number(grupo.ids.includes(b.id)) - Number(grupo.ids.includes(a.id)) ||
+        a.nome.localeCompare(b.nome, "pt-BR"),
+    )
+    .slice(0, 40);
+
+  return (
+    <div className="bg-secondary/60 grid gap-3 rounded-lg p-4">
+      <div className="flex items-end gap-2">
+        <div className="grid min-w-0 flex-1 gap-1.5 sm:max-w-xs">
+          <Label htmlFor={idCampo}>Nome da escolha</Label>
+          <Input
+            id={idCampo}
+            placeholder={exemplo}
+            value={grupo.nome}
+            onChange={(event) => onChange({ ...grupo, nome: event.target.value })}
+          />
+        </div>
+        {podeRemover ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground shrink-0 max-sm:size-11"
+            aria-label={`Remover a escolha ${grupo.nome || exemplo}`}
+            onClick={onRemover}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        ) : null}
+      </div>
+      <div className="relative">
+        <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+        <Input
+          aria-label={`Buscar opções de ${grupo.nome || exemplo}`}
+          value={busca}
+          onChange={(event) => setBusca(event.target.value)}
+          placeholder={`Buscar ${(grupo.nome || exemplo).toLocaleLowerCase("pt-BR")}…`}
+          className="pl-9"
+        />
+      </div>
+      {candidatas.length ? (
+        <div className="grid max-h-56 gap-0.5 overflow-y-auto">
+          {candidatas.map((item) => (
+            <label
+              key={item.id}
+              className="hover:bg-surface flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm"
+            >
+              <Checkbox
+                checked={grupo.ids.includes(item.id)}
+                onCheckedChange={(checked) =>
+                  onChange({
+                    ...grupo,
+                    ids: checked
+                      ? [...grupo.ids, item.id]
+                      : grupo.ids.filter((opcaoId) => opcaoId !== item.id),
+                  })
+                }
+              />
+              {/* Nome em cima e categoria embaixo: cabe no celular sem quebrar. */}
+              <span className="min-w-0 flex-1">
+                <span className="block leading-5">{item.nome}</span>
+                <span className="text-muted-foreground block text-xs">{item.categoria}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-xs">
+          {termo
+            ? "Nenhum item encontrado. Cadastre a opção como item do cardápio primeiro."
+            : `Busque e marque os itens que servem de ${(grupo.nome || exemplo).toLocaleLowerCase("pt-BR")}.`}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Secao({
   titulo,
   acao,

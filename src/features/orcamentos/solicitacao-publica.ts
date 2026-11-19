@@ -5,11 +5,16 @@ import { criarConvite } from "@/features/clientes/convites.server";
 import { dataEventoEhFutura } from "@/features/eventos/data-evento";
 import { chaveDaData, MENSAGEM_DATA_BLOQUEADA } from "@/features/eventos/datas-bloqueadas";
 import {
-  descreverEscolha,
+  descreverEscolhas,
   montarPedidoParaRefazer,
   type PedidoParaRefazer,
 } from "@/features/orcamentos/formulario-publico";
 import { phoneSchema, whatsappSchema } from "@/features/shared/validation/primitives";
+import {
+  agruparOpcoes,
+  gruposSemEscolha,
+  listaDeEscolhas,
+} from "@/features/servicos/grupos-opcoes";
 import { SERVICOS_ADICIONAIS, TIPOS_EVENTO } from "@/lib/catalogo";
 import { serialize } from "@/lib/domain.server";
 import { enviarEmailConvite } from "@/lib/email.server";
@@ -48,7 +53,14 @@ const solicitacaoSchema = tokenSchema
     observacoes: z.string().trim().max(4000).nullable().optional(),
     servicosIds: z.array(z.string().uuid()).min(1).max(300),
     // Opção escolhida para cada item que pede uma escolha (ex.: { massaId: recheioId }).
-    escolhas: z.record(z.string().uuid(), z.string().uuid()).default({}),
+    // Por item, a opção escolhida em cada grupo ({ Recheio: id, Molho: id }). Um id solto é o
+    // formato antigo (um grupo só), aceito para páginas abertas antes da mudança.
+    escolhas: z
+      .record(
+        z.string().uuid(),
+        z.union([z.string().uuid(), z.record(z.string().max(60), z.string().uuid())]),
+      )
+      .default({}),
     // Senha curta (a partir de 4 dígitos) é aceita porque o login bloqueia tentativas repetidas.
     // Cliente já conectado não envia senha: o pedido vai para a conta da sessão.
     senha: z.string().max(200).default(""),
@@ -125,8 +137,7 @@ async function carregarFormularioOrcamento(token?: string) {
           precoBase: true,
           precoVisivel: true,
           ordem: true,
-          opcoesRotulo: true,
-          opcoes: { select: { opcaoId: true } },
+          opcoes: { select: { opcaoId: true, grupo: true, grupoOrdem: true } },
         },
         orderBy: [{ ordem: "asc" }, { categoria: "asc" }, { nome: "asc" }],
       },
@@ -288,7 +299,10 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
       const servicos = await tx.servico.findMany({
         where: { empresaId: empresa.id, ativo: true, id: { in: servicosIds } },
         include: {
-          opcoes: { include: { opcao: { select: { id: true, nome: true, ativo: true } } } },
+          opcoes: {
+            include: { opcao: { select: { id: true, nome: true, ativo: true } } },
+            orderBy: { grupoOrdem: "asc" },
+          },
         },
         orderBy: [{ categoria: "asc" }, { nome: "asc" }],
       });
@@ -298,17 +312,38 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
       // Itens com opções (ex.: massa recheada) exigem uma opção válida daquele item.
       const descricoes = new Map<string, string>();
       for (const servico of servicos) {
-        const opcoes = servico.opcoes.map((item) => item.opcao).filter((opcao) => opcao.ativo);
-        if (!opcoes.length) {
+        // Uma opção ativa de cada grupo (ex.: o recheio e o molho da massa).
+        const grupos = agruparOpcoes(
+          servico.opcoes
+            .filter((item) => item.opcao.ativo)
+            .map((item) => ({
+              opcaoId: item.opcaoId,
+              grupo: item.grupo,
+              grupoOrdem: item.grupoOrdem,
+            })),
+        );
+        if (!grupos.length) {
           descricoes.set(servico.id, servico.nome);
           continue;
         }
-        const rotulo = servico.opcoesRotulo || "Opção";
-        const escolhida = opcoes.find((opcao) => opcao.id === data.escolhas[servico.id]);
-        if (!escolhida) {
-          throw new Error(`Escolha o ${rotulo.toLowerCase()} de ${servico.nome}.`);
+        const recebida = data.escolhas[servico.id];
+        const escolhas =
+          typeof recebida === "string" ? { [grupos[0]!.nome]: recebida } : (recebida ?? {});
+        const faltam = gruposSemEscolha(grupos, escolhas);
+        if (faltam.length) {
+          throw new Error(`Escolha ${listaDeEscolhas(faltam)} de ${servico.nome}.`);
         }
-        descricoes.set(servico.id, descreverEscolha(servico.nome, rotulo, escolhida.nome));
+        const nomes = new Map(servico.opcoes.map((item) => [item.opcaoId, item.opcao.nome]));
+        descricoes.set(
+          servico.id,
+          descreverEscolhas(
+            servico.nome,
+            grupos.map((grupo) => ({
+              rotulo: grupo.nome,
+              opcao: nomes.get(escolhas[grupo.nome]!) ?? "",
+            })),
+          ),
+        );
       }
 
       // O cliente é identificado só pelo e-mail: telefone/WhatsApp pode ser compartilhado
@@ -569,7 +604,9 @@ export const obterPedidoParaRefazer = createServerFn({ method: "GET" })
             servicoId: true,
             descricao: true,
             servico: {
-              select: { opcoes: { select: { opcao: { select: { id: true, nome: true } } } } },
+              select: {
+                opcoes: { select: { grupo: true, opcao: { select: { id: true, nome: true } } } },
+              },
             },
           },
         },
@@ -588,7 +625,8 @@ export const obterPedidoParaRefazer = createServerFn({ method: "GET" })
       itens: orcamento.itens.map((item) => ({
         servicoId: item.servicoId,
         descricao: item.descricao,
-        opcoes: item.servico?.opcoes.map((entrada) => entrada.opcao) ?? [],
+        opcoes:
+          item.servico?.opcoes.map((entrada) => ({ ...entrada.opcao, grupo: entrada.grupo })) ?? [],
       })),
     });
   });
