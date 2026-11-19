@@ -70,7 +70,6 @@ import {
   contagem,
   itemComMesmoNome,
   itensParecidos,
-  previaDoPreco,
   textoDoPreco,
   unidadesMaisUsadas,
 } from "@/features/servicos/regras-cardapio";
@@ -827,7 +826,6 @@ function ItemDialog({
     : [form.categoria, ...categorias];
 
   const unidadesSugeridas = unidadesMaisUsadas(todosItens, 5);
-  const previa = previaDoPreco(form.valorBase, form.unidade, form.precoVisivel);
   const cardapiosDoItem = [
     ...cardapios,
     // Cardápio que o item ainda tem, mas foi excluído: aparece para poder desmarcar.
@@ -1010,9 +1008,6 @@ function ItemDialog({
                       }}
                     />
                   </div>
-                  <p id="item-valor-ajuda" className="text-muted-foreground text-xs">
-                    Em branco, aparece como sob consulta.
-                  </p>
                 </div>
                 <div className="grid content-start gap-1.5">
                   <Label htmlFor="item-unidade">Cobrado</Label>
@@ -1041,21 +1036,12 @@ function ItemDialog({
                 </div>
               </div>
               <label className="flex items-center justify-between gap-4 text-sm">
-                <span>
-                  Mostrar o preço para o cliente
-                  <span className="text-muted-foreground block text-xs">
-                    Desligado, o valor só entra no orçamento que a equipe envia.
-                  </span>
-                </span>
+                <span>Mostrar o preço para o cliente</span>
                 <Switch
                   checked={form.precoVisivel}
                   onCheckedChange={(precoVisivel) => atualizar({ precoVisivel })}
                 />
               </label>
-              <p className="bg-secondary rounded-lg px-3 py-2 text-sm" aria-live="polite">
-                <span className="text-muted-foreground">O cliente vê: </span>
-                <strong className="font-semibold">{previa}</strong>
-              </p>
             </Secao>
 
             {/* ---------------------------- Onde aparece ---------------------------- */}
@@ -1068,10 +1054,6 @@ function ItemDialog({
               }
             >
               <div className="grid gap-2">
-                <p className="text-muted-foreground text-xs" id="item-cardapios-ajuda">
-                  Em que tipo de festa o item é servido. Toque para marcar quantos quiser; sem
-                  nenhum, o cliente não vê o item.
-                </p>
                 <div
                   className="flex flex-wrap gap-2"
                   role="group"
@@ -1111,12 +1093,7 @@ function ItemDialog({
                 ) : null}
               </div>
               <label className="flex items-center justify-between gap-4 text-sm">
-                <span>
-                  Disponível para clientes
-                  <span className="text-muted-foreground block text-xs">
-                    Desligado, o item some do formulário, mas continua nos orçamentos já feitos.
-                  </span>
-                </span>
+                <span>Disponível para clientes</span>
                 <Switch
                   checked={form.status === "Ativo"}
                   onCheckedChange={(ativo) => atualizar({ status: ativo ? "Ativo" : "Inativo" })}
@@ -1150,12 +1127,7 @@ function ItemDialog({
                 <div id="item-mais-opcoes" className="grid gap-6 px-4 pt-1 pb-4">
                   <div className="grid gap-3">
                     <label className="flex items-center justify-between gap-4 text-sm">
-                      <span>
-                        O cliente escolhe uma opção deste item
-                        <span className="text-muted-foreground block text-xs">
-                          Ex.: uma massa recheada em que o cliente escolhe o recheio.
-                        </span>
-                      </span>
+                      <span>O cliente escolhe uma opção deste item</span>
                       <Switch
                         checked={comOpcoes}
                         onCheckedChange={(ligado) => {
@@ -1198,7 +1170,7 @@ function ItemDialog({
                             {candidatas.map((item) => (
                               <label
                                 key={item.id}
-                                className="hover:bg-surface flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm"
+                                className="hover:bg-surface flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm"
                               >
                                 <Checkbox
                                   checked={form.opcoesIds.includes(item.id)}
@@ -1210,9 +1182,12 @@ function ItemDialog({
                                     })
                                   }
                                 />
-                                <span className="flex-1">{item.nome}</span>
-                                <span className="text-muted-foreground text-xs">
-                                  {item.categoria}
+                                {/* Nome em cima e categoria embaixo: cabe no celular sem quebrar. */}
+                                <span className="min-w-0 flex-1">
+                                  <span className="block leading-5">{item.nome}</span>
+                                  <span className="text-muted-foreground block text-xs">
+                                    {item.categoria}
+                                  </span>
                                 </span>
                               </label>
                             ))}
@@ -1224,11 +1199,6 @@ function ItemDialog({
                               : "Busque e marque os itens que servem de opção (ex.: os recheios)."}
                           </p>
                         )}
-                        <p className="text-muted-foreground text-xs">
-                          A opção precisa existir como item (ex.: na categoria “Recheios para
-                          massas”). Itens usados como opção não aparecem soltos para o cliente: ele
-                          só os escolhe dentro deste item.
-                        </p>
                       </div>
                     ) : null}
                   </div>
