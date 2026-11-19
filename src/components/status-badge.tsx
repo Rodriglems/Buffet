@@ -2,34 +2,38 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { chaveStatus, rotuloStatus } from "@/lib/status-rotulos";
 import { cn } from "@/lib/utils";
 
+/**
+ * Selo de status: cor cheia com texto branco, sem bolinha. Cada tom usa o tom escuro (600/700)
+ * da paleta para o texto branco passar de 4,5:1 de contraste mesmo em 11px.
+ */
 const statusBadge = cva(
-  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium whitespace-nowrap",
+  "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap text-white",
   {
     variants: {
       tone: {
-        neutral: "bg-muted text-muted-foreground",
-        brand: "bg-brand/10 text-brand",
-        success: "bg-success/12 text-success",
-        warning: "bg-warning/18 text-warning-foreground",
-        info: "bg-info/12 text-info",
-        violet: "bg-violet/12 text-violet",
-        danger: "bg-destructive/12 text-destructive",
-        slate: "bg-slate-100 text-slate-700",
-        purple: "bg-purple-100 text-purple-700",
-        amber: "bg-amber-100 text-amber-800",
-        sky: "bg-sky-100 text-sky-700",
-        indigo: "bg-indigo-100 text-indigo-700",
-        emerald: "bg-emerald-100 text-emerald-700",
-        teal: "bg-teal-100 text-teal-700",
-        cyan: "bg-cyan-100 text-cyan-800",
-        blue: "bg-blue-100 text-blue-700",
-        fuchsia: "bg-fuchsia-100 text-fuchsia-700",
-        orange: "bg-orange-100 text-orange-800",
-        rose: "bg-rose-100 text-rose-700",
-        lime: "bg-lime-100 text-lime-800",
-        green: "bg-green-100 text-green-700",
-        red: "bg-red-100 text-red-700",
-        zinc: "bg-zinc-200 text-zinc-700",
+        neutral: "bg-zinc-500",
+        brand: "bg-brand",
+        success: "bg-emerald-700",
+        warning: "bg-amber-700",
+        info: "bg-blue-600",
+        violet: "bg-violet-600",
+        danger: "bg-red-600",
+        slate: "bg-slate-600",
+        purple: "bg-purple-600",
+        amber: "bg-amber-700",
+        sky: "bg-sky-700",
+        indigo: "bg-indigo-600",
+        emerald: "bg-emerald-700",
+        teal: "bg-teal-700",
+        cyan: "bg-cyan-700",
+        blue: "bg-blue-600",
+        fuchsia: "bg-fuchsia-700",
+        orange: "bg-orange-700",
+        rose: "bg-rose-600",
+        lime: "bg-lime-700",
+        green: "bg-green-700",
+        red: "bg-red-600",
+        zinc: "bg-zinc-600",
       },
     },
     defaultVariants: { tone: "neutral" },
@@ -67,18 +71,13 @@ const mapa: Record<string, Tone> = {
 
 export function StatusBadge({
   status,
-  dot = true,
   className,
 }: {
   status: string;
+  /** Mantido por compatibilidade: o selo não tem mais a bolinha. */
   dot?: boolean;
   className?: string;
 }) {
   const tone = mapa[chaveStatus(status)] ?? "neutral";
-  return (
-    <span className={cn(statusBadge({ tone }), className)}>
-      {dot && <span className="size-1.5 rounded-full bg-current" />}
-      {rotuloStatus(status)}
-    </span>
-  );
+  return <span className={cn(statusBadge({ tone }), className)}>{rotuloStatus(status)}</span>;
 }
