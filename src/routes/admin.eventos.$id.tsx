@@ -128,8 +128,8 @@ function DetalheEvento() {
   ) : null;
 
   return (
-    // Espaço extra no fim para a barra fixa de etapas não cobrir o conteúdo.
-    <div className="flex flex-col gap-4 pb-28">
+    // A barra de etapas é sticky (fica no fluxo): basta uma folga pequena no fim.
+    <div className="flex flex-col gap-4 pb-2">
       <PageHeader
         title={evento.nome}
         subtitle={`${evento.tipo} · ${formatDate(evento.dataEvento)}${
