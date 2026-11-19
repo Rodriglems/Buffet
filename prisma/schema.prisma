@@ -35,7 +35,6 @@ enum StatusLead {
 enum StatusEvento {
   ORCAMENTO
   APROVADO
-  PAGAMENTO
   CONFIRMADO
   CANCELADO
   FINALIZADO

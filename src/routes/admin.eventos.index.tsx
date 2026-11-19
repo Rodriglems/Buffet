@@ -187,7 +187,6 @@ function EventosPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Eventos"
-        subtitle={`${eventos.length} eventos cadastrados`}
         actions={
           // Celular: só "Novo evento" à vista; o resto fica no menu ⋯ (uma ação principal por tela).
           <div className="flex w-full gap-2 sm:w-auto">
@@ -419,12 +418,13 @@ function EventosPage() {
                         className="hover:bg-secondary/60 focus-visible:ring-ring grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5 rounded-xl p-3 focus-visible:ring-2 focus-visible:outline-none"
                       >
                         <span className="flex items-start justify-between gap-2 pr-9">
-                          <span className="min-w-0 flex-1 truncate font-medium">{e.tipo}</span>
+                          {/* O nome do cliente é o destaque; o tipo do evento fica embaixo. */}
+                          <span className="min-w-0 flex-1 truncate font-medium">
+                            {e.cliente.nome}
+                          </span>
                           <StatusBadge status={e.status} className="shrink-0" />
                         </span>
-                        <span className="text-muted-foreground truncate text-sm">
-                          {e.cliente.nome}
-                        </span>
+                        <span className="text-muted-foreground truncate text-sm">{e.tipo}</span>
                         {/* Data e convidados juntos; o valor em destaque à direita. */}
                         <span className="mt-1.5 flex items-baseline justify-between gap-3 text-sm">
                           <span className="text-muted-foreground flex min-w-0 items-center gap-1.5">
@@ -486,8 +486,7 @@ function EventosPage() {
                   <table className="w-full min-w-[840px] text-left text-sm">
                     <thead>
                       <tr className="text-muted-foreground border-b border-border text-xs">
-                        <th className="pb-2 font-medium">Evento</th>
-                        <th className="pb-2 font-medium max-sm:hidden">Cliente</th>
+                        <th className="pb-2 font-medium">Cliente</th>
                         <th className="pb-2 font-medium max-sm:hidden">Data</th>
                         <th className="pb-2 font-medium max-sm:hidden">Local</th>
                         <th className="pb-2 font-medium max-sm:hidden">Convidados</th>
@@ -501,37 +500,15 @@ function EventosPage() {
                     <tbody className="divide-y divide-border">
                       {lista.map((e) => (
                         <tr key={e.id}>
+                          {/* Nome do cliente em destaque; o tipo e o formato do evento embaixo. */}
                           <td className="py-3 pr-3">
                             <Link
                               to="/admin/eventos/$id"
                               params={{ id: e.id }}
                               className="font-medium hover:underline"
                             >
-                              {e.tipo}
+                              {e.cliente.nome}
                             </Link>
-                            {e.formatoServico ? (
-                              <p className="text-muted-foreground text-[11px] max-sm:hidden">
-                                {e.formatoServico}
-                              </p>
-                            ) : null}
-                            <p className="text-muted-foreground text-xs sm:hidden">
-                              {e.cliente.nome} · {formatDate(e.dataEvento)}
-                            </p>
-                            {e.cliente.acesso === "SEM_ACESSO" ? (
-                              <StatusBadge
-                                status={e.cliente.acesso}
-                                dot={false}
-                                className="mt-1 sm:hidden"
-                              />
-                            ) : null}
-                            {e.orcamentos[0] ? (
-                              <p className="text-xs font-medium sm:hidden">
-                                {formatBRL(Number(e.orcamentos[0].total))}
-                              </p>
-                            ) : null}
-                          </td>
-                          <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
-                            {e.cliente.nome}
                             {e.cliente.acesso === "SEM_ACESSO" ? (
                               <StatusBadge
                                 status={e.cliente.acesso}
@@ -539,6 +516,10 @@ function EventosPage() {
                                 className="ml-2 align-middle"
                               />
                             ) : null}
+                            <p className="text-muted-foreground text-xs">
+                              {e.tipo}
+                              {e.formatoServico ? ` · ${e.formatoServico}` : ""}
+                            </p>
                           </td>
                           <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
                             {formatDate(e.dataEvento)}

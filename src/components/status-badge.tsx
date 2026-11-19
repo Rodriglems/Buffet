@@ -42,7 +42,6 @@ const mapa: Record<string, Tone> = {
   // Eventos
   ORCAMENTO: "blue",
   APROVADO: "sky",
-  PAGAMENTO: "amber",
   CONFIRMADO: "emerald",
   CANCELADO: "red",
   FINALIZADO: "zinc",

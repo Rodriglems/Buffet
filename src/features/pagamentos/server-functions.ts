@@ -20,22 +20,19 @@ const id = z.object({ id: z.string().uuid() });
 
 const STATUS_EVENTO_ENCERRADO = ["CANCELADO", "FINALIZADO"];
 // Confirmado também aceita parcelas: contrato fechado pode ser confirmado antes da quitação.
-const STATUS_COM_PARCELAS: StatusEvento[] = ["APROVADO", "PAGAMENTO", "CONFIRMADO"];
+const STATUS_COM_PARCELAS: StatusEvento[] = ["APROVADO", "CONFIRMADO"];
 
 /**
- * Atualiza o status do evento conforme as parcelas: em aberto → Pagamento, quitado → Confirmado.
- * Um evento já confirmado não volta para Pagamento: a equipe pode confirmá-lo antes da quitação.
+ * Confirmar = definir o pagamento: um evento aprovado passa a Confirmado assim que ganha parcelas
+ * (em aberto ou pagas). Um evento confirmado não volta para Aprovado.
  */
 async function sincronizarStatusEvento(tx: Prisma.TransactionClient, eventoId: string) {
   const evento = await tx.evento.findUnique({ where: { id: eventoId }, select: { status: true } });
-  if (!evento || !["APROVADO", "PAGAMENTO"].includes(evento.status)) return;
-  const [emAberto, pagas] = await Promise.all([
-    tx.pagamento.count({ where: { eventoId, status: { in: ["PENDENTE", "ATRASADO"] } } }),
-    tx.pagamento.count({ where: { eventoId, status: "PAGO" } }),
-  ]);
-  const status = emAberto ? "PAGAMENTO" : pagas ? "CONFIRMADO" : evento.status;
-  if (status !== evento.status)
-    await tx.evento.update({ where: { id: eventoId }, data: { status } });
+  if (evento?.status !== "APROVADO") return;
+  const parcelas = await tx.pagamento.count({
+    where: { eventoId, status: { in: ["PENDENTE", "ATRASADO", "PAGO"] } },
+  });
+  if (parcelas) await tx.evento.update({ where: { id: eventoId }, data: { status: "CONFIRMADO" } });
 }
 
 /** Parcelas só podem ser lançadas depois da aprovação e enquanto o evento não se encerra. */

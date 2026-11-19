@@ -3,6 +3,8 @@ import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-rout
 import { useServerFn } from "@tanstack/react-start";
 import {
   Check,
+  ChevronDown,
+  ExternalLink,
   FileText,
   Loader2,
   MessageCircle,
@@ -34,13 +36,14 @@ import {
 } from "@/features/documentos/eventos-pdf";
 import { ConviteClienteDialog } from "@/features/clientes/convite-dialog";
 import { gerarConviteCliente } from "@/features/clientes/convites";
-import { AdicionaisInteresseEvento } from "@/features/eventos/adicionais-interesse";
 import { AlterarStatusEvento } from "@/features/eventos/alterar-status-evento";
 import { observacaoDoCliente } from "@/features/eventos/observacoes";
-import { confirmarEvento, finalizarEvento, obterEvento } from "@/features/eventos/server-functions";
+import { finalizarEvento, obterEvento } from "@/features/eventos/server-functions";
 import { DescontoOrcamento } from "@/features/orcamentos/desconto-orcamento";
 import { EditarOrcamentoDialog } from "@/features/orcamentos/editar-orcamento-dialog";
 import { aprovarOrcamento, enviarOrcamento } from "@/features/orcamentos/server-functions";
+import { mensagemEnvioOrcamento } from "@/features/orcamentos/mensagem-envio";
+import { ehFrete, ehServico, ehValorAParte } from "@/features/orcamentos/unidade-item";
 import { GerarParcelasDialog } from "@/features/pagamentos/gerar-parcelas-dialog";
 import { diferencaParcelas, FORMAS_PAGAMENTO } from "@/features/pagamentos/parcelas";
 import {
@@ -49,11 +52,16 @@ import {
   excluirPagamento,
   registrarPagamento,
 } from "@/features/pagamentos/server-functions";
-import { caminhoDoConvite } from "@/lib/acesso-cliente";
+import {
+  caminhoDoConvite,
+  caminhoDoLoginDoOrcamento,
+  VALIDADE_CONVITE_TEXTO,
+} from "@/lib/acesso-cliente";
 import { useConfirmar } from "@/lib/confirmacao";
 import { formatBRL, formatDate, formatTimeRange } from "@/lib/format";
 import { createWhatsAppChatUrl, createWhatsAppUrl } from "@/lib/sharing";
 import { acaoDaEtapa, ETAPAS_EVENTO, rotuloStatusEvento } from "@/lib/status-evento";
+import { SERVICOS_ADICIONAIS } from "@/lib/catalogo";
 import { cn } from "@/lib/utils";
 import { telefoneDe } from "@/lib/empresa-cabecalho";
 
@@ -81,12 +89,20 @@ function DetalheEvento() {
   const observacaoCliente = observacaoDoCliente(evento.observacoes);
   const orcamentoAtual = evento.orcamentos[0];
   const valorEvento = valorDoEvento(evento);
+  const valoresDosItens = Boolean(orcamentoAtual?.enviadoEm);
+  // O frete sai da lista de itens e aparece no resumo, junto do subtotal.
+  const freteDoOrcamento = (orcamentoAtual?.itens ?? [])
+    .filter((item) => ehFrete(item.unidade))
+    .reduce((soma, item) => soma + Number(item.valorTotal), 0);
   const parcelas = evento.pagamentos.filter((item) => item.status !== "CANCELADO");
+  // Pagamentos aparecem com o evento confirmado (confirmar = definir o pagamento) ou com parcelas.
+  const mostrarPagamentos = evento.status === "CONFIRMADO" || parcelas.length > 0;
   const recebido = parcelas
     .filter((item) => item.status === "PAGO")
     .reduce((soma, item) => soma + Number(item.valor), 0);
   const [editando, setEditando] = useState(false);
   const [convidando, setConvidando] = useState(false);
+  const [clienteAberto, setClienteAberto] = useState(false);
   const encerrado = ["CANCELADO", "FINALIZADO"].includes(evento.status);
   const botaoWhatsApp = evento.cliente.whatsapp ? (
     <Button
@@ -121,14 +137,10 @@ function DetalheEvento() {
         } · ${evento.localNome ?? "Local a definir"}`}
         actions={orcamentoAtual ? null : botaoWhatsApp}
       />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Valor do evento" value={formatBRL(valorEvento)} />
-        <StatCard label="Recebido" value={formatBRL(recebido)} />
-        <StatCard label="A receber" value={formatBRL(Math.max(0, valorEvento - recebido))} />
-      </div>
+      <StatCard label="Valor do evento" value={formatBRL(valorEvento)} />
       <Panel className="p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <p className="font-display font-semibold">{evento.tipo}</p>
             <p className="text-muted-foreground text-sm">
               {evento.formatoServico ? `${evento.formatoServico} · ` : ""}
@@ -150,8 +162,17 @@ function DetalheEvento() {
             orcamentoAtual &&
             !encerrado &&
             !["REJEITADO", "EXPIRADO", "CANCELADO"].includes(orcamentoAtual.status) ? (
-              <Button size="sm" variant="outline" onClick={() => setEditando(true)}>
-                <Pencil className="size-4" /> Editar orçamento
+              // No celular, só o ícone no canto, para não empurrar a lista de itens para baixo.
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label="Editar orçamento"
+                title="Editar orçamento"
+                className="max-sm:size-11 max-sm:px-0"
+                onClick={() => setEditando(true)}
+              >
+                <Pencil className="size-4" />
+                <span className="hidden sm:inline">Editar orçamento</span>
               </Button>
             ) : null
           }
@@ -159,36 +180,60 @@ function DetalheEvento() {
         {orcamentoAtual ? (
           <>
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full sm:min-w-[620px] text-left text-sm">
+              {/* Valores dos itens só depois que o orçamento é feito e enviado ao cliente;
+                  antes disso são preços do cardápio, ainda não combinados. */}
+              <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                     <th className="pb-2 font-medium">Item</th>
-                    <th className="pb-2 font-medium max-sm:hidden">Quantidade</th>
-                    <th className="pb-2 font-medium max-sm:hidden">Valor unitário</th>
-                    <th className="pb-2 font-medium text-right">Total</th>
+                    <th
+                      className={cn(
+                        "pb-2 font-medium",
+                        valoresDosItens ? "max-sm:hidden" : "text-right",
+                      )}
+                    >
+                      Quantidade
+                    </th>
+                    {valoresDosItens ? (
+                      <>
+                        <th className="pb-2 font-medium max-sm:hidden">Valor unitário</th>
+                        <th className="pb-2 text-right font-medium">Total</th>
+                      </>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {orcamentoAtual.itens.map((item) => (
-                    <tr key={item.id}>
-                      <td className="py-3 pr-3 font-medium">
-                        {item.descricao}
-                        <p className="text-muted-foreground text-xs font-normal sm:hidden">
-                          {Number(item.quantidade)} {item.unidade} ×{" "}
-                          {formatBRL(Number(item.valorUnitario))}
-                        </p>
-                      </td>
-                      <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
-                        {Number(item.quantidade)} {item.unidade}
-                      </td>
-                      <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
-                        {formatBRL(Number(item.valorUnitario))}
-                      </td>
-                      <td className="py-3 text-right font-medium whitespace-nowrap">
-                        {formatBRL(Number(item.valorTotal))}
-                      </td>
-                    </tr>
-                  ))}
+                  {orcamentoAtual.itens
+                    .filter((item) => !ehValorAParte(item.unidade))
+                    .map((item) =>
+                      valoresDosItens ? (
+                        <tr key={item.id}>
+                          <td className="py-3 pr-3 font-medium">
+                            {item.descricao}
+                            <p className="text-muted-foreground text-xs font-normal sm:hidden">
+                              {Number(item.quantidade)} {item.unidade} ×{" "}
+                              {formatBRL(Number(item.valorUnitario))}
+                            </p>
+                          </td>
+                          <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                            {Number(item.quantidade)} {item.unidade}
+                          </td>
+                          <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
+                            {formatBRL(Number(item.valorUnitario))}
+                          </td>
+                          <td className="py-3 text-right font-medium whitespace-nowrap">
+                            {formatBRL(Number(item.valorTotal))}
+                          </td>
+                        </tr>
+                      ) : (
+                        <tr key={item.id}>
+                          <td className="py-3 pr-3 font-medium">{item.descricao}</td>
+                          <td className="text-muted-foreground py-3 text-right whitespace-nowrap">
+                            {Number(item.quantidade)} {item.unidade}
+                          </td>
+                        </tr>
+                      ),
+                    )}
                 </tbody>
               </table>
             </div>
@@ -199,6 +244,20 @@ function DetalheEvento() {
                 )}
               </div>
               <dl className="w-full max-w-xs text-sm sm:ml-auto">
+                {orcamentoAtual.itens
+                  .filter((item) => ehServico(item.unidade))
+                  .map((item) => (
+                    <div key={item.id} className="flex justify-between gap-3 py-1">
+                      <dt className="text-muted-foreground">{item.descricao}</dt>
+                      <dd className="whitespace-nowrap">{formatBRL(Number(item.valorTotal))}</dd>
+                    </div>
+                  ))}
+                {freteDoOrcamento > 0 ? (
+                  <div className="flex justify-between py-1">
+                    <dt className="text-muted-foreground">Frete</dt>
+                    <dd>{formatBRL(freteDoOrcamento)}</dd>
+                  </div>
+                ) : null}
                 <div className="flex justify-between py-1">
                   <dt className="text-muted-foreground">Subtotal</dt>
                   <dd>{formatBRL(Number(orcamentoAtual.subtotal))}</dd>
@@ -220,7 +279,6 @@ function DetalheEvento() {
                 </div>
               </dl>
             </div>
-            <AdicionaisInteresseEvento eventoId={evento.id} itens={evento.servicosAdicionais} />
             {observacaoCliente ? (
               <div className="bg-surface mt-4 rounded-xl p-4 ring-1 ring-black/5">
                 <p className="text-muted-foreground text-[11px] uppercase">Observações</p>
@@ -236,6 +294,8 @@ function DetalheEvento() {
               onOpenChange={setEditando}
               orcamento={orcamentoAtual}
               convidados={evento.quantidadeConvidados}
+              sugestoesServicos={SERVICOS_ADICIONAIS}
+              servicosPedidos={evento.servicosAdicionais}
               valorEmParcelas={evento.pagamentos
                 .filter((item) => item.status !== "CANCELADO")
                 .reduce((soma, item) => soma + Number(item.valor), 0)}
@@ -255,48 +315,80 @@ function DetalheEvento() {
           />
         )}
       </Panel>
-      <PagamentosDoEvento evento={evento} valorEvento={valorEvento} />
+      {/* Recebido e A receber ficam junto dos pagamentos, que é de onde vêm. */}
+      {mostrarPagamentos ? (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <StatCard label="Recebido" value={formatBRL(recebido)} />
+            <StatCard label="A receber" value={formatBRL(Math.max(0, valorEvento - recebido))} />
+          </div>
+          <PagamentosDoEvento evento={evento} valorEvento={valorEvento} />
+        </>
+      ) : null}
       <Panel className="p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+        <div className="flex items-start justify-between gap-3">
+          {/* No celular o card começa recolhido (só o nome); tocar no título abre os dados. */}
+          <button
+            type="button"
+            className="min-w-0 flex-1 text-left sm:cursor-default"
+            aria-expanded={clienteAberto}
+            aria-controls="dados-cliente-evento"
+            onClick={() => setClienteAberto((aberto) => !aberto)}
+          >
             <h2 className="font-display flex flex-wrap items-center gap-2 font-semibold">
               Cliente do evento
               <StatusBadge status={evento.cliente.acesso} dot={false} />
+              <ChevronDown
+                className={cn(
+                  "text-muted-foreground size-4 transition-transform sm:hidden",
+                  clienteAberto && "rotate-180",
+                )}
+                aria-hidden
+              />
             </h2>
-            <p className="text-muted-foreground text-sm">Pessoa responsável por este evento</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {evento.cliente.usuarioId ? null : (
-              <Button size="sm" onClick={() => setConvidando(true)}>
-                <UserPlus className="size-4" /> Convidar para acessar
-              </Button>
+            {clienteAberto ? null : (
+              <p className="text-muted-foreground truncate text-sm sm:hidden">
+                {evento.cliente.nome}
+              </p>
             )}
-            <Button size="sm" variant="outline" asChild>
-              <Link to="/admin/clientes/$id" params={{ id: evento.cliente.id }}>
-                Abrir cadastro
-              </Link>
-            </Button>
-          </div>
+          </button>
+          <Button size="icon" variant="outline" className="size-11 shrink-0 sm:size-9" asChild>
+            <Link
+              to="/admin/clientes/$id"
+              params={{ id: evento.cliente.id }}
+              aria-label={`Abrir cadastro de ${evento.cliente.nome}`}
+              title="Abrir cadastro"
+            >
+              <ExternalLink className="size-4" />
+            </Link>
+          </Button>
         </div>
         <ConviteClienteDialog
           cliente={convidando ? evento.cliente : null}
           onFechar={() => setConvidando(false)}
         />
-        <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["Nome", evento.cliente.nome],
-            ["E-mail", evento.cliente.email],
-            ["Telefone", telefoneDe(evento.cliente.telefone)],
-            ["WhatsApp", telefoneDe(evento.cliente.whatsapp)],
-          ].map(([rotulo, valor]) => (
-            <div key={rotulo}>
-              <dt className="text-muted-foreground text-[11px] uppercase">{rotulo}</dt>
-              <dd className="mt-1 text-sm font-medium [overflow-wrap:anywhere]">
-                {valor?.trim() ? valor : "Não informado"}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <div id="dados-cliente-evento" className={cn(!clienteAberto && "max-sm:hidden")}>
+          {evento.cliente.usuarioId ? null : (
+            <Button size="sm" className="mt-4" onClick={() => setConvidando(true)}>
+              <UserPlus className="size-4" /> Convidar para acessar
+            </Button>
+          )}
+          <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              ["Nome", evento.cliente.nome],
+              ["E-mail", evento.cliente.email],
+              ["Telefone", telefoneDe(evento.cliente.telefone)],
+              ["WhatsApp", telefoneDe(evento.cliente.whatsapp)],
+            ].map(([rotulo, valor]) => (
+              <div key={rotulo}>
+                <dt className="text-muted-foreground text-[11px] uppercase">{rotulo}</dt>
+                <dd className="mt-1 text-sm font-medium [overflow-wrap:anywhere]">
+                  {valor?.trim() ? valor : "Não informado"}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </Panel>
       {evento.orcamentos.length > 1 ? (
         <Panel className="p-5">
@@ -349,16 +441,21 @@ function EnviarOrcamentoAoCliente({
     try {
       await enviar({ data: { id: orcamento.id } });
       if (whatsapp) {
-        const primeiroNome = evento.cliente.nome.trim().split(/\s+/)[0];
         // Cliente sem conta não tem senha para usar: recebe o link para criar o acesso.
         const comoAcessar = evento.cliente.usuarioId
-          ? `Para ver os itens e o valor, acesse ${window.location.origin}/ e entre com o seu e-mail${evento.cliente.email ? ` (${evento.cliente.email})` : ""} e a senha que você cadastrou.`
-          : `Para ver os itens e o valor, crie sua senha neste link (vale por 7 dias): ${window.location.origin}${caminhoDoConvite((await gerarConvite({ data: { clienteId: evento.cliente.id } })).token)}`;
-        const mensagem = [
-          `Olá, ${primeiroNome}! O orçamento do seu evento "${evento.nome}" (${formatDate(evento.dataEvento)}) já está pronto.`,
+          ? `Para ver o cardápio completo e aprovar, entre com a sua senha: ${window.location.origin}${caminhoDoLoginDoOrcamento(orcamento.id, evento.cliente.email)}`
+          : `Para ver o cardápio completo e aprovar, crie sua senha neste link (vale por ${VALIDADE_CONVITE_TEXTO} e só uma vez): ${window.location.origin}${caminhoDoConvite((await gerarConvite({ data: { clienteId: evento.cliente.id } })).token)}`;
+        const mensagem = mensagemEnvioOrcamento({
+          nomeCliente: evento.cliente.nome,
+          tipoEvento: evento.tipo,
+          data: formatDate(evento.dataEvento),
+          convidados: evento.quantidadeConvidados,
+          total: Number(orcamento.total),
+          frete: orcamento.itens
+            .filter((item) => ehFrete(item.unidade))
+            .reduce((soma, item) => soma + Number(item.valorTotal), 0),
           comoAcessar,
-          "Qualquer dúvida, é só responder esta mensagem.",
-        ].join("\n\n");
+        });
         const url = createWhatsAppUrl(whatsapp, mensagem);
         if (janela) {
           janela.opener = null;
@@ -451,7 +548,7 @@ function PagamentosDoEvento({
   // Novas parcelas na etapa de pagamento (a primeira definição vem do botão de etapa) ou em
   // evento confirmado com valor ainda sem parcela, como um contrato fechado com saldo.
   const podeAdicionar =
-    evento.status === "PAGAMENTO" || (evento.status === "CONFIRMADO" && valorEvento > parcelado);
+    evento.status === "CONFIRMADO" && (!parcelas.length || valorEvento > parcelado);
 
   async function executar(id: string, acao: () => Promise<unknown>, sucesso: string) {
     setProcessando(id);
@@ -509,7 +606,7 @@ function PagamentosDoEvento({
       {parcelas.length ? (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full sm:min-w-[760px] text-left text-sm">
-            <thead>
+            <thead className="max-sm:hidden">
               <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                 <th className="pb-2 font-medium">Parcela</th>
                 <th className="pb-2 font-medium max-sm:hidden">Vencimento</th>
@@ -525,7 +622,7 @@ function PagamentosDoEvento({
                 if (parcela.formaPagamento && !formas.includes(parcela.formaPagamento)) {
                   formas.push(parcela.formaPagamento);
                 }
-                // No celular a forma de pagamento fica dentro da célula da parcela.
+                // No celular a forma de pagamento fica ao lado dos botões, na 2ª linha do cartão.
                 const seletorForma = (classe: string) => (
                   <Select
                     value={parcela.formaPagamento ?? ""}
@@ -554,19 +651,19 @@ function PagamentosDoEvento({
                   </Select>
                 );
                 return (
-                  <tr key={parcela.id}>
-                    <td className="py-3 pr-3">
+                  <tr
+                    key={parcela.id}
+                    className="max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-x-3 max-sm:py-3"
+                  >
+                    <td className="py-3 pr-3 max-sm:p-0">
                       <p className="font-medium">#{parcela.numeroParcela}</p>
                       {parcela.descricao ? (
                         <p className="text-muted-foreground text-xs">{parcela.descricao}</p>
                       ) : null}
-                      <div className="mt-1 grid gap-1.5 sm:hidden">
-                        <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-                          Vence {formatDate(parcela.dataVencimento)}
-                          <StatusBadge status={parcela.status} />
-                        </p>
-                        {seletorForma("h-8 w-full max-w-44")}
-                      </div>
+                      <p className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-xs sm:hidden">
+                        Vence {formatDate(parcela.dataVencimento)}
+                        <StatusBadge status={parcela.status} />
+                      </p>
                     </td>
                     <td className="text-muted-foreground py-3 pr-3 max-sm:hidden">
                       {formatDate(parcela.dataVencimento)}
@@ -574,89 +671,97 @@ function PagamentosDoEvento({
                         <p className="text-xs">Pago em {formatDate(parcela.dataPagamento)}</p>
                       ) : null}
                     </td>
-                    <td className="py-3 pr-3 align-top font-medium whitespace-nowrap sm:align-middle">
+                    <td className="py-3 pr-3 align-top font-medium whitespace-nowrap max-sm:p-0 max-sm:text-right sm:align-middle">
                       {formatBRL(Number(parcela.valor))}
                     </td>
                     <td className="py-3 pr-3 max-sm:hidden">{seletorForma("h-8 w-44")}</td>
                     <td className="py-3 pr-3 max-sm:hidden">
                       <StatusBadge status={parcela.status} />
                     </td>
-                    <td className="py-3 text-right align-top sm:align-middle">
-                      {parcela.status === "PAGO" ? (
-                        <div className="flex justify-end">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={processando !== null}
-                            aria-label={`Desfazer o recebimento da parcela ${parcela.numeroParcela}`}
-                            title="Desfazer recebimento"
-                            onClick={async () => {
-                              const ok = await pedirConfirmacao({
-                                titulo: `Desfazer o recebimento da parcela #${parcela.numeroParcela}?`,
-                                descricao: `${formatBRL(Number(parcela.valor))} deixa de contar como recebido e a parcela volta a ficar em aberto.`,
-                                textoConfirmar: "Desfazer recebimento",
-                                perigoso: true,
-                              });
-                              if (!ok) return;
-                              void executar(
-                                parcela.id,
-                                () => desfazer({ data: { id: parcela.id } }),
-                                "Recebimento desfeito.",
-                              );
-                            }}
-                          >
-                            <Undo2 className="size-4 sm:hidden" />
-                            <span className="hidden sm:inline">Desfazer</span>
-                          </Button>
+                    <td className="py-3 text-right align-top max-sm:col-span-2 max-sm:p-0 max-sm:pt-3 sm:align-middle">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="min-w-0 flex-1 sm:hidden">
+                          {seletorForma("h-11 w-full")}
                         </div>
-                      ) : (
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={processando !== null}
-                            aria-label={`Marcar parcela ${parcela.numeroParcela} como paga`}
-                            title="Marcar pago"
-                            onClick={() =>
-                              void executar(
-                                parcela.id,
-                                () =>
-                                  registrar({
-                                    data: { id: parcela.id, dataPagamento: new Date() },
-                                  }),
-                                "Pagamento registrado.",
-                              )
-                            }
-                          >
-                            <Check className="size-4 sm:hidden" />
-                            <span className="hidden sm:inline">Marcar pago</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={processando !== null}
-                            aria-label={`Excluir a parcela ${parcela.numeroParcela}`}
-                            title="Excluir"
-                            onClick={async () => {
-                              const ok = await pedirConfirmacao({
-                                titulo: `Excluir a parcela #${parcela.numeroParcela}?`,
-                                descricao: `${formatBRL(Number(parcela.valor))} com vencimento em ${formatDate(parcela.dataVencimento)}.`,
-                                textoConfirmar: "Excluir parcela",
-                                perigoso: true,
-                              });
-                              if (!ok) return;
-                              void executar(
-                                parcela.id,
-                                () => excluir({ data: { id: parcela.id } }),
-                                "Parcela excluída.",
-                              );
-                            }}
-                          >
-                            <Trash2 className="size-4 sm:hidden" />
-                            <span className="hidden sm:inline">Excluir</span>
-                          </Button>
-                        </div>
-                      )}
+                        {parcela.status === "PAGO" ? (
+                          <div className="flex justify-end">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={processando !== null}
+                              aria-label={`Desfazer o recebimento da parcela ${parcela.numeroParcela}`}
+                              className="max-sm:size-11"
+                              title="Desfazer recebimento"
+                              onClick={async () => {
+                                const ok = await pedirConfirmacao({
+                                  titulo: `Desfazer o recebimento da parcela #${parcela.numeroParcela}?`,
+                                  descricao: `${formatBRL(Number(parcela.valor))} deixa de contar como recebido e a parcela volta a ficar em aberto.`,
+                                  textoConfirmar: "Desfazer recebimento",
+                                  perigoso: true,
+                                });
+                                if (!ok) return;
+                                void executar(
+                                  parcela.id,
+                                  () => desfazer({ data: { id: parcela.id } }),
+                                  "Recebimento desfeito.",
+                                );
+                              }}
+                            >
+                              <Undo2 className="size-4 sm:hidden" />
+                              <span className="hidden sm:inline">Desfazer</span>
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={processando !== null}
+                              aria-label={`Marcar parcela ${parcela.numeroParcela} como paga`}
+                              className="max-sm:size-11"
+                              title="Marcar pago"
+                              onClick={() =>
+                                void executar(
+                                  parcela.id,
+                                  () =>
+                                    registrar({
+                                      data: { id: parcela.id, dataPagamento: new Date() },
+                                    }),
+                                  "Pagamento registrado.",
+                                )
+                              }
+                            >
+                              <Check className="size-4 sm:hidden" />
+                              <span className="hidden sm:inline">Marcar pago</span>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={processando !== null}
+                              aria-label={`Excluir a parcela ${parcela.numeroParcela}`}
+                              className="max-sm:size-11"
+                              title="Excluir"
+                              onClick={async () => {
+                                const ok = await pedirConfirmacao({
+                                  titulo: `Excluir a parcela #${parcela.numeroParcela}?`,
+                                  descricao: `${formatBRL(Number(parcela.valor))} com vencimento em ${formatDate(parcela.dataVencimento)}.`,
+                                  textoConfirmar: "Excluir parcela",
+                                  perigoso: true,
+                                });
+                                if (!ok) return;
+                                void executar(
+                                  parcela.id,
+                                  () => excluir({ data: { id: parcela.id } }),
+                                  "Parcela excluída.",
+                                );
+                              }}
+                            >
+                              <Trash2 className="size-4 sm:hidden" />
+                              <span className="hidden sm:inline">Excluir</span>
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -690,7 +795,6 @@ function PagamentosDoEvento({
 function BarraDeEtapas({ evento, valorEvento }: { evento: EventoDetalhe; valorEvento: number }) {
   const router = useRouter();
   const aprovar = useServerFn(aprovarOrcamento);
-  const confirmar = useServerFn(confirmarEvento);
   const finalizar = useServerFn(finalizarEvento);
   const pedirConfirmacao = useConfirmar();
   const [processando, setProcessando] = useState<"etapa" | "pdf" | null>(null);
@@ -735,20 +839,9 @@ function BarraDeEtapas({ evento, valorEvento }: { evento: EventoDetalhe; valorEv
           "Orçamento aprovado.",
         );
         return;
-      case "PAGAMENTO":
-        setDefinindoPagamento(true);
-        return;
+      // Confirmar abre a definição do pagamento; ao salvar as parcelas o evento fica confirmado.
       case "CONFIRMAR":
-        if (
-          !(await pedirConfirmacao({
-            titulo: "Confirmar este evento?",
-            descricao: "O evento passa para “Confirmado” e o PDF do evento é liberado.",
-            textoConfirmar: "Confirmar evento",
-          }))
-        ) {
-          return;
-        }
-        void executar("etapa", () => confirmar({ data: { id: evento.id } }), "Evento confirmado.");
+        setDefinindoPagamento(true);
         return;
       case "FINALIZAR":
         if (

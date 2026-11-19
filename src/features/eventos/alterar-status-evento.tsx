@@ -56,7 +56,7 @@ export function AlterarStatusEvento({ eventoId, status }: { eventoId: string; st
       disabled={salvando}
       onValueChange={(valor) => void alterar(valor as StatusEvento)}
     >
-      <SelectTrigger className="w-48" aria-label="Status do evento">
+      <SelectTrigger className="w-36 shrink-0 max-sm:h-11 sm:w-48" aria-label="Status do evento">
         {/* Sem filhos, o Radix copiaria também a descrição do item para o botão. */}
         <SelectValue>{ROTULOS_STATUS_EVENTO[status as StatusEvento] ?? status}</SelectValue>
       </SelectTrigger>

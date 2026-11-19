@@ -5,8 +5,7 @@ import { acaoDaEtapa } from "./status-evento";
 describe("acaoDaEtapa", () => {
   it("mostra um único botão por etapa, na ordem do fluxo", () => {
     expect(acaoDaEtapa("ORCAMENTO")?.rotulo).toBe("Aprovar");
-    expect(acaoDaEtapa("APROVADO")?.rotulo).toBe("Pagamento");
-    expect(acaoDaEtapa("PAGAMENTO")?.rotulo).toBe("Confirmar");
+    expect(acaoDaEtapa("APROVADO")?.rotulo).toBe("Confirmar");
     expect(acaoDaEtapa("CONFIRMADO")?.rotulo).toBe("Finalizar");
   });
 

@@ -1,7 +1,6 @@
 export const STATUS_EVENTO = [
   "ORCAMENTO",
   "APROVADO",
-  "PAGAMENTO",
   "CONFIRMADO",
   "CANCELADO",
   "FINALIZADO",
@@ -12,7 +11,6 @@ export type StatusEvento = (typeof STATUS_EVENTO)[number];
 export const ROTULOS_STATUS_EVENTO: Record<StatusEvento, string> = {
   ORCAMENTO: "Orçamento",
   APROVADO: "Aprovado",
-  PAGAMENTO: "Pagamento",
   CONFIRMADO: "Confirmado",
   CANCELADO: "Cancelado",
   FINALIZADO: "Finalizado",
@@ -21,8 +19,7 @@ export const ROTULOS_STATUS_EVENTO: Record<StatusEvento, string> = {
 export const DESCRICOES_STATUS_EVENTO: Record<StatusEvento, string> = {
   ORCAMENTO: "Proposta em elaboração ou em análise pelo cliente.",
   APROVADO: "Orçamento aprovado; falta definir o pagamento.",
-  PAGAMENTO: "Forma de pagamento e parcelas definidas.",
-  CONFIRMADO: "Evento confirmado; PDF do evento disponível.",
+  CONFIRMADO: "Pagamento definido e evento confirmado; PDF do evento disponível.",
   CANCELADO: "O evento não vai mais acontecer.",
   FINALIZADO: "O evento aconteceu e foi encerrado.",
 };
@@ -35,12 +32,11 @@ export function rotuloStatusEvento(status: string): string {
 export const ETAPAS_EVENTO = [
   "ORCAMENTO",
   "APROVADO",
-  "PAGAMENTO",
   "CONFIRMADO",
   "FINALIZADO",
 ] as const satisfies readonly StatusEvento[];
 
-export type AcaoEtapa = "APROVAR" | "PAGAMENTO" | "CONFIRMAR" | "FINALIZAR";
+export type AcaoEtapa = "APROVAR" | "CONFIRMAR" | "FINALIZAR";
 
 const ACAO_POR_STATUS: Partial<
   Record<StatusEvento, { acao: AcaoEtapa; rotulo: string; descricao: string }>
@@ -50,15 +46,11 @@ const ACAO_POR_STATUS: Partial<
     rotulo: "Aprovar",
     descricao: "",
   },
+  // Confirmar = definir o pagamento: ao lançar as parcelas o evento fica confirmado.
   APROVADO: {
-    acao: "PAGAMENTO",
-    rotulo: "Pagamento",
-    descricao: "Defina a forma de pagamento e as parcelas.",
-  },
-  PAGAMENTO: {
     acao: "CONFIRMAR",
     rotulo: "Confirmar",
-    descricao: "Confirme o evento para liberar o PDF.",
+    descricao: "Defina o pagamento para confirmar o evento.",
   },
   CONFIRMADO: {
     acao: "FINALIZAR",

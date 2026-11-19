@@ -403,19 +403,6 @@ export const atualizarEvento = createServerFn({ method: "POST" })
 
 // As etapas só avançam a partir da etapa anterior esperada (o filtro de status garante isso).
 
-/** Pagamento → Confirmado (libera o PDF do evento). */
-export const confirmarEvento = createServerFn({ method: "POST" })
-  .validator((value: unknown) => id.parse(value))
-  .handler(async ({ data }) => {
-    const auth = await requirePermission("eventos");
-    const resultado = await getPrisma().evento.updateMany({
-      where: { id: data.id, empresaId: auth.empresaId, status: "PAGAMENTO" },
-      data: { status: "CONFIRMADO" },
-    });
-    if (!resultado.count) throw new Error("Defina o pagamento do evento antes de confirmá-lo.");
-    return { ok: true };
-  });
-
 /** Confirmado → Finalizado (depois que o evento acontece). */
 export const finalizarEvento = createServerFn({ method: "POST" })
   .validator((value: unknown) => id.parse(value))
