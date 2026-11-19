@@ -32,11 +32,14 @@ import {
   comCobranca,
   DESCRICAO_FRETE,
   ehFrete,
+  ehServico,
+  ehValorAParte,
   linhaComUnidadePadrao,
   POR_PESSOA,
   POR_PRATO,
   segueACobranca,
   UNIDADE_FRETE,
+  UNIDADE_SERVICO,
   unidadeNoOrcamento,
   type Cobranca,
 } from "@/features/orcamentos/unidade-item";
@@ -105,12 +108,37 @@ function validarLinha(linha: Linha): ErrosLinha {
   return erros;
 }
 
-/** Linhas da tabela, sem o frete (ele tem a linha fixa própria). */
+/** Linhas da tabela: só os itens; frete e serviços têm as seções próprias. */
 function itensSemFrete(itens: ItemOrcamento[], convidados: number): Linha[] {
   return paraLinhas(
-    itens.filter((item) => !ehFrete(item.unidade)),
+    itens.filter((item) => !ehValorAParte(item.unidade)),
     convidados,
   );
+}
+
+/** Serviço com valor fechado (garçom, copeira...), editado na seção "Serviços". */
+type LinhaServico = { chave: string; descricao: string; valor: string; pedido: boolean };
+
+/**
+ * Serviços já cobrados no orçamento e, abertos para receber o valor, os que o cliente pediu no
+ * formulário e ainda não têm valor.
+ */
+function servicosIniciais(itens: ItemOrcamento[], pedidos: readonly string[]): LinhaServico[] {
+  const pedido = (nome: string) =>
+    pedidos.some((item) => normalizarBusca(item.trim()) === normalizarBusca(nome.trim()));
+  const salvos = itens
+    .filter((item) => ehServico(item.unidade))
+    .map((item) => ({
+      chave: item.id,
+      descricao: item.descricao,
+      valor: String(Number(item.valorUnitario) * Number(item.quantidade)),
+      pedido: pedido(item.descricao),
+    }));
+  const jaSalvos = new Set(salvos.map((item) => normalizarBusca(item.descricao.trim())));
+  const abertos = [...new Set(pedidos)]
+    .filter((nome) => !jaSalvos.has(normalizarBusca(nome.trim())))
+    .map((nome) => ({ chave: `pedido-${nome}`, descricao: nome, valor: "", pedido: true }));
+  return [...salvos, ...abertos];
 }
 
 /** Valor do frete já salvo, como texto do campo. */
@@ -131,6 +159,8 @@ export function EditarOrcamentoDialog({
   orcamento,
   convidados,
   valorEmParcelas = 0,
+  sugestoesServicos = [],
+  servicosPedidos = [],
 }: {
   aberto: boolean;
   onOpenChange: (aberto: boolean) => void;
@@ -138,6 +168,10 @@ export function EditarOrcamentoDialog({
   convidados: number;
   /** Soma das parcelas do evento: elas não mudam sozinhas quando o total do orçamento muda. */
   valorEmParcelas?: number;
+  /** Serviços para adicionar com um toque (ex.: os adicionais de interesse do cliente). */
+  sugestoesServicos?: readonly string[];
+  /** Serviços que o cliente pediu: já abrem na seção "Serviços", esperando o valor. */
+  servicosPedidos?: readonly string[];
 }) {
   const router = useRouter();
   const salvar = useServerFn(atualizarItensOrcamento);
@@ -148,6 +182,9 @@ export function EditarOrcamentoDialog({
   );
   // Frete: linha fixa no fim da tabela, só na cobrança por prato.
   const [frete, setFrete] = useState(() => freteSalvo(orcamento.itens));
+  const [servicos, setServicos] = useState<LinhaServico[]>(() =>
+    servicosIniciais(orcamento.itens, servicosPedidos),
+  );
   const [busca, setBusca] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [tentouSalvar, setTentouSalvar] = useState(false);
@@ -158,10 +195,11 @@ export function EditarOrcamentoDialog({
       setLinhas(itensSemFrete(orcamento.itens, convidados));
       setCobranca(cobrancaInicial(orcamento.itens, convidados));
       setFrete(freteSalvo(orcamento.itens));
+      setServicos(servicosIniciais(orcamento.itens, servicosPedidos));
       setBusca("");
       setTentouSalvar(false);
     }
-  }, [aberto, orcamento.itens, convidados]);
+  }, [aberto, orcamento.itens, convidados, servicosPedidos]);
 
   const termo = normalizarBusca(busca.trim());
   const sugestoes = termo
@@ -175,7 +213,33 @@ export function EditarOrcamentoDialog({
     : [];
   const comFrete = cobranca === POR_PRATO;
   const valorFrete = comFrete ? lerNumero(frete) || 0 : 0;
-  const subtotal = linhas.reduce((soma, linha) => soma + totalLinha(linha), 0) + valorFrete;
+  const valorServicos = servicos.reduce(
+    (soma, servico) => soma + (lerNumero(servico.valor) || 0),
+    0,
+  );
+  const subtotal =
+    linhas.reduce((soma, linha) => soma + totalLinha(linha), 0) + valorFrete + valorServicos;
+  const servicosSemNome = servicos.filter((servico) => servico.descricao.trim().length < 2);
+  const jaAdicionados = new Set(
+    servicos.map((servico) => normalizarBusca(servico.descricao.trim())),
+  );
+  const atalhosServicos = [...new Set(sugestoesServicos)].filter(
+    (nome) => !jaAdicionados.has(normalizarBusca(nome)),
+  );
+
+  function adicionarServico(descricao: string) {
+    setServicos((atuais) => [
+      ...atuais,
+      { chave: crypto.randomUUID(), descricao, valor: "", pedido: false },
+    ]);
+  }
+
+  function alterarServico(chave: string, campo: "descricao" | "valor", valor: string) {
+    const limpo = campo === "valor" ? limparNumeroDigitado(valor) : valor;
+    setServicos((atuais) =>
+      atuais.map((servico) => (servico.chave === chave ? { ...servico, [campo]: limpo } : servico)),
+    );
+  }
   const errosPorLinha = new Map(linhas.map((linha) => [linha.chave, validarLinha(linha)]));
   const itemDoContratoJunto =
     linhas.length > 1 && linhas.some((linha) => linha.descricao === ITEM_VALOR_DO_CONTRATO);
@@ -229,6 +293,10 @@ export function EditarOrcamentoDialog({
       );
       return;
     }
+    if (servicosSemNome.length) {
+      toast.error("Informe o nome de cada serviço.");
+      return;
+    }
     if (subtotal < 0) {
       toast.error("O total dos itens não pode ser negativo.");
       return;
@@ -260,6 +328,17 @@ export function EditarOrcamentoDialog({
                   },
                 ]
               : []),
+            // Serviço sem valor não vira item: só o que foi cobrado entra no orçamento.
+            ...servicos
+              .filter((servico) => (lerNumero(servico.valor) || 0) > 0)
+              .map((servico) => ({
+                servicoId: null,
+                descricao: servico.descricao.trim(),
+                quantidade: 1,
+                unidade: UNIDADE_SERVICO,
+                valorUnitario: lerNumero(servico.valor),
+                desconto: 0,
+              })),
           ],
         },
       });
@@ -292,7 +371,7 @@ export function EditarOrcamentoDialog({
               Cobrança
             </Label>
             <Select value={cobranca} onValueChange={(valor) => trocarCobranca(valor as Cobranca)}>
-              <SelectTrigger id="orcamento-cobranca" className="w-60">
+              <SelectTrigger id="orcamento-cobranca" className="w-full max-sm:h-11 sm:w-60">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -310,7 +389,7 @@ export function EditarOrcamentoDialog({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="tabela-formulario w-full min-w-[680px] text-left text-sm">
+            <table className="tabela-formulario tabela-itens-orcamento w-full sm:min-w-[680px] text-left text-sm">
               <thead>
                 <tr className="text-muted-foreground border-b border-border text-[11px] uppercase">
                   <th className="pb-2 font-medium">Item</th>
@@ -397,10 +476,16 @@ export function EditarOrcamentoDialog({
               {comFrete ? (
                 <tfoot>
                   <tr className="border-border border-t-2">
-                    <td className="py-2 pt-4 pr-2 font-medium">Frete</td>
-                    <td className="text-muted-foreground py-2 pt-4 pr-2">1</td>
-                    <td className="text-muted-foreground py-2 pt-4 pr-2">{UNIDADE_FRETE}</td>
-                    <td className="py-2 pr-2">
+                    <td data-label="Item" className="py-2 pt-4 pr-2 font-medium">
+                      Frete
+                    </td>
+                    <td data-label="Qtd." className="text-muted-foreground py-2 pt-4 pr-2">
+                      1
+                    </td>
+                    <td data-label="Unidade" className="text-muted-foreground py-2 pt-4 pr-2">
+                      {UNIDADE_FRETE}
+                    </td>
+                    <td data-label="Valor unit." className="py-2 pr-2">
                       <Input
                         inputMode="decimal"
                         aria-label="Valor do frete"
@@ -410,7 +495,7 @@ export function EditarOrcamentoDialog({
                         onChange={(event) => setFrete(limparNumeroDigitado(event.target.value))}
                       />
                     </td>
-                    <td className="py-2 pt-4 pr-2 font-medium whitespace-nowrap">
+                    <td data-label="Total" className="py-2 pt-4 pr-2 font-medium whitespace-nowrap">
                       {formatBRL(valorFrete)}
                     </td>
                     <td />
@@ -497,6 +582,102 @@ export function EditarOrcamentoDialog({
             ) : null}
           </div>
 
+          {/* Serviços com valor fechado, no fim do orçamento (garçom, copeira, louças...). */}
+          <section className="grid gap-3" aria-labelledby="orcamento-servicos">
+            <div>
+              <p id="orcamento-servicos" className="text-sm font-semibold">
+                Serviços
+              </p>
+              <p className="text-muted-foreground text-xs">
+                Garçom, copeira, louças e outros, com o valor total de cada um.
+              </p>
+            </div>
+            {servicos.length ? (
+              <ul className="grid gap-2">
+                {servicos.map((servico) => {
+                  const semNome = tentouSalvar && servico.descricao.trim().length < 2;
+                  return (
+                    <li key={servico.chave} className="flex flex-wrap items-start gap-2">
+                      <div className="min-w-0 basis-full sm:flex-1 sm:basis-0">
+                        <Input
+                          aria-label="Nome do serviço"
+                          aria-invalid={semNome}
+                          placeholder="Ex.: Serviço de garçom"
+                          className={cn("max-sm:h-11", classeErro(semNome ? "erro" : undefined))}
+                          value={servico.descricao}
+                          onChange={(event) =>
+                            alterarServico(servico.chave, "descricao", event.target.value)
+                          }
+                        />
+                        {semNome ? (
+                          <p className="text-destructive mt-1 text-xs">
+                            Informe o nome do serviço.
+                          </p>
+                        ) : servico.pedido ? (
+                          <p className="text-primary mt-1 text-xs font-medium">
+                            Pedido pelo cliente
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="relative w-32 shrink-0 max-sm:flex-1">
+                        <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm">
+                          R$
+                        </span>
+                        <Input
+                          inputMode="decimal"
+                          aria-label={`Valor de ${servico.descricao || "serviço"}`}
+                          placeholder="0"
+                          className="pl-9 max-sm:h-11"
+                          value={servico.valor}
+                          onChange={(event) =>
+                            alterarServico(servico.chave, "valor", event.target.value)
+                          }
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 max-sm:size-11"
+                        aria-label={`Remover ${servico.descricao || "serviço"}`}
+                        onClick={() =>
+                          setServicos((atuais) =>
+                            atuais.filter((item) => item.chave !== servico.chave),
+                          )
+                        }
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {atalhosServicos.map((nome) => (
+                <Button
+                  key={nome}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-auto max-w-full py-1.5 text-left whitespace-normal max-sm:min-h-11"
+                  onClick={() => adicionarServico(nome)}
+                >
+                  <Plus className="size-4 shrink-0" /> {nome}
+                </Button>
+              ))}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="max-sm:min-h-11"
+                onClick={() => adicionarServico("")}
+              >
+                <Plus className="size-4" /> Outro serviço
+              </Button>
+            </div>
+          </section>
+
           {itemDoContratoJunto ? (
             <p
               role="alert"
@@ -516,17 +697,20 @@ export function EditarOrcamentoDialog({
             </p>
           ) : null}
 
-          <p className="text-right text-sm">
-            Subtotal dos itens: <strong>{formatBRL(subtotal)}</strong>
-          </p>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={salvando}>
-              {salvando ? "Salvando…" : "Salvar orçamento"}
-            </Button>
+          {/* Rodapé fixo: subtotal e botões sempre à vista, mesmo com muitos itens. */}
+          <DialogFooter className="bg-background border-border sticky flex-col -bottom-6 -mx-6 -mb-6 items-center gap-3 border-t px-6 py-3 sm:justify-between">
+            <p className="flex gap-2 text-sm max-sm:w-full max-sm:justify-between">
+              <span className="text-muted-foreground">Subtotal dos itens</span>
+              <strong>{formatBRL(subtotal)}</strong>
+            </p>
+            <div className="flex gap-2 max-sm:grid max-sm:w-full max-sm:grid-cols-2">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={salvando}>
+                {salvando ? "Salvando…" : "Salvar orçamento"}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -32,6 +32,8 @@ export type DadosPdfEvento = {
   itens: string[];
   /** Serviços adicionais contratados, ex.: "Serviço de garçom". */
   servicosAdicionais: string[];
+  /** Serviços cobrados à parte (garçom, copeira...), com o valor de cada um. */
+  servicos: { descricao: string; valor: number }[];
   /** Valor do frete do orçamento (cobrança por prato); 0 quando não há. */
   frete: number;
   subtotal: number;
@@ -257,6 +259,7 @@ function desenharEvento({ pdf, negrito, italico, logo }: Recursos, dados: DadosP
     2 +
     dados.itens.length +
     linhasAdicionais +
+    dados.servicos.length +
     (dados.frete > 0 ? 1 : 0) +
     1 +
     (dados.desconto > 0 ? 3 : 1);
@@ -295,6 +298,9 @@ function desenharEvento({ pdf, negrito, italico, logo }: Recursos, dados: DadosP
     y -= entrelinha;
   }
 
+  for (const servico of dados.servicos) {
+    linha(`${servico.descricao.toUpperCase()} ${formatarMoeda(servico.valor)}`);
+  }
   if (dados.frete > 0) linha(`FRETE ${formatarMoeda(dados.frete)}`);
   if (dados.desconto > 0) {
     linha(`SUBTOTAL ${formatarMoeda(dados.subtotal)}`);

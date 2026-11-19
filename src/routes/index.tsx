@@ -19,13 +19,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { currentUser, login } from "@/features/auth/server-functions";
+import { destinoDoClienteSeguro } from "@/lib/acesso-cliente";
 import { LogoMesly } from "@/components/logo-mesly";
 
 export const Route = createFileRoute("/")({
+  // Link do orçamento no WhatsApp: abre o login com o e-mail preenchido e, depois de entrar,
+  // leva o cliente direto à página indicada (só da área do cliente).
+  validateSearch: (search: Record<string, unknown>): { proximo?: string; email?: string } => ({
+    proximo: destinoDoClienteSeguro(search["proximo"]),
+    email: typeof search["email"] === "string" ? search["email"].slice(0, 254) : undefined,
+  }),
   // Quem já está conectado (ex.: abrindo o app instalado) vai direto para a sua área.
-  beforeLoad: async () => {
+  beforeLoad: async ({ search }) => {
     const usuario = await currentUser();
-    if (usuario) throw redirect({ to: usuario.role === "ADMIN" ? "/admin" : "/cliente" });
+    if (usuario) {
+      if (usuario.role === "ADMIN") throw redirect({ to: "/admin" });
+      throw redirect({ href: search.proximo ?? "/cliente" });
+    }
   },
   head: () => ({
     meta: [
@@ -84,7 +94,8 @@ function Logo({ inverso = false }: { inverso?: boolean }) {
 
 function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const { proximo, email: emailDoLink } = Route.useSearch();
+  const [email, setEmail] = useState(emailDoLink ?? "");
   const [senha, setSenha] = useState("");
   const [verSenha, setVerSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
@@ -102,7 +113,11 @@ function Login() {
     setCarregando(true);
     try {
       const resultado = await entrarNoServidor({ data: { email, senha } });
-      await navigate({ to: resultado.destino });
+      if (resultado.destino === "/cliente" && proximo) {
+        await navigate({ href: proximo });
+      } else {
+        await navigate({ to: resultado.destino });
+      }
     } catch {
       setErro("Credenciais inválidas. Verifique seus dados e tente novamente.");
     } finally {

@@ -4,6 +4,8 @@ import {
   cobrancaDasLinhas,
   comCobranca,
   ehFrete,
+  ehServico,
+  ehValorAParte,
   linhaComUnidadePadrao,
   quantidadePadrao,
   unidadeNoOrcamento,
@@ -78,5 +80,15 @@ describe("ehFrete", () => {
     expect(ehFrete("frete")).toBe(true);
     expect(ehFrete(" Frete ")).toBe(true);
     expect(ehFrete("por prato")).toBe(false);
+  });
+});
+
+describe("serviços com valor", () => {
+  it("reconhece serviço e frete como valores à parte dos itens", () => {
+    expect(ehServico("serviço")).toBe(true);
+    expect(ehServico(" Serviço ")).toBe(true);
+    expect(ehValorAParte("frete")).toBe(true);
+    expect(ehValorAParte("serviço")).toBe(true);
+    expect(ehValorAParte("por pessoa")).toBe(false);
   });
 });

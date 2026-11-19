@@ -60,3 +60,18 @@ export const DESCRICAO_FRETE = "Frete";
 export function ehFrete(unidade: string): boolean {
   return unidade.trim().toLowerCase() === UNIDADE_FRETE;
 }
+
+/**
+ * Serviços com valor fechado (garçom, copeira, louças...): ficam numa seção própria no fim do
+ * orçamento, fora da lista de itens do cardápio, com quantidade 1.
+ */
+export const UNIDADE_SERVICO = "serviço";
+
+export function ehServico(unidade: string): boolean {
+  return unidade.trim().toLowerCase() === UNIDADE_SERVICO;
+}
+
+/** Linhas de valor do orçamento (frete e serviços), que não são itens do cardápio. */
+export function ehValorAParte(unidade: string): boolean {
+  return ehFrete(unidade) || ehServico(unidade);
+}

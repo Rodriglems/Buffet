@@ -323,6 +323,67 @@
   .tabela-formulario td :is(input, textarea, [role="combobox"]) {
     width: 100%;
   }
+
+  /*
+   * Itens do orçamento no celular: cartão compacto em 3 linhas.
+   *   [ nome do item ................ ] [lixeira]
+   *   [ Qtd ] [ Valor unit. ] ......... Total
+   *   por pessoa (unidade)
+   * Ordem das colunas: Item, Qtd., Unidade, Valor unit., Total, ações.
+   */
+  .tabela-itens-orcamento tfoot {
+    display: block;
+    width: 100%;
+  }
+
+  .tabela-itens-orcamento tr {
+    display: grid;
+    grid-template-columns: 5rem 7rem minmax(0, 1fr) 2.75rem;
+    column-gap: 0.5rem;
+    align-items: end;
+  }
+
+  .tabela-itens-orcamento td:nth-child(1) {
+    grid-area: 1 / 1 / 2 / 4;
+  }
+
+  .tabela-itens-orcamento td:nth-child(6) {
+    grid-area: 1 / 4 / 2 / 5;
+    align-self: start;
+  }
+
+  .tabela-itens-orcamento td:nth-child(2) {
+    grid-area: 2 / 1 / 3 / 2;
+  }
+
+  .tabela-itens-orcamento td:nth-child(4) {
+    grid-area: 2 / 2 / 3 / 3;
+  }
+
+  .tabela-itens-orcamento td:nth-child(5) {
+    grid-area: 2 / 3 / 3 / 5;
+    justify-items: end;
+    text-align: right;
+    padding-bottom: 0.75rem !important;
+  }
+
+  .tabela-itens-orcamento td:nth-child(3) {
+    grid-area: 3 / 1 / 4 / 5;
+    font-size: 12px;
+    padding-top: 0 !important;
+  }
+
+  .tabela-itens-orcamento td:is(:nth-child(1), :nth-child(3))::before {
+    content: none;
+  }
+
+  .tabela-itens-orcamento td :is(input, button) {
+    height: 2.75rem;
+  }
+
+  .tabela-itens-orcamento td button {
+    width: 2.75rem;
+  }
 }
 
 @media print {

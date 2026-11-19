@@ -6,7 +6,7 @@ import {
   gerarPdfEventos,
   type DadosPdfEvento,
 } from "@/features/documentos/pdf-evento.server";
-import { ehFrete } from "@/features/orcamentos/unidade-item";
+import { ehFrete, ehServico, ehValorAParte } from "@/features/orcamentos/unidade-item";
 import type { Prisma } from "@/generated/prisma/client";
 import { serialize } from "@/lib/domain.server";
 import { linhasEnderecoEmpresa, textoTelefonesEmpresa } from "@/lib/empresa-cabecalho";
@@ -17,7 +17,7 @@ import { TAMANHO_MAXIMO_IMAGEM } from "@/lib/storage.server";
 /** O PDF do evento fica disponível a partir da confirmação (todas as parcelas pagas). */
 export const STATUS_COM_PDF = ["CONFIRMADO", "FINALIZADO"] as const;
 /** Antes da confirmação, só a equipe baixa o PDF, como orçamento para enviar ao cliente. */
-export const STATUS_COM_PDF_ORCAMENTO = ["ORCAMENTO", "APROVADO", "PAGAMENTO"] as const;
+export const STATUS_COM_PDF_ORCAMENTO = ["ORCAMENTO", "APROVADO"] as const;
 
 const ORCAMENTO_DO_PDF = {
   orderBy: [{ numero: "desc" }, { versao: "desc" }],
@@ -137,7 +137,12 @@ async function dadosPdfDoEvento(auth: Autenticacao, id: string, logos: CacheLogo
     endereco: montarEndereco(evento),
     // O frete sai do MENU e aparece com o valor antes do total.
     itens:
-      orcamento?.itens.filter((item) => !ehFrete(item.unidade)).map((item) => item.descricao) ?? [],
+      orcamento?.itens
+        .filter((item) => !ehValorAParte(item.unidade))
+        .map((item) => item.descricao) ?? [],
+    servicos: (orcamento?.itens ?? [])
+      .filter((item) => ehServico(item.unidade))
+      .map((item) => ({ descricao: item.descricao, valor: Number(item.valorTotal) })),
     frete: (orcamento?.itens ?? [])
       .filter((item) => ehFrete(item.unidade))
       .reduce((soma, item) => soma + Number(item.valorTotal), 0),
