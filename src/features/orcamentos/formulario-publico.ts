@@ -69,3 +69,65 @@ export function normalizarBusca(texto: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 }
+
+/** Pedido antigo do cliente, para "Refazer pedido" abrir o formulário já preenchido. */
+export type PedidoParaRefazer = {
+  numero: string;
+  tipoEvento: string;
+  tipoEventoOutro: string;
+  formatoServico: string;
+  quantidadeConvidados: string;
+  localNome: string;
+  cidade: string;
+  servicosIds: string[];
+  escolhas: Record<string, string>;
+  adicionais: string[];
+};
+
+type ItemAntigo = {
+  servicoId: string | null;
+  descricao: string;
+  opcoes: { id: string; nome: string }[];
+};
+
+/**
+ * Monta o pedido a partir do orçamento antigo: só itens que ainda existem no cardápio, a opção
+ * escolhida (ex.: recheio) quando dá para reconhecê-la pela descrição, e o tipo de evento fora da
+ * lista vira "Outros". A data fica de fora: o cliente escolhe a nova.
+ */
+export function montarPedidoParaRefazer(dados: {
+  numero: string;
+  tipo: string;
+  tiposConhecidos: readonly string[];
+  formatoServico: string | null;
+  quantidadeConvidados: number;
+  localNome: string | null;
+  cidade: string | null;
+  servicosAdicionais: string[];
+  itens: ItemAntigo[];
+}): PedidoParaRefazer {
+  const servicosIds: string[] = [];
+  const escolhas: Record<string, string> = {};
+  for (const item of dados.itens) {
+    if (!item.servicoId || servicosIds.includes(item.servicoId)) continue;
+    servicosIds.push(item.servicoId);
+    const descricao = normalizarBusca(item.descricao);
+    const opcao = item.opcoes.find((possivel) =>
+      descricao.endsWith(normalizarBusca(possivel.nome)),
+    );
+    if (opcao) escolhas[item.servicoId] = opcao.id;
+  }
+  const conhecido = dados.tiposConhecidos.includes(dados.tipo);
+  return {
+    numero: dados.numero,
+    tipoEvento: conhecido ? dados.tipo : "Outros",
+    tipoEventoOutro: conhecido ? "" : dados.tipo,
+    formatoServico: dados.formatoServico ?? "",
+    quantidadeConvidados: String(dados.quantidadeConvidados),
+    localNome: dados.localNome ?? "",
+    cidade: dados.cidade ?? "",
+    servicosIds,
+    escolhas,
+    adicionais: dados.servicosAdicionais,
+  };
+}

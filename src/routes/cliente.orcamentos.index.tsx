@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader, Panel } from "@/components/panel";
@@ -57,6 +58,12 @@ function MeusOrcamentos() {
               <Button variant="outline" asChild>
                 <Link to="/cliente/orcamentos/$id" params={{ id: o.id }}>
                   Ver pedido
+                </Link>
+              </Button>
+              {/* Pede de novo o mesmo cardápio: o formulário abre já marcado, falta só a data. */}
+              <Button variant="outline" asChild>
+                <Link to="/orcamento" search={{ refazer: o.id }}>
+                  <RotateCcw className="size-4" /> Refazer pedido
                 </Link>
               </Button>
               {["ENVIADO", "VISUALIZADO", "AGUARDANDO_APROVACAO", "EM_NEGOCIACAO"].includes(

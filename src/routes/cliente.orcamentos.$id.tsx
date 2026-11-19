@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, RotateCcw } from "lucide-react";
 
 import { PageHeader, Panel } from "@/components/panel";
 import { Button } from "@/components/ui/button";
@@ -21,11 +21,18 @@ function MeuPedido() {
         title="Meu pedido"
         subtitle={`Orçamento #${orcamento.numero.toString()}`}
         actions={
-          <Button variant="outline" asChild>
-            <Link to="/cliente/orcamentos">
-              <ArrowLeft className="size-4" /> Voltar
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/cliente/orcamentos">
+                <ArrowLeft className="size-4" /> Voltar
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link to="/orcamento" search={{ refazer: orcamento.id }}>
+                <RotateCcw className="size-4" /> Refazer pedido
+              </Link>
+            </Button>
+          </div>
         }
       />
       <Panel className="p-5 sm:p-6">

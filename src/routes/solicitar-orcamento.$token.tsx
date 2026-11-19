@@ -12,6 +12,7 @@ import {
   ListChecks,
   Loader2,
   LogIn,
+  RotateCcw,
   Search,
   Sparkles,
   Utensils,
@@ -49,6 +50,7 @@ import {
 import {
   obterClienteConectado,
   obterFormularioOrcamento,
+  obterPedidoParaRefazer,
   enviarSolicitacaoOrcamento,
 } from "@/features/orcamentos/solicitacao-publica";
 import { login, logout } from "@/features/auth/server-functions";
@@ -99,10 +101,15 @@ function SolicitarOrcamentoRota() {
 export function FormularioOrcamento({
   empresa,
   token,
+  refazer,
 }: {
   empresa: EmpresaFormularioOrcamento;
   token: string;
+  /** Orçamento antigo do cliente para abrir com o mesmo cardápio ("Refazer pedido"). */
+  refazer?: string;
 }) {
+  const buscarPedidoAntigo = useServerFn(obterPedidoParaRefazer);
+  const [refazendo, setRefazendo] = useState<{ numero: string; itens: number } | null>(null);
   const logo = empresa.logoOrcamentoUrl ?? empresa.logoUrl;
   const enviar = useServerFn(enviarSolicitacaoOrcamento);
   const buscarConectado = useServerFn(obterClienteConectado);
@@ -266,6 +273,41 @@ export function FormularioOrcamento({
       confirmarSenha: "",
     }));
   }
+
+  // "Refazer pedido" do portal: abre com o cardápio de um orçamento antigo do cliente já marcado.
+  useEffect(() => {
+    if (!refazer) return;
+    void buscarPedidoAntigo({ data: { orcamentoId: refazer } })
+      .then((pedido) => {
+        if (!pedido) return;
+        const ids = pedido.servicosIds.filter((id) => porId.has(id));
+        setServicosSelecionados(ids);
+        setEscolhas(
+          Object.fromEntries(
+            Object.entries(pedido.escolhas).filter(
+              ([id, opcao]) => ids.includes(id) && porId.has(opcao),
+            ),
+          ),
+        );
+        setAdicionais(
+          pedido.adicionais.filter((item): item is ServicoAdicional =>
+            (SERVICOS_ADICIONAIS as readonly string[]).includes(item),
+          ),
+        );
+        setDados((atuais) => ({
+          ...atuais,
+          tipoEvento: pedido.tipoEvento,
+          tipoEventoOutro: pedido.tipoEventoOutro,
+          formatoServico: pedido.formatoServico,
+          quantidadeConvidados: pedido.quantidadeConvidados,
+          localNome: pedido.localNome,
+          cidade: pedido.cidade,
+        }));
+        setRefazendo({ numero: pedido.numero, itens: ids.length });
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refazer]);
 
   // Quem já está conectado neste aparelho é reconhecido ao abrir o formulário.
   useEffect(() => {
@@ -534,6 +576,20 @@ export function FormularioOrcamento({
             {erro ? (
               <p role="alert" className="bg-destructive/10 text-destructive rounded-xl p-4 text-sm">
                 {erro}
+              </p>
+            ) : null}
+
+            {refazendo ? (
+              <p
+                role="status"
+                className="bg-primary/5 ring-primary/20 flex items-start gap-2 rounded-xl p-4 text-sm ring-1"
+              >
+                <RotateCcw className="text-primary mt-0.5 size-4 shrink-0" aria-hidden />
+                <span>
+                  <strong>Refazendo o pedido #{refazendo.numero}.</strong> O cardápio já veio
+                  marcado ({refazendo.itens} {refazendo.itens === 1 ? "item" : "itens"}). Escolha a
+                  nova data e confira os dados antes de enviar.
+                </span>
               </p>
             ) : null}
 

@@ -4,9 +4,13 @@ import { z } from "zod";
 import { criarConvite } from "@/features/clientes/convites.server";
 import { dataEventoEhFutura } from "@/features/eventos/data-evento";
 import { chaveDaData, MENSAGEM_DATA_BLOQUEADA } from "@/features/eventos/datas-bloqueadas";
-import { descreverEscolha } from "@/features/orcamentos/formulario-publico";
+import {
+  descreverEscolha,
+  montarPedidoParaRefazer,
+  type PedidoParaRefazer,
+} from "@/features/orcamentos/formulario-publico";
 import { phoneSchema, whatsappSchema } from "@/features/shared/validation/primitives";
-import { SERVICOS_ADICIONAIS } from "@/lib/catalogo";
+import { SERVICOS_ADICIONAIS, TIPOS_EVENTO } from "@/lib/catalogo";
 import { serialize } from "@/lib/domain.server";
 import { enviarEmailConvite } from "@/lib/email.server";
 import { notificarNovaSolicitacaoEmpresa } from "@/lib/empresa-notification.server";
@@ -528,5 +532,63 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
       linkEnviado,
       logado: Boolean(resultado.usuarioCriado) || resultado.acesso === "CONECTADO",
       notificacoes,
+    });
+  });
+
+/**
+ * "Refazer pedido" do portal: devolve o cardápio de um orçamento do próprio cliente para o
+ * formulário abrir já preenchido. Outro cliente ou visitante sem conta recebe null.
+ */
+export const obterPedidoParaRefazer = createServerFn({ method: "GET" })
+  .validator((value: unknown) => z.object({ orcamentoId: z.string().uuid() }).parse(value))
+  .handler(async ({ data }): Promise<PedidoParaRefazer | null> => {
+    const auth = await getAuthContext();
+    if (!auth || auth.role !== "CLIENT" || !auth.clienteId) return null;
+    const orcamento = await getPrisma().orcamento.findFirst({
+      where: {
+        id: data.orcamentoId,
+        empresaId: auth.empresaId,
+        evento: { clienteId: auth.clienteId },
+      },
+      select: {
+        numero: true,
+        evento: {
+          select: {
+            tipo: true,
+            formatoServico: true,
+            quantidadeConvidados: true,
+            localNome: true,
+            cidade: true,
+            servicosAdicionais: true,
+          },
+        },
+        itens: {
+          // Só itens que ainda estão ativos no cardápio.
+          where: { servico: { ativo: true } },
+          select: {
+            servicoId: true,
+            descricao: true,
+            servico: {
+              select: { opcoes: { select: { opcao: { select: { id: true, nome: true } } } } },
+            },
+          },
+        },
+      },
+    });
+    if (!orcamento) return null;
+    return montarPedidoParaRefazer({
+      numero: orcamento.numero.toString(),
+      tipo: orcamento.evento.tipo,
+      tiposConhecidos: TIPOS_EVENTO,
+      formatoServico: orcamento.evento.formatoServico,
+      quantidadeConvidados: orcamento.evento.quantidadeConvidados,
+      localNome: orcamento.evento.localNome,
+      cidade: orcamento.evento.cidade,
+      servicosAdicionais: orcamento.evento.servicosAdicionais,
+      itens: orcamento.itens.map((item) => ({
+        servicoId: item.servicoId,
+        descricao: item.descricao,
+        opcoes: item.servico?.opcoes.map((entrada) => entrada.opcao) ?? [],
+      })),
     });
   });
