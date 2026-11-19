@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Plus, Search, Trash2, TriangleAlert } from "lucide-react";
+import { Plus, Search, Trash2, TriangleAlert, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -593,11 +593,24 @@ export function EditarOrcamentoDialog({
               </p>
             </div>
             {servicos.length ? (
-              <ul className="grid gap-2">
+              <ul className="grid gap-3">
                 {servicos.map((servico) => {
                   const semNome = tentouSalvar && servico.descricao.trim().length < 2;
                   return (
-                    <li key={servico.chave} className="flex flex-wrap items-start gap-2">
+                    <li
+                      key={servico.chave}
+                      // Cada serviço num bloco próprio, para não se confundir com o de baixo.
+                      className="bg-surface flex flex-wrap items-start gap-2 rounded-xl p-3 ring-1 ring-black/5"
+                    >
+                      {/* Origem no topo do bloco: de onde veio, depois o que é e quanto custa. */}
+                      {servico.pedido ? (
+                        <div className="basis-full">
+                          <span className="bg-primary/10 text-primary inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium">
+                            <UserCheck className="size-3.5" aria-hidden />
+                            Pedido pelo cliente
+                          </span>
+                        </div>
+                      ) : null}
                       <div className="min-w-0 basis-full sm:flex-1 sm:basis-0">
                         <Input
                           aria-label="Nome do serviço"
@@ -612,10 +625,6 @@ export function EditarOrcamentoDialog({
                         {semNome ? (
                           <p className="text-destructive mt-1 text-xs">
                             Informe o nome do serviço.
-                          </p>
-                        ) : servico.pedido ? (
-                          <p className="text-primary mt-1 text-xs font-medium">
-                            Pedido pelo cliente
                           </p>
                         ) : null}
                       </div>
