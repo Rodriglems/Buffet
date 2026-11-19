@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { caminhoDoConvite, statusAcessoCliente } from "@/lib/acesso-cliente";
+import {
+  caminhoDoConvite,
+  caminhoDoLoginDoOrcamento,
+  destinoDoClienteSeguro,
+  statusAcessoCliente,
+} from "@/lib/acesso-cliente";
 
 describe("statusAcessoCliente", () => {
   it("fica sem acesso enquanto não houver conta", () => {
@@ -27,5 +32,29 @@ describe("statusAcessoCliente", () => {
 describe("caminhoDoConvite", () => {
   it("monta o link com o token", () => {
     expect(caminhoDoConvite("abc")).toBe("/ativar-acesso?token=abc");
+  });
+});
+
+describe("destinoDoClienteSeguro", () => {
+  it("aceita só caminhos da área do cliente", () => {
+    expect(destinoDoClienteSeguro("/cliente/orcamentos/abc-123")).toBe(
+      "/cliente/orcamentos/abc-123",
+    );
+    expect(destinoDoClienteSeguro("/cliente")).toBe("/cliente");
+    expect(destinoDoClienteSeguro("https://outro.site")).toBeUndefined();
+    expect(destinoDoClienteSeguro("//outro.site")).toBeUndefined();
+    expect(destinoDoClienteSeguro("/admin")).toBeUndefined();
+    expect(destinoDoClienteSeguro("/cliente/../admin")).toBeUndefined();
+    expect(destinoDoClienteSeguro(undefined)).toBeUndefined();
+  });
+});
+
+describe("caminhoDoLoginDoOrcamento", () => {
+  it("leva ao orçamento depois do login, com o e-mail preenchido", () => {
+    const caminho = caminhoDoLoginDoOrcamento("abc-123", "cliente@x.com");
+    const busca = new URLSearchParams(caminho.slice(2));
+    expect(caminho.startsWith("/?")).toBe(true);
+    expect(busca.get("proximo")).toBe("/cliente/orcamentos/abc-123");
+    expect(busca.get("email")).toBe("cliente@x.com");
   });
 });

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { enviarConvitePorEmail, gerarConviteCliente } from "@/features/clientes/convites";
-import { caminhoDoConvite } from "@/lib/acesso-cliente";
+import { caminhoDoConvite, VALIDADE_CONVITE_TEXTO } from "@/lib/acesso-cliente";
 import { copiarTexto } from "@/lib/copiar-texto";
 import { createWhatsAppUrl } from "@/lib/sharing";
 
@@ -77,7 +77,7 @@ export function ConviteClienteDialog({
       window.open(
         createWhatsAppUrl(
           telefoneWhatsApp,
-          `Olá, ${primeiroNome}! Crie sua senha para acompanhar seu evento e seus pagamentos pelo nosso portal. O link vale por 7 dias:\n\n${link}`,
+          `Olá, ${primeiroNome}! Crie sua senha para acompanhar seu evento e seus pagamentos pelo nosso portal. O link vale por ${VALIDADE_CONVITE_TEXTO}:\n\n${link}`,
         ),
         "_blank",
         "noopener,noreferrer",
@@ -107,7 +107,8 @@ export function ConviteClienteDialog({
           <DialogTitle>Convidar para acessar</DialogTitle>
           <DialogDescription>
             {cliente?.nome} abre o link, confirma o e-mail e cria a própria senha. Os eventos e
-            pagamentos já aparecem no portal. O link vale por 7 dias e só pode ser usado uma vez.
+            pagamentos já aparecem no portal. O link vale por {VALIDADE_CONVITE_TEXTO} e só pode ser
+            usado uma vez.
           </DialogDescription>
         </DialogHeader>
         {erro ? (

@@ -1,9 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import type { Prisma } from "@/generated/prisma/client";
-
-/** Tempo para o cliente usar o link; depois disso a equipe gera outro. */
-export const VALIDADE_CONVITE_DIAS = 7;
+import { VALIDADE_CONVITE_HORAS } from "@/lib/acesso-cliente";
 
 export function hashDoConvite(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -19,7 +17,7 @@ export async function criarConvite(
   clienteId: string,
 ) {
   const token = randomBytes(32).toString("hex");
-  const expiraEm = new Date(Date.now() + VALIDADE_CONVITE_DIAS * 24 * 60 * 60 * 1000);
+  const expiraEm = new Date(Date.now() + VALIDADE_CONVITE_HORAS * 60 * 60 * 1000);
   await tx.conviteCliente.create({
     data: { clienteId, tokenHash: hashDoConvite(token), expiraEm },
   });
