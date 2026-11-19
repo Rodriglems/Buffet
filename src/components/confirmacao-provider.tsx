@@ -47,8 +47,11 @@ export function ConfirmacaoProvider({ children }: { children: ReactNode }) {
               <AlertDialogDescription>{pedido.descricao}</AlertDialogDescription>
             ) : null}
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => responder(false)}>Cancelar</AlertDialogCancel>
+          {/* Botões lado a lado também no celular: Cancelar à esquerda, confirmar à direita. */}
+          <AlertDialogFooter className="grid grid-cols-2 gap-2 sm:flex">
+            <AlertDialogCancel className="mt-0" onClick={() => responder(false)}>
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => responder(true)}
               className={cn(
