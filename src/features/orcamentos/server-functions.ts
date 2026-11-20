@@ -79,6 +79,8 @@ export const obterOrcamento = createServerFn({ method: "GET" })
       include: {
         itens: { include: { servico: true } },
         evento: { include: { cliente: true } },
+        // WhatsApp do buffet, para o cliente pedir alteração no orçamento.
+        empresa: { select: { nomeFantasia: true, whatsapp: true } },
       },
     });
     if (!result) throw new Error("Orcamento nao encontrado.");
@@ -378,9 +380,14 @@ export const aprovarOrcamento = createServerFn({ method: "POST" })
       if (auth.role === "ADMIN") aprovaveis.push("RASCUNHO");
       if (!found || !aprovaveis.includes(found.status))
         throw new Error("Orcamento nao pode ser aprovado.");
+      // Registro da aprovação: quando foi e se foi o próprio cliente, pelo portal.
       const aprovado = await tx.orcamento.update({
         where: { id: found.id },
-        data: { status: "APROVADO" },
+        data: {
+          status: "APROVADO",
+          aprovadoEm: new Date(),
+          aprovadoPeloCliente: auth.role === "CLIENT",
+        },
       });
       await tx.evento.update({ where: { id: found.eventoId }, data: { status: "APROVADO" } });
       // Quando quem aprova é o cliente, a equipe precisa saber para seguir com o pagamento.

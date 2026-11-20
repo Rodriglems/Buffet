@@ -397,6 +397,9 @@ model Orcamento {
   observacoes   String?
   /// Quando a equipe enviou o orçamento ao cliente; antes disso o cliente não vê valores.
   enviadoEm     DateTime?             @map("enviado_em") @db.Timestamptz(6)
+  /// Quando o orçamento foi aprovado e se foi o próprio cliente, pelo portal (registro da aprovação).
+  aprovadoEm          DateTime?             @map("aprovado_em") @db.Timestamptz(6)
+  aprovadoPeloCliente Boolean               @default(false) @map("aprovado_pelo_cliente")
   createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   empresa       Empresa               @relation(fields: [empresaId], references: [id], onDelete: Restrict)
