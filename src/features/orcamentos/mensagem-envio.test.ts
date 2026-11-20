@@ -7,7 +7,7 @@ const base = {
   tipoEvento: "Aniversário infantil",
   data: "18/02/2027",
   convidados: 40,
-  comoAcessar: "Para ver o cardápio completo e aprovar, acesse: https://site/",
+  link: "https://site/?proximo=/cliente/orcamentos/1",
 };
 
 const normalizar = (texto: string) => texto.replace(/\s/g, " ");
@@ -25,5 +25,25 @@ describe("mensagemEnvioOrcamento", () => {
     const texto = normalizar(mensagemEnvioOrcamento({ ...base, total: 516, frete: 0 }));
     expect(texto).toContain("Valor total: R$ 516,00");
     expect(texto).not.toContain("frete");
+  });
+
+  it("leva ao link em linha própria e convida a pedir alterações", () => {
+    const texto = mensagemEnvioOrcamento({ ...base, total: 516, frete: 0 });
+    expect(texto).toContain(
+      "Para visualizar todos os detalhes do orçamento, acesse:\n\nhttps://site/?proximo=/cliente/orcamentos/1",
+    );
+    expect(texto).toContain("responda esta mensagem ou fale conosco pelo WhatsApp.");
+  });
+
+  it("mostra o aviso logo abaixo do link quando há", () => {
+    const texto = mensagemEnvioOrcamento({
+      ...base,
+      total: 516,
+      frete: 0,
+      avisoLink: "(o link vale por 6 horas)",
+    });
+    expect(texto).toContain(
+      "https://site/?proximo=/cliente/orcamentos/1\n(o link vale por 6 horas)",
+    );
   });
 });

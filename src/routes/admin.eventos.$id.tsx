@@ -42,6 +42,7 @@ import { finalizarEvento, obterEvento } from "@/features/eventos/server-function
 import { DescontoOrcamento } from "@/features/orcamentos/desconto-orcamento";
 import { EditarOrcamentoDialog } from "@/features/orcamentos/editar-orcamento-dialog";
 import { aprovarOrcamento, enviarOrcamento } from "@/features/orcamentos/server-functions";
+import { formatarMomento } from "@/features/orcamentos/aprovacao-cliente";
 import { mensagemEnvioOrcamento } from "@/features/orcamentos/mensagem-envio";
 import { ehFrete, ehServico, ehValorAParte } from "@/features/orcamentos/unidade-item";
 import { GerarParcelasDialog } from "@/features/pagamentos/gerar-parcelas-dialog";
@@ -441,10 +442,13 @@ function EnviarOrcamentoAoCliente({
     try {
       await enviar({ data: { id: orcamento.id } });
       if (whatsapp) {
-        // Cliente sem conta não tem senha para usar: recebe o link para criar o acesso.
-        const comoAcessar = evento.cliente.usuarioId
-          ? `Para ver o cardápio completo e aprovar, entre com a sua senha: ${window.location.origin}${caminhoDoLoginDoOrcamento(orcamento.id, evento.cliente.email)}`
-          : `Para ver o cardápio completo e aprovar, crie sua senha neste link (vale por ${VALIDADE_CONVITE_TEXTO} e só uma vez): ${window.location.origin}${caminhoDoConvite((await gerarConvite({ data: { clienteId: evento.cliente.id } })).token)}`;
+        // Cliente com conta vai ao login que abre o orçamento; sem conta, ao link de criar a senha.
+        const link = evento.cliente.usuarioId
+          ? `${window.location.origin}${caminhoDoLoginDoOrcamento(orcamento.id, evento.cliente.email)}`
+          : `${window.location.origin}${caminhoDoConvite((await gerarConvite({ data: { clienteId: evento.cliente.id } })).token)}`;
+        const avisoLink = evento.cliente.usuarioId
+          ? undefined
+          : `(no primeiro acesso você cria sua senha; o link vale por ${VALIDADE_CONVITE_TEXTO})`;
         const mensagem = mensagemEnvioOrcamento({
           nomeCliente: evento.cliente.nome,
           tipoEvento: evento.tipo,
@@ -454,7 +458,8 @@ function EnviarOrcamentoAoCliente({
           frete: orcamento.itens
             .filter((item) => ehFrete(item.unidade))
             .reduce((soma, item) => soma + Number(item.valorTotal), 0),
-          comoAcessar,
+          link,
+          avisoLink,
         });
         const url = createWhatsAppUrl(whatsapp, mensagem);
         if (janela) {
@@ -517,6 +522,14 @@ function EnviarOrcamentoAoCliente({
           ? `Enviado ao cliente em ${formatDate(orcamento.enviadoEm)}.`
           : "O cliente ainda não vê os valores deste orçamento."}
       </p>
+      {/* Registro da aprovação: quando e por quem (cliente no portal ou a própria equipe). */}
+      {orcamento.aprovadoEm ? (
+        <p className="text-success flex items-center justify-center gap-1.5 text-xs font-medium sm:min-w-60">
+          <Check className="size-3.5" aria-hidden />
+          {orcamento.aprovadoPeloCliente ? "Aprovado pelo cliente" : "Aprovado pela equipe"} em{" "}
+          {formatarMomento(orcamento.aprovadoEm)}
+        </p>
+      ) : null}
     </div>
   );
 }
