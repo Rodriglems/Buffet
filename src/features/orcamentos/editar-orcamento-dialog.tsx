@@ -475,7 +475,8 @@ export function EditarOrcamentoDialog({
               </tbody>
               {comFrete ? (
                 <tfoot>
-                  <tr className="border-border border-t-2">
+                  {/* No celular a linha mostra só "Frete", o valor e o total (ver styles.css). */}
+                  <tr className="linha-frete border-border border-t-2">
                     <td data-label="Item" className="py-2 pt-4 pr-2 font-medium">
                       Frete
                     </td>
