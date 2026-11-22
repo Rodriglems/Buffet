@@ -43,6 +43,8 @@ import { rotuloStatusEvento } from "@/lib/status-evento";
 import { usePlaceholderBusca } from "@/lib/placeholder-busca";
 import { copiarTexto } from "@/lib/copiar-texto";
 import { cn } from "@/lib/utils";
+import { usePaginacaoLocal } from "@/lib/use-paginacao-local";
+import { Paginacao } from "@/components/paginacao";
 
 export const Route = createFileRoute("/admin/eventos/")({
   head: () => ({
@@ -68,6 +70,7 @@ export const Route = createFileRoute("/admin/eventos/")({
 });
 
 const TODOS = "todos";
+const POR_PAGINA = 20;
 
 const MAIS_RECENTES = "recentes";
 const MAIS_ANTIGOS = "antigos";
@@ -158,6 +161,12 @@ function EventosPage() {
       // Data do evento: "mais recente" começa pela data mais cedo do calendário (crescente).
       return ordem === MAIS_RECENTES || ordem === DATA_MAIS_ANTIGA ? diferenca : -diferenca;
     });
+  // 20 por página (cartões no celular e tabela no computador); qualquer filtro volta à primeira.
+  const paginacao = usePaginacaoLocal(
+    lista,
+    POR_PAGINA,
+    [busca, aba, tipo, status, data, ordem].join("|"),
+  );
 
   const tipos = Array.from(new Set(eventos.map((e) => e.tipo)));
   // O filtro de status só oferece os status da aba aberta.
@@ -407,7 +416,7 @@ function EventosPage() {
               <>
                 {/* Celular: um cartão por evento; tocar em qualquer ponto abre os detalhes. */}
                 <ul className="grid gap-2 sm:hidden">
-                  {lista.map((e) => (
+                  {paginacao.itensDaPagina.map((e) => (
                     <li
                       key={e.id}
                       className="bg-surface relative min-w-0 rounded-xl ring-1 ring-black/5"
@@ -498,7 +507,7 @@ function EventosPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {lista.map((e) => (
+                      {paginacao.itensDaPagina.map((e) => (
                         <tr key={e.id}>
                           {/* Nome do cliente em destaque; o tipo e o formato do evento embaixo. */}
                           <td className="py-3 pr-3">
@@ -559,6 +568,15 @@ function EventosPage() {
                 </div>
               </>
             )}
+            <Paginacao
+              pagina={paginacao.pagina}
+              porPagina={POR_PAGINA}
+              total={paginacao.total}
+              onMudar={(proxima) => {
+                paginacao.setPagina(proxima);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+            />
           </Panel>
         </div>
       </div>

@@ -42,6 +42,10 @@ import { telefoneDe } from "@/lib/empresa-cabecalho";
 import { usePlaceholderBusca } from "@/lib/placeholder-busca";
 import { createWhatsAppChatUrl } from "@/lib/sharing";
 import { digitosDoTelefone } from "@/lib/telefone";
+import { usePaginacaoLocal } from "@/lib/use-paginacao-local";
+import { Paginacao } from "@/components/paginacao";
+
+const POR_PAGINA = 20;
 
 export const Route = createFileRoute("/admin/clientes/")({
   head: () => ({
@@ -109,6 +113,8 @@ function ClientesPage() {
           (digitosDoTelefone(c.telefone).includes(digitosBusca) ||
             digitosDoTelefone(c.whatsapp).includes(digitosBusca))),
     );
+  // 20 por página; buscar ou trocar o filtro volta para a primeira.
+  const paginacao = usePaginacaoLocal(lista, POR_PAGINA, `${busca}|${filtroAcesso}`);
 
   return (
     <div className="flex flex-col gap-4">
@@ -176,7 +182,7 @@ function ClientesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {lista.map((c) => (
+                {paginacao.itensDaPagina.map((c) => (
                   <tr
                     key={c.id}
                     // A linha inteira abre o cadastro; botões e links dentro dela seguem normais.
@@ -282,6 +288,15 @@ function ClientesPage() {
             </table>
           </div>
         )}
+        <Paginacao
+          pagina={paginacao.pagina}
+          porPagina={POR_PAGINA}
+          total={paginacao.total}
+          onMudar={(proxima) => {
+            paginacao.setPagina(proxima);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        />
       </Panel>
       <ConviteClienteDialog cliente={convidado} onFechar={() => setConvidado(null)} />
       <RedefinirSenhaDialog

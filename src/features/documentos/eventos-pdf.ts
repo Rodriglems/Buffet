@@ -8,7 +8,7 @@ import {
 } from "@/features/documentos/pdf-evento.server";
 import { ehFrete, ehServico, ehValorAParte } from "@/features/orcamentos/unidade-item";
 import type { Prisma } from "@/generated/prisma/client";
-import { serialize } from "@/lib/domain.server";
+import { pagination, serialize } from "@/lib/domain.server";
 import { linhasEnderecoEmpresa, textoTelefonesEmpresa } from "@/lib/empresa-cabecalho";
 import { getPrisma } from "@/lib/prisma.server";
 import { assertAdminPermission, requireAuth } from "@/lib/session.server";
@@ -82,6 +82,86 @@ export const listarEventosComPdf = createServerFn({ method: "GET" }).handler(asy
   return serialize(eventos);
 });
 
+/** Documentos (cardápios em PDF) que a equipe acompanha: do evento aprovado em diante. */
+export const STATUS_DOCUMENTOS = ["APROVADO", "CONFIRMADO", "CANCELADO", "FINALIZADO"] as const;
+export const ORDENS_DOCUMENTOS = ["chegada-recente", "chegada-antiga", "data-evento"] as const;
+export type OrdemDocumentos = (typeof ORDENS_DOCUMENTOS)[number];
+
+/**
+ * Lista paginada da página Documentos (só a equipe): filtra no banco por status, busca e data,
+ * e devolve quantos documentos há em cada status para os filtros. Só entram eventos com cardápio
+ * no orçamento, que é o que o PDF imprime.
+ */
+export const listarDocumentosDosEventos = createServerFn({ method: "GET" })
+  .validator((value: unknown) =>
+    z
+      .object({
+        page: z.number().int().positive().default(1),
+        pageSize: z.number().int().min(1).max(100).default(20),
+        status: z.enum(STATUS_DOCUMENTOS).optional(),
+        busca: z.string().trim().max(100).default(""),
+        data: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+        ordem: z.enum(ORDENS_DOCUMENTOS).default("chegada-recente"),
+      })
+      .parse(value ?? {}),
+  )
+  .handler(async ({ data }) => {
+    const auth = await requireAuth();
+    assertAdminPermission(auth, "documentos");
+    if (auth.role === "CLIENT") throw new Error("Acesso restrito à equipe.");
+    const termo = data.busca;
+    const base: Prisma.EventoWhereInput = {
+      empresaId: auth.empresaId,
+      status: { in: [...STATUS_DOCUMENTOS] },
+      orcamentos: { some: { itens: { some: {} } } },
+      ...(termo
+        ? {
+            OR: [
+              { tipo: { contains: termo, mode: "insensitive" } },
+              { nome: { contains: termo, mode: "insensitive" } },
+              { cliente: { nome: { contains: termo, mode: "insensitive" } } },
+            ],
+          }
+        : {}),
+      ...(data.data ? { dataEvento: new Date(`${data.data}T00:00:00.000Z`) } : {}),
+    };
+    const where: Prisma.EventoWhereInput = data.status ? { ...base, status: data.status } : base;
+    const orderBy: Prisma.EventoOrderByWithRelationInput =
+      data.ordem === "data-evento"
+        ? { dataEvento: "asc" }
+        : { createdAt: data.ordem === "chegada-antiga" ? "asc" : "desc" };
+    const prisma = getPrisma();
+    const [items, total, porStatus] = await prisma.$transaction([
+      prisma.evento.findMany({
+        where,
+        include: {
+          cliente: { select: { nome: true } },
+          orcamentos: {
+            select: { total: true },
+            orderBy: [{ numero: "desc" }, { versao: "desc" }],
+            take: 1,
+          },
+        },
+        orderBy: [orderBy, { id: "asc" }],
+        ...pagination(data.page, data.pageSize),
+      }),
+      prisma.evento.count({ where }),
+      prisma.evento.groupBy({
+        by: ["status"],
+        where: base,
+        orderBy: { status: "asc" },
+        _count: true,
+      }),
+    ]);
+    const contagens = Object.fromEntries(
+      porStatus.map((linha) => [linha.status, linha._count as number]),
+    ) as Partial<Record<(typeof STATUS_DOCUMENTOS)[number], number>>;
+    return serialize({ items, total, contagens });
+  });
+
 type Autenticacao = Awaited<ReturnType<typeof requireAuth>>;
 type CacheLogos = Map<string, Promise<Uint8Array | null>>;
 
@@ -98,9 +178,10 @@ async function dadosPdfDoEvento(auth: Autenticacao, id: string, logos: CacheLogo
   if (!evento) throw new Error("Evento não encontrado.");
   const confirmado = (STATUS_COM_PDF as readonly string[]).includes(evento.status);
   // O cliente só recebe o PDF depois da confirmação, quando os valores já foram combinados.
+  // A equipe também baixa o cardápio de um evento cancelado, para consulta, no formato de orçamento.
   const comoOrcamento =
     auth.role !== "CLIENT" &&
-    (STATUS_COM_PDF_ORCAMENTO as readonly string[]).includes(evento.status);
+    ([...STATUS_COM_PDF_ORCAMENTO, "CANCELADO"] as readonly string[]).includes(evento.status);
   if (!confirmado && !comoOrcamento) {
     throw new Error(
       `O PDF de ${evento.cliente.nome} fica disponível quando o evento estiver confirmado.`,
