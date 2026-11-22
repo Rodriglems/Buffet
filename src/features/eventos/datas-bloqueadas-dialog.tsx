@@ -23,6 +23,7 @@ import {
 } from "@/features/eventos/bloqueios";
 import { contagem } from "@/features/servicos/regras-cardapio";
 import { useConfirmar } from "@/lib/confirmacao";
+import { cn } from "@/lib/utils";
 
 const CHAVE = ["datas-bloqueadas"] as const;
 
@@ -131,10 +132,10 @@ export function DatasBloqueadasDialog({
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
           <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
             <span className="flex items-center gap-1.5">
-              <span className="bg-primary size-3 rounded-sm" /> Escolhida agora
+              <span className="bg-primary size-3 rounded-full" /> Escolhida agora
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="bg-destructive size-3 rounded-sm" /> Bloqueada (toque para
+              <span className="bg-destructive size-3 rounded-full" /> Bloqueada (toque para
               desbloquear)
             </span>
             {consulta.isPending || desbloqueando ? (
@@ -154,12 +155,29 @@ export function DatasBloqueadasDialog({
               if (modificadores["bloqueada"]) void liberar(dia);
             }}
             disabled={{ before: hoje }}
+            showOutsideDays={false}
             modifiers={{ bloqueada: diasBloqueados }}
+            // Mesmo visual do calendário do formulário público: datas marcadas num círculo menor
+            // que a célula (vermelho = bloqueada, azul = escolhida agora).
             modifiersClassNames={{
               bloqueada:
-                "[&_button]:bg-destructive [&_button]:text-white [&_button]:font-semibold [&_button]:line-through [&_button]:hover:bg-destructive/85 [&_button]:hover:text-white",
+                "[&_button]:bg-destructive! [&_button]:text-white! [&_button]:line-through [&_button]:hover:bg-destructive/85!",
+              selected: "[&_button]:bg-primary! [&_button]:text-primary-foreground!",
             }}
-            className="bg-surface w-full rounded-xl p-3 ring-1 ring-black/5 [--cell-size:min(2.75rem,calc((100vw_-_6rem)/7))] [&_td_button]:aspect-auto [&_td_button]:h-(--cell-size) [&_td]:aspect-auto [&_td]:h-(--cell-size)"
+            classNames={{
+              caption_label: "select-none text-base font-semibold capitalize",
+              weekday:
+                "text-foreground/60 flex-1 select-none text-[11px] font-semibold uppercase tracking-wide",
+              disabled: "text-muted-foreground",
+              today: "[&_button]:ring-primary [&_button]:ring-1",
+            }}
+            className={cn(
+              "bg-surface w-full rounded-xl p-3 shadow-sm ring-1 ring-black/10",
+              "[--cell-size:min(2.75rem,calc((100vw_-_6rem)/7))] [&_td]:aspect-auto [&_td]:h-(--cell-size)",
+              "[&_td_button]:mx-auto [&_td_button]:size-8! [&_td_button]:min-w-0! [&_td_button]:rounded-full!",
+              "[&_td_button]:text-foreground/75 [&_td_button]:text-[15px] [&_td_button]:font-normal [&_td_button:not(:disabled):hover]:bg-primary/10",
+              "[&_td_button:disabled]:opacity-100 [&_td_button:disabled]:text-muted-foreground/70",
+            )}
           />
         </div>
 
