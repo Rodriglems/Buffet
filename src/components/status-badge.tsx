@@ -43,9 +43,9 @@ const statusBadge = cva(
 export type Tone = NonNullable<VariantProps<typeof statusBadge>["tone"]>;
 
 const mapa: Record<string, Tone> = {
-  // Eventos
-  ORCAMENTO: "blue",
-  APROVADO: "sky",
+  // Eventos: uma cor bem diferente por etapa (antes Orçamento e Aprovado eram dois azuis).
+  ORCAMENTO: "violet",
+  APROVADO: "blue",
   CONFIRMADO: "emerald",
   CANCELADO: "red",
   FINALIZADO: "zinc",

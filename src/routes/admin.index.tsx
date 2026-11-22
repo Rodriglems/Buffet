@@ -139,7 +139,6 @@ function Dashboard() {
   const futuros = eventos
     .filter((e) => e.status !== "Finalizado" && e.status !== "Cancelado")
     .sort((a, b) => a.data.localeCompare(b.data));
-  const proximo = futuros[0];
 
   // Pedidos novos (orçamento ainda em rascunho, evento aguardando) primeiro, do mais recente.
   const pedidosRecentes = dados.orcamentos
@@ -215,31 +214,32 @@ function Dashboard() {
           </div>
         </div>
 
-        <Panel className="p-5">
+        {/* Card de destaque do painel: o que a equipe precisa resolver agora. */}
+        <section className="bg-primary text-primary-foreground rounded-3xl p-5 sm:p-6">
           <div className="flex items-center gap-3">
-            <h2 className="font-display text-base font-semibold">Precisa da sua atenção</h2>
-            <span className="bg-destructive/10 text-destructive rounded-full px-2.5 py-0.5 text-[11px] font-medium">
-              {pendencias.length} pendências
+            <h2 className="font-display text-lg font-semibold">Precisa da sua atenção</h2>
+            <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-semibold">
+              {pendencias.length} {pendencias.length === 1 ? "pendência" : "pendências"}
             </span>
           </div>
           {pendencias.length ? null : (
-            <p className="text-muted-foreground mt-3 text-sm">
+            <p className="text-primary-foreground/80 mt-3 text-sm">
               Nenhum pedido novo ou parcela vencida. Tudo em dia!
             </p>
           )}
-          <ul className="mt-3 divide-y divide-border">
+          <ul className="mt-3 divide-y divide-white/15">
             {pendencias.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center gap-4 py-3">
-                <p.icon className="text-foreground/70 size-5 shrink-0" />
+                <p.icon className="text-primary-foreground/80 size-5 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{p.titulo}</p>
-                  <p className="text-muted-foreground text-xs">{p.meta}</p>
+                  <p className="text-primary-foreground/70 text-xs">{p.meta}</p>
                 </div>
                 <Button
                   asChild
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
-                  className="bg-surface h-9 min-w-36 rounded-lg"
+                  className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 h-9 min-w-36 rounded-lg max-sm:h-11 max-sm:w-full"
                 >
                   <Link to="/admin/eventos/$id" params={{ id: p.eventoId }}>
                     {p.acao}
@@ -248,7 +248,7 @@ function Dashboard() {
               </li>
             ))}
           </ul>
-        </Panel>
+        </section>
 
         <Panel className="p-5">
           <div className="flex items-center justify-between">
@@ -401,27 +401,6 @@ function Dashboard() {
 
       {/* Coluna lateral */}
       <div className="flex flex-col gap-5">
-        {proximo && (
-          <section className="bg-primary text-primary-foreground rounded-3xl p-6">
-            <p className="font-display text-lg font-semibold">Próximo evento</p>
-            <p className="font-display mt-3 text-xl font-bold">{proximo.nome}</p>
-            <p className="text-primary-foreground/70 text-sm">
-              {curta(proximo.data)} · {proximo.convidados} convidados
-            </p>
-            <p className="mt-4 text-sm font-medium">{proximo.tipo}</p>
-            <p className="text-primary-foreground/70 text-xs">Etapa atual: {proximo.status}</p>
-            <Button
-              asChild
-              variant="secondary"
-              className="bg-primary-foreground text-primary mt-5 h-11 w-full rounded-xl hover:bg-primary-foreground/90"
-            >
-              <Link to="/admin/eventos/$id" params={{ id: proximo.id }}>
-                Abrir evento
-              </Link>
-            </Button>
-          </section>
-        )}
-
         <Panel className="p-5">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-base font-semibold">Agenda do dia</h2>
