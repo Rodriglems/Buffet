@@ -23,6 +23,7 @@ import { urlFormularioPublico } from "@/lib/formulario-publico-url.server";
 import { hashPassword } from "@/lib/password.server";
 import { exigirDentroDoLimite } from "@/lib/limite-taxa.server";
 import { quantidadePadrao, unidadeNoOrcamento } from "@/features/orcamentos/unidade-item";
+import { centosValidos, ehVendidoPorCento } from "@/features/orcamentos/quantidade-cento";
 import { getPrisma } from "@/lib/prisma.server";
 import { enviarPush } from "@/lib/push.server";
 import { getAuthContext, issueSession, requirePermission } from "@/lib/session.server";
@@ -52,6 +53,8 @@ const solicitacaoSchema = tokenSchema
     cidade: z.string().trim().max(120).nullable().optional(),
     observacoes: z.string().trim().max(4000).nullable().optional(),
     servicosIds: z.array(z.string().uuid()).min(1).max(300),
+    // Centos escolhidos nos itens vendidos por cento (ex.: { bolinhoId: 1.5 }).
+    quantidades: z.record(z.string().uuid(), z.number()).default({}),
     // Opção escolhida para cada item que pede uma escolha (ex.: { massaId: recheioId }).
     // Por item, a opção escolhida em cada grupo ({ Recheio: id, Molho: id }). Um id solto é o
     // formato antigo (um grupo só), aceito para páginas abertas antes da mudança.
@@ -462,7 +465,12 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
       });
       const itens = servicos.map((servico) => {
         const unidade = unidadeNoOrcamento(servico.unidade);
-        const quantidade = quantidadePadrao(unidade, data.quantidadeConvidados);
+        // Item por cento: vale a quantidade que o cliente escolheu (múltiplo de meio cento).
+        const centos = data.quantidades[servico.id];
+        const quantidade =
+          ehVendidoPorCento(unidade) && centos !== undefined && centosValidos(centos)
+            ? centos
+            : quantidadePadrao(unidade, data.quantidadeConvidados);
         const valorUnitario = Number(servico.precoBase);
         return { servico, unidade, quantidade, valorUnitario, total: quantidade * valorUnitario };
       });
@@ -603,6 +611,8 @@ export const obterPedidoParaRefazer = createServerFn({ method: "GET" })
           select: {
             servicoId: true,
             descricao: true,
+            quantidade: true,
+            unidade: true,
             servico: {
               select: {
                 opcoes: { select: { grupo: true, opcao: { select: { id: true, nome: true } } } },
@@ -625,6 +635,8 @@ export const obterPedidoParaRefazer = createServerFn({ method: "GET" })
       itens: orcamento.itens.map((item) => ({
         servicoId: item.servicoId,
         descricao: item.descricao,
+        quantidade: Number(item.quantidade),
+        unidade: item.unidade,
         opcoes:
           item.servico?.opcoes.map((entrada) => ({ ...entrada.opcao, grupo: entrada.grupo })) ?? [],
       })),

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -8,13 +8,15 @@ import {
   Check,
   CheckCircle2,
   ClipboardCheck,
-  Info,
   ListChecks,
   Loader2,
   LogIn,
+  Minus,
   RotateCcw,
+  Plus,
   Search,
   Sparkles,
+  Trash2,
   Utensils,
   X,
   ChevronRight,
@@ -29,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CampoFormulario as Field,
+  CLASSE_ROTULO,
   ResumoCard,
   SelecaoFormulario as SelectField,
 } from "@/features/orcamentos/formulario-publico-components";
@@ -53,6 +56,17 @@ import {
   obterPedidoParaRefazer,
   enviarSolicitacaoOrcamento,
 } from "@/features/orcamentos/solicitacao-publica";
+import { CampoDataEvento } from "@/features/orcamentos/campo-data-evento";
+import {
+  centosValidos,
+  ehVendidoPorCento,
+  MAXIMO_PORCOES,
+  quantidadeDeCentos,
+  textoCentos,
+  totalEmCentos,
+  type QuantidadeCento,
+  type TamanhoPorcao,
+} from "@/features/orcamentos/quantidade-cento";
 import { login, logout } from "@/features/auth/server-functions";
 import { desvincularPushAoSair, sincronizarPush } from "@/features/notificacoes/push-cliente";
 import {
@@ -126,7 +140,7 @@ export function FormularioOrcamento({
   const [conectado, setConectado] = useState<ClienteConectado | null>(null);
   const [acessoCliente, setAcessoCliente] = useState({ email: "", senha: "" });
   const [entrando, setEntrando] = useState(false);
-  const [etapa, setEtapa] = useState<1 | 2 | 3>(1);
+  const [etapa, setEtapa] = useState<1 | 2 | 3 | 4>(1);
   const [enviando, setEnviando] = useState(false);
   const [concluido, setConcluido] = useState<null | {
     acesso: Acesso;
@@ -141,6 +155,8 @@ export function FormularioOrcamento({
   const [servicosSelecionados, setServicosSelecionados] = useState<string[]>([]);
   // Por item, a opção escolhida em cada grupo: { [servicoId]: { Recheio: id, Molho: id } }.
   const [escolhas, setEscolhas] = useState<Record<string, Record<string, string>>>({});
+  // Itens vendidos por cento: quantas porções e de que tamanho (cento ou meio cento).
+  const [quantidades, setQuantidades] = useState<Record<string, QuantidadeCento>>({});
   const [verEscolhidos, setVerEscolhidos] = useState(false);
   // Uma categoria aberta por vez (começam recolhidas); a busca abre as que têm resultado.
   const [categoriaAberta, setCategoriaAberta] = useState<string | null>(null);
@@ -150,6 +166,9 @@ export function FormularioOrcamento({
   // Datas que a equipe bloqueou (só as datas; o motivo é interno).
   const datasBloqueadas = empresa.datasBloqueadas;
   const dataIndisponivel = dataEstaBloqueada(dados.dataEvento, datasBloqueadas);
+  // Aviso de data vazia só depois de tentar seguir para a revisão.
+  const [tentouRevisar, setTentouRevisar] = useState(false);
+  const semData = tentouRevisar && !dados.dataEvento;
   const todosCardapios = useMemo(
     () => empresa.cardapiosPublicos.map((cardapio) => cardapio.nome),
     [empresa.cardapiosPublicos],
@@ -254,15 +273,27 @@ export function FormularioOrcamento({
         const { [id]: _removida, ...resto } = atuais;
         return resto;
       });
+      setQuantidades((atuais) => {
+        const { [id]: _removida, ...resto } = atuais;
+        return resto;
+      });
     }
   }
+
+  /** Quantidade de um item por cento; sem escolha ainda, vale 1 cento. */
+  const quantidadeDe = (id: string): QuantidadeCento =>
+    quantidades[id] ?? { porcoes: 1, tamanho: "cento" };
 
   function nomeComEscolha(servico: ServicoPublico) {
     const partes = gruposDe(servico).flatMap((grupo) => {
       const escolhida = porId.get(escolhas[servico.id]?.[grupo.nome] ?? "");
       return escolhida ? [{ rotulo: grupo.nome, opcao: escolhida.nome }] : [];
     });
-    return descreverEscolhas(servico.nome, partes);
+    const nome = descreverEscolhas(servico.nome, partes);
+    // Na revisão, o salgado já mostra quanto foi pedido ("Bolinho de bacalhau · 1½ cento").
+    return ehVendidoPorCento(servico.unidade)
+      ? `${nome} · ${textoCentos(totalEmCentos(quantidadeDe(servico.id)))}`
+      : nome;
   }
 
   /** Abre a categoria (fechando a anterior) e rola até ela, pois o fechamento desloca a página. */
@@ -311,6 +342,13 @@ export function FormularioOrcamento({
                   Object.entries(porGrupo).filter(([, opcao]) => porId.has(opcao)),
                 ),
               ]),
+          ),
+        );
+        setQuantidades(
+          Object.fromEntries(
+            Object.entries(pedido.quantidades)
+              .filter(([id, centos]) => ids.includes(id) && centosValidos(centos))
+              .map(([id, centos]) => [id, quantidadeDeCentos(centos)]),
           ),
         );
         setAdicionais(
@@ -378,8 +416,63 @@ export function FormularioOrcamento({
     setDados((atuais) => ({ ...atuais, nome: "", email: "", telefone: "", whatsapp: "" }));
   }
 
-  function avancarParaCardapio(event: MouseEvent<HTMLButtonElement>) {
-    const formulario = event.currentTarget.form;
+  /**
+   * Valida só os campos de uma etapa: as outras etapas ficam escondidas e o navegador não
+   * consegue apontar um campo escondido.
+   */
+  function etapaValida(id: string) {
+    const campos = document
+      .getElementById(id)
+      ?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+        "input, select, textarea",
+      );
+    for (const campo of campos ?? []) {
+      if (!campo.checkValidity()) {
+        campo.reportValidity();
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function irPara(proxima: 1 | 2 | 3 | 4) {
+    setErro(null);
+    setEtapa(proxima);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  /** Etapa 1 → 2: com o tipo e o formato escolhidos, o cardápio certo aparece. */
+  function avancarParaCardapio() {
+    if (!etapaValida("etapa-formato")) return;
+    irPara(2);
+  }
+
+  /** Etapa 2 → 3: pelo menos um prato e todas as escolhas (recheio, molho...). */
+  function avancarParaDados() {
+    if (!servicosSelecionados.length) {
+      setErro("Escolha pelo menos um item para montar sua proposta.");
+      return;
+    }
+    if (semEscolha.length) {
+      setErro(
+        `Escolha ${semEscolha
+          .map((servico) => `${listaDeEscolhas(faltamEm(servico))} de ${servico.nome}`)
+          .join("; ")}.`,
+      );
+      setVerEscolhidos(true);
+      return;
+    }
+    irPara(3);
+  }
+
+  /** Etapa 3 → 4: contato, data livre e horários coerentes. */
+  function avancarParaRevisao() {
+    setTentouRevisar(true);
+    // A data vem do calendário próprio (um botão), que o navegador não valida sozinho.
+    if (!dados.dataEvento) {
+      document.getElementById("dataEvento")?.focus();
+      return;
+    }
     if (dataIndisponivel) {
       // O aviso já está junto do campo; aqui só impede avançar e leva a pessoa até ele.
       document.getElementById("dataEvento")?.focus();
@@ -400,29 +493,8 @@ export function FormularioOrcamento({
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    if (!formulario?.reportValidity()) return;
-    setErro(null);
-    setEtapa(2);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function avancarParaRevisao() {
-    if (!servicosSelecionados.length) {
-      setErro("Escolha pelo menos um item para montar sua proposta.");
-      return;
-    }
-    if (semEscolha.length) {
-      setErro(
-        `Escolha ${semEscolha
-          .map((servico) => `${listaDeEscolhas(faltamEm(servico))} de ${servico.nome}`)
-          .join("; ")}.`,
-      );
-      setVerEscolhidos(true);
-      return;
-    }
-    setErro(null);
-    setEtapa(3);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (!etapaValida("etapa-dados")) return;
+    irPara(4);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -451,6 +523,12 @@ export function FormularioOrcamento({
           cidade: dados.cidade || null,
           observacoes: dados.observacoes || null,
           servicosIds: servicosSelecionados,
+          // Centos de cada item vendido por cento (ex.: 3 × meio cento = 1,5).
+          quantidades: Object.fromEntries(
+            selecionados
+              .filter((servico) => ehVendidoPorCento(servico.unidade))
+              .map((servico) => [servico.id, totalEmCentos(quantidadeDe(servico.id))]),
+          ),
           escolhas: Object.fromEntries(
             Object.entries(escolhas).filter(([id]) => servicosSelecionados.includes(id)),
           ),
@@ -487,11 +565,13 @@ export function FormularioOrcamento({
               <Utensils className="size-5" />
             </div>
           )}
-          <p className="font-display mt-4 text-sm font-semibold">{empresa.nomeFantasia}</p>
-          <h1 className="font-display mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+          <p className="text-muted-foreground mt-4 text-xs font-semibold uppercase tracking-wider">
+            {empresa.nomeFantasia}
+          </p>
+          <h1 className="font-display mt-1.5 text-[1.75rem] leading-tight font-bold tracking-tight sm:text-4xl">
             Vamos montar seu evento?
           </h1>
-          <p className="text-muted-foreground mx-auto mt-3 max-w-2xl text-sm sm:text-base">
+          <p className="text-muted-foreground mx-auto mt-2 max-w-2xl text-[13px] leading-5 sm:text-base">
             Conte o que está planejando, escolha seus pratos favoritos e receba uma proposta feita
             para você.
           </p>
@@ -522,8 +602,8 @@ export function FormularioOrcamento({
               <>
                 <p className="text-muted-foreground mt-3 text-sm leading-6">
                   Sua conta foi criada{concluido.logado ? " e você já está conectado" : ""}. Nas
-                  próximas vezes, entre com o e-mail <strong>{dados.email}</strong> e a senha que
-                  você cadastrou.
+                  próximas vezes, entre com o e-mail{" "}
+                  <strong className="break-all">{dados.email}</strong> e a senha que você cadastrou.
                 </p>
                 <Button asChild className="mt-6">
                   <Link to={concluido.logado ? "/cliente" : "/"}>Acompanhar meu pedido</Link>
@@ -534,8 +614,9 @@ export function FormularioOrcamento({
                 Este e-mail já está no nosso cadastro.{" "}
                 {concluido.linkEnviado ? (
                   <>
-                    Para proteger seus dados, enviamos para <strong>{dados.email}</strong> um link
-                    para você criar sua senha e acompanhar o pedido.
+                    Para proteger seus dados, enviamos para{" "}
+                    <strong className="break-all">{dados.email}</strong> um link para você criar sua
+                    senha e acompanhar o pedido.
                   </>
                 ) : (
                   "Para proteger seus dados, nossa equipe vai enviar um link para você criar sua senha e acompanhar o pedido."
@@ -564,8 +645,11 @@ export function FormularioOrcamento({
             )}
           </section>
         ) : (
-          <form className="grid gap-5" onSubmit={submit}>
-            <nav className="panel grid grid-cols-3 gap-2 p-2" aria-label="Etapas do formulário">
+          <form className="grid grid-cols-1 gap-5" onSubmit={submit}>
+            <nav
+              className="panel grid grid-cols-4 gap-1.5 p-2 sm:gap-2"
+              aria-label="Etapas do formulário"
+            >
               {ETAPAS_FORMULARIO.map((item) => {
                 const ativa = etapa === item.numero;
                 const concluida = etapa > item.numero;
@@ -589,7 +673,9 @@ export function FormularioOrcamento({
                     >
                       {concluida ? <Check className="size-3" /> : item.numero}
                     </span>
-                    <span className="font-medium">{item.label}</span>
+                    <span className={cn("font-medium", !ativa && "max-sm:sr-only")}>
+                      {item.label}
+                    </span>
                   </div>
                 );
               })}
@@ -615,7 +701,67 @@ export function FormularioOrcamento({
               </p>
             ) : null}
 
-            <section className={etapa === 1 ? "panel grid gap-8 p-6 sm:p-8" : "hidden"}>
+            {/* Etapa 1: o formato (com o tipo de celebração) define os cardápios. */}
+            <section
+              id="etapa-formato"
+              className={etapa === 1 ? "panel grid gap-8 p-5 sm:p-8" : "hidden"}
+            >
+              {/* Celebração num select; os formatos, logo abaixo, ficam à vista para tocar. */}
+              <div className="grid gap-4">
+                <SelectField
+                  label="Qual é a celebração?"
+                  name="tipoEvento"
+                  value={dados.tipoEvento}
+                  onChange={(e) => atualizar("tipoEvento", e.target.value)}
+                  required
+                >
+                  <option value="" disabled>
+                    Selecione o tipo de evento
+                  </option>
+                  {TIPOS_EVENTO.map((tipo) => (
+                    <option key={tipo} value={tipo}>
+                      {tipo}
+                    </option>
+                  ))}
+                </SelectField>
+                {dados.tipoEvento === "Outros" ? (
+                  <Field
+                    label="Qual é o tipo do evento?"
+                    name="tipoEventoOutro"
+                    value={dados.tipoEventoOutro}
+                    onChange={(e) => atualizar("tipoEventoOutro", e.target.value)}
+                    required
+                  />
+                ) : null}
+              </div>
+
+              <SelectField
+                label="Qual formato deseja servir?"
+                name="formatoServico"
+                value={dados.formatoServico}
+                onChange={(e) => atualizar("formatoServico", e.target.value)}
+                required
+              >
+                <option value="" disabled>
+                  Selecione o formato
+                </option>
+                {empresa.formatosServico.map((item) => (
+                  <option key={item.nome} value={item.nome}>
+                    {item.nome}
+                  </option>
+                ))}
+              </SelectField>
+
+              <Button type="button" className="h-12" onClick={avancarParaCardapio}>
+                Ver cardápio
+              </Button>
+            </section>
+
+            {/* Etapa 3: contato e detalhes do evento, depois de escolher os pratos. */}
+            <section
+              id="etapa-dados"
+              className={etapa === 3 ? "panel grid gap-8 p-6 sm:p-8" : "hidden"}
+            >
               <div>
                 <p className="text-primary text-xs font-semibold uppercase tracking-wider">
                   Primeiro contato
@@ -625,7 +771,7 @@ export function FormularioOrcamento({
                     ? `Olá, ${conectado.nome.trim().split(/\s+/)[0]}!`
                     : "Conte um pouco sobre você"}
                 </h2>
-                <p className="text-muted-foreground mt-1 text-sm">
+                <p className="text-muted-foreground mt-1 text-[13px]">
                   {conectado
                     ? "Seus dados já estão salvos. Siga para os detalhes do evento."
                     : "Assim conseguimos retornar pelo canal certo."}
@@ -726,11 +872,12 @@ export function FormularioOrcamento({
                           }
                         />
                         <div>
-                          <Label htmlFor="acessoSenha" className="mb-1.5 block">
+                          <Label htmlFor="acessoSenha" className={CLASSE_ROTULO}>
                             Senha
                           </Label>
                           <InputSenha
                             id="acessoSenha"
+                            className="h-11 text-base md:text-sm"
                             name="acessoSenha"
                             autoComplete="current-password"
                             value={acessoCliente.senha}
@@ -811,11 +958,12 @@ export function FormularioOrcamento({
                           </p>
                           <div className="mt-4 grid gap-4 sm:grid-cols-2">
                             <div>
-                              <Label htmlFor="senha" className="mb-1.5 block">
+                              <Label htmlFor="senha" className={CLASSE_ROTULO}>
                                 Senha
                               </Label>
                               <InputSenha
                                 id="senha"
+                                className="h-11 text-base md:text-sm"
                                 name="senha"
                                 autoComplete="new-password"
                                 minLength={4}
@@ -826,11 +974,12 @@ export function FormularioOrcamento({
                               />
                             </div>
                             <div>
-                              <Label htmlFor="confirmarSenha" className="mb-1.5 block">
+                              <Label htmlFor="confirmarSenha" className={CLASSE_ROTULO}>
                                 Confirme a senha
                               </Label>
                               <InputSenha
                                 id="confirmarSenha"
+                                className="h-11 text-base md:text-sm"
                                 name="confirmarSenha"
                                 autoComplete="new-password"
                                 minLength={4}
@@ -862,68 +1011,26 @@ export function FormularioOrcamento({
                 <p className="text-primary text-xs font-semibold uppercase tracking-wider">
                   O evento
                 </p>
-                <h2 className="font-display mt-1 text-xl font-semibold">
-                  O que você está planejando?
-                </h2>
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <SelectField
-                    label="Qual é a celebração?"
-                    name="tipoEvento"
-                    value={dados.tipoEvento}
-                    onChange={(e) => atualizar("tipoEvento", e.target.value)}
-                    required
-                  >
-                    <option value="" disabled>
-                      Selecione o tipo de evento
-                    </option>
-                    {TIPOS_EVENTO.map((tipo) => (
-                      <option key={tipo} value={tipo}>
-                        {tipo}
-                      </option>
-                    ))}
-                  </SelectField>
-                  <SelectField
-                    label="Qual formato deseja servir?"
-                    name="formatoServico"
-                    value={dados.formatoServico}
-                    onChange={(e) => atualizar("formatoServico", e.target.value)}
-                    required
-                  >
-                    <option value="" disabled>
-                      Selecione o formato
-                    </option>
-                    {empresa.formatosServico.map((item) => (
-                      <option key={item.nome} value={item.nome}>
-                        {item.nome}
-                      </option>
-                    ))}
-                  </SelectField>
-                  {dados.tipoEvento === "Outros" ? (
-                    <Field
-                      label="Qual é o tipo do evento?"
-                      name="tipoEventoOutro"
-                      value={dados.tipoEventoOutro}
-                      onChange={(e) => atualizar("tipoEventoOutro", e.target.value)}
-                      required
-                    />
-                  ) : null}
-                  <div className="grid content-start gap-1.5">
-                    <Field
-                      label="Data do evento"
-                      name="dataEvento"
-                      type="date"
-                      min={obterDataMinimaEvento()}
-                      value={dados.dataEvento}
-                      onChange={(e) => atualizar("dataEvento", e.target.value)}
-                      aria-invalid={dataIndisponivel || undefined}
-                      aria-describedby={
+                <h2 className="font-display mt-1 text-xl font-semibold">Quando e onde vai ser?</h2>
+                <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {/* min-w-0: um texto longo no campo da data não alarga a coluna além da tela. */}
+                  <div className="grid min-w-0 content-start gap-1.5">
+                    {/* Calendário próprio: as datas bloqueadas aparecem em vermelho e riscadas. */}
+                    <CampoDataEvento
+                      valor={dados.dataEvento}
+                      onChange={(data) => atualizar("dataEvento", data)}
+                      bloqueadas={datasBloqueadas}
+                      minima={obterDataMinimaEvento()}
+                      invalido={dataIndisponivel || semData}
+                      descricaoId={
                         dataIndisponivel
                           ? "dataEvento-indisponivel"
-                          : datasBloqueadas.length
-                            ? "dataEvento-bloqueadas"
-                            : undefined
+                          : semData
+                            ? "dataEvento-vazia"
+                            : datasBloqueadas.length
+                              ? "dataEvento-bloqueadas"
+                              : undefined
                       }
-                      required
                     />
                     {dataIndisponivel ? (
                       <p
@@ -932,6 +1039,10 @@ export function FormularioOrcamento({
                         className="text-destructive text-sm"
                       >
                         {MENSAGEM_DATA_BLOQUEADA}
+                      </p>
+                    ) : semData ? (
+                      <p id="dataEvento-vazia" role="alert" className="text-destructive text-sm">
+                        Escolha a data do evento.
                       </p>
                     ) : datasBloqueadas.length ? (
                       <p id="dataEvento-bloqueadas" className="text-muted-foreground text-xs">
@@ -988,7 +1099,7 @@ export function FormularioOrcamento({
 
               <div className="border-border border-t pt-7">
                 <h3 className="font-display font-semibold">Adicionais de interesse</h3>
-                <p className="text-muted-foreground mt-1 text-sm">
+                <p className="text-muted-foreground mt-1 text-[13px]">
                   Marque o que gostaria de incluir ou conversar com a nossa equipe.
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -1017,7 +1128,7 @@ export function FormularioOrcamento({
                   ))}
                 </div>
                 <div className="mt-5">
-                  <Label htmlFor="observacoes" className="mb-1.5 block">
+                  <Label htmlFor="observacoes" className={CLASSE_ROTULO}>
                     Algum detalhe importante?
                   </Label>
                   <Textarea
@@ -1031,43 +1142,34 @@ export function FormularioOrcamento({
                 </div>
               </div>
 
-              <Button type="button" className="h-12" onClick={avancarParaCardapio}>
-                Ver o cardápio ideal para mim <ArrowRight className="size-4" />
-              </Button>
+              <div className="grid grid-cols-[auto_1fr] gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12"
+                  onClick={() => irPara(2)}
+                  aria-label="Voltar ao cardápio"
+                >
+                  <ArrowLeft className="size-4" />
+                  <span className="hidden sm:inline">Voltar</span>
+                </Button>
+                <Button type="button" className="h-12" onClick={avancarParaRevisao}>
+                  Revisar pedido <ArrowRight className="size-4" />
+                </Button>
+              </div>
             </section>
 
             <section className={etapa === 2 ? "grid gap-5" : "hidden"}>
               <div className="panel p-6 sm:p-8">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                  <div>
-                    <p className="text-primary text-xs font-semibold uppercase tracking-wider">
-                      Seleção personalizada
-                    </p>
-                    <h2 className="font-display mt-1 flex items-center gap-2 text-xl font-semibold">
-                      <Utensils className="size-5" /> Escolha seus pratos
-                    </h2>
-                    <p className="text-muted-foreground mt-2 max-w-2xl text-sm">
-                      Mostramos primeiro os cardápios indicados para {formato || "seu evento"}. Os
-                      itens que você marcar continuam escolhidos mesmo ao trocar de cardápio ou de
-                      categoria.
-                    </p>
-                  </div>
-                  <div className="bg-primary/10 text-primary shrink-0 rounded-xl px-4 py-3 text-center">
-                    <strong className="font-display block text-xl">
-                      {servicosSelecionados.length}
-                    </strong>
-                    <span className="text-xs">itens escolhidos</span>
-                  </div>
-                </div>
-
-                <p className="bg-surface text-muted-foreground mt-5 flex gap-2 rounded-xl p-3 text-xs ring-1 ring-black/5">
-                  <Info className="text-primary size-4 shrink-0" />
-                  Os valores são personalizados para o seu evento e aparecem na proposta que
-                  enviaremos.
-                </p>
+                {/* Só o essencial: o título e para qual formato é o cardápio. A contagem de itens
+                    fica na barra de baixo, e o aviso dos valores vai para a revisão. */}
+                <h2 className="font-display text-xl font-semibold">Escolha seus pratos</h2>
+                {formato ? (
+                  <p className="text-muted-foreground mt-1 text-[13px]">Cardápio para {formato}</p>
+                ) : null}
 
                 <div
-                  className="mt-6 flex flex-wrap gap-2"
+                  className="mt-5 flex flex-wrap gap-2"
                   role="tablist"
                   aria-label="Cardápios disponíveis"
                 >
@@ -1100,14 +1202,31 @@ export function FormularioOrcamento({
                   </button>
                 </div>
 
+                {/* Texto curto que cabe no celular; a busca também acha ingrediente e categoria. */}
                 <div className="relative mt-5">
-                  <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+                  <Search
+                    className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2"
+                    aria-hidden
+                  />
                   <Input
+                    type="search"
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
-                    placeholder="Buscar prato, ingrediente ou categoria"
-                    className="h-11 pl-10"
+                    placeholder="Buscar no cardápio"
+                    aria-label="Buscar prato, ingrediente ou categoria"
+                    enterKeyHint="search"
+                    className="h-11 pr-11 pl-10 text-base [&::-webkit-search-cancel-button]:hidden"
                   />
+                  {busca ? (
+                    <button
+                      type="button"
+                      onClick={() => setBusca("")}
+                      aria-label="Limpar busca"
+                      className="text-muted-foreground hover:text-foreground absolute top-1/2 right-1 grid size-9 -translate-y-1/2 place-items-center rounded-md"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  ) : null}
                 </div>
 
                 {categorias.length > 1 ? (
@@ -1166,7 +1285,7 @@ export function FormularioOrcamento({
                                 aberta && "rotate-90",
                               )}
                             />
-                            <span className="font-display flex-1 text-lg font-semibold">
+                            <span className="font-display flex-1 text-base font-semibold">
                               {categoria}
                             </span>
                             <span className="text-muted-foreground text-xs font-normal">
@@ -1188,6 +1307,13 @@ export function FormularioOrcamento({
                               selecionado={servicosSelecionados.includes(servico.id)}
                               grupos={gruposDe(servico)}
                               escolhas={escolhas[servico.id]}
+                              quantidade={quantidadeDe(servico.id)}
+                              onQuantidade={(quantidade) =>
+                                setQuantidades((atuais) => ({
+                                  ...atuais,
+                                  [servico.id]: quantidade,
+                                }))
+                              }
                               onAlternar={(marcado) => alternarServico(servico.id, marcado)}
                               onEscolher={(grupo, opcaoId) =>
                                 setEscolhas((atuais) => ({
@@ -1273,15 +1399,14 @@ export function FormularioOrcamento({
                       size="sm"
                       variant="outline"
                       className="px-2 sm:px-3"
-                      aria-label="Voltar aos dados do evento"
-                      onClick={() => setEtapa(1)}
+                      aria-label="Voltar ao formato"
+                      onClick={() => irPara(1)}
                     >
                       <ArrowLeft className="size-4" />{" "}
                       <span className="hidden sm:inline">Voltar</span>
                     </Button>
-                    <Button type="button" size="sm" onClick={avancarParaRevisao}>
-                      <span className="sm:hidden">Revisar</span>
-                      <span className="hidden sm:inline">Revisar escolhas</span>
+                    <Button type="button" size="sm" onClick={avancarParaDados}>
+                      Continuar
                       <ArrowRight className="size-4" />
                     </Button>
                   </div>
@@ -1289,7 +1414,7 @@ export function FormularioOrcamento({
               </div>
             </section>
 
-            <section className={etapa === 3 ? "grid gap-5" : "hidden"}>
+            <section className={etapa === 4 ? "grid gap-5" : "hidden"}>
               <div className="panel p-6 sm:p-8">
                 <p className="text-primary text-xs font-semibold uppercase tracking-wider">
                   Quase pronto
@@ -1301,13 +1426,13 @@ export function FormularioOrcamento({
                   Confira os dados. O envio não fecha o pedido nem gera cobrança.
                 </p>
 
-                <div className="mt-6 grid gap-4 md:grid-cols-2">
-                  <ResumoCard titulo="Contato" onEditar={() => setEtapa(1)}>
+                <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <ResumoCard titulo="Contato" onEditar={() => setEtapa(3)}>
                     <p className="font-medium">{dados.nome}</p>
-                    <p>{dados.email}</p>
+                    <p className="break-all">{dados.email}</p>
                     <p>{dados.whatsapp}</p>
                   </ResumoCard>
-                  <ResumoCard titulo="Evento" onEditar={() => setEtapa(1)}>
+                  <ResumoCard titulo="Evento" onEditar={() => setEtapa(3)}>
                     <p className="font-medium">
                       {dados.tipoEvento === "Outros" ? dados.tipoEventoOutro : dados.tipoEvento}
                     </p>
@@ -1337,7 +1462,7 @@ export function FormularioOrcamento({
                         {adicionais.join(" · ")}
                       </p>
                     </div>
-                    <Button type="button" size="sm" variant="ghost" onClick={() => setEtapa(1)}>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setEtapa(3)}>
                       Editar
                     </Button>
                   </div>
@@ -1378,14 +1503,21 @@ export function FormularioOrcamento({
               <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-muted-foreground flex max-w-xl gap-2 text-xs leading-5">
                   <Sparkles className="text-primary mt-0.5 size-4 shrink-0" />
-                  Após o envio, a nossa equipe analisa as combinações, quantidades e disponibilidade
-                  antes de apresentar o orçamento final.
+                  Depois do envio, a equipe confere o cardápio e a data e manda o orçamento com os
+                  valores do seu evento.
                 </p>
-                <div className="flex shrink-0 gap-2">
-                  <Button type="button" variant="outline" onClick={() => setEtapa(2)}>
-                    <ArrowLeft className="size-4" /> Voltar
+                <div className="grid shrink-0 grid-cols-[auto_1fr] gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-12 sm:h-11"
+                    onClick={() => setEtapa(3)}
+                    aria-label="Voltar aos dados"
+                  >
+                    <ArrowLeft className="size-4" />
+                    <span className="hidden sm:inline">Voltar</span>
                   </Button>
-                  <Button type="submit" disabled={enviando} className="h-11 min-w-44">
+                  <Button type="submit" disabled={enviando} className="h-12 sm:h-11 sm:min-w-44">
                     {enviando ? (
                       <Loader2 className="size-4 animate-spin" />
                     ) : (
@@ -1409,14 +1541,18 @@ export function FormularioOrcamento({
 }
 
 /**
- * Cartão de um item do cardápio; quando escolhido e com opções, pede uma escolha de cada grupo
- * (ex.: o recheio e o molho da massa).
+ * Cartão de um item do cardápio. Itens por pessoa usam a caixa de marcar; itens vendidos por
+ * cento (salgadinhos) usam "+ Adicionar", que vira o seletor de quantidade com o tamanho da
+ * porção (cento ou meio cento), como nos apps de delivery. Escolhido e com opções, pede uma
+ * escolha de cada grupo (ex.: o recheio e o molho da massa).
  */
 function CartaoItem({
   servico,
   selecionado,
   grupos,
   escolhas,
+  quantidade,
+  onQuantidade,
   onAlternar,
   onEscolher,
 }: {
@@ -1424,10 +1560,36 @@ function CartaoItem({
   selecionado: boolean;
   grupos: { nome: string; opcoes: ServicoPublico[] }[];
   escolhas: Record<string, string> | undefined;
+  quantidade: QuantidadeCento;
+  onQuantidade: (quantidade: QuantidadeCento) => void;
   onAlternar: (marcado: boolean) => void;
   onEscolher: (grupo: string, opcaoId: string) => void;
 }) {
   const preco = Number(servico.precoBase);
+  const porCento = ehVendidoPorCento(servico.unidade);
+  const textos = (
+    <span className="min-w-0 flex-1">
+      <span className="block text-sm font-semibold leading-5">{servico.nome}</span>
+      {servico.descricao ? (
+        <span className="text-muted-foreground mt-1 block text-xs leading-5">
+          {servico.descricao}
+        </span>
+      ) : null}
+      {servico.precoVisivel && preco > 0 ? (
+        <span className="text-primary mt-2 block text-xs font-semibold">
+          {formatBRL(preco)} · {servico.unidade}
+        </span>
+      ) : null}
+      {grupos.length && !selecionado ? (
+        <span className="text-muted-foreground mt-1 block text-xs">
+          Você escolhe {listaDeEscolhas(grupos.map((grupo) => grupo.nome))} ao marcar.
+        </span>
+      ) : null}
+    </span>
+  );
+  const foto = servico.imagemUrl ? (
+    <img src={servico.imagemUrl} alt="" className="size-16 rounded-lg object-cover" />
+  ) : null;
   return (
     <div
       className={cn(
@@ -1437,34 +1599,40 @@ function CartaoItem({
           : "bg-surface ring-black/5 hover:ring-primary/30",
       )}
     >
-      <label className="flex cursor-pointer gap-3">
-        {servico.imagemUrl ? (
-          <img src={servico.imagemUrl} alt="" className="size-16 rounded-lg object-cover" />
-        ) : null}
-        <Checkbox
-          checked={selecionado}
-          onCheckedChange={(checked) => onAlternar(checked === true)}
-          aria-label={`Selecionar ${servico.nome}`}
+      {porCento ? (
+        <div className="flex gap-3">
+          {foto}
+          {textos}
+          {selecionado ? null : (
+            <button
+              type="button"
+              onClick={() => onAlternar(true)}
+              aria-label={`Adicionar ${servico.nome}`}
+              className="text-primary ring-primary/40 hover:bg-primary/5 flex h-10 shrink-0 items-center gap-1 self-start rounded-full px-3 text-sm font-semibold ring-1"
+            >
+              <Plus className="size-4" aria-hidden /> Adicionar
+            </button>
+          )}
+        </div>
+      ) : (
+        <label className="flex cursor-pointer gap-3">
+          {foto}
+          <Checkbox
+            checked={selecionado}
+            onCheckedChange={(checked) => onAlternar(checked === true)}
+            aria-label={`Selecionar ${servico.nome}`}
+          />
+          {textos}
+        </label>
+      )}
+      {porCento && selecionado ? (
+        <ControleCentos
+          nome={servico.nome}
+          quantidade={quantidade}
+          onMudar={onQuantidade}
+          onRemover={() => onAlternar(false)}
         />
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold leading-5">{servico.nome}</span>
-          {servico.descricao ? (
-            <span className="text-muted-foreground mt-1 block text-xs leading-5">
-              {servico.descricao}
-            </span>
-          ) : null}
-          {servico.precoVisivel && preco > 0 ? (
-            <span className="text-primary mt-2 block text-xs font-semibold">
-              {formatBRL(preco)} · {servico.unidade}
-            </span>
-          ) : null}
-          {grupos.length && !selecionado ? (
-            <span className="text-muted-foreground mt-1 block text-xs">
-              Você escolhe {listaDeEscolhas(grupos.map((grupo) => grupo.nome))} ao marcar.
-            </span>
-          ) : null}
-        </span>
-      </label>
+      ) : null}
       {selecionado
         ? grupos.map((grupo, indice) => {
             const idCampo = `escolha-${servico.id}-${indice}`;
@@ -1497,6 +1665,94 @@ function CartaoItem({
             );
           })
         : null}
+    </div>
+  );
+}
+
+/**
+ * Quantidade de um salgado: tamanho da porção (Cento | Meio cento) e quantas porções [– n +].
+ * No 1, o "–" vira lixeira e tira o item; embaixo, o total em centos e em unidades.
+ */
+function ControleCentos({
+  nome,
+  quantidade,
+  onMudar,
+  onRemover,
+}: {
+  nome: string;
+  quantidade: QuantidadeCento;
+  onMudar: (quantidade: QuantidadeCento) => void;
+  onRemover: () => void;
+}) {
+  const { porcoes, tamanho } = quantidade;
+  const centos = totalEmCentos(quantidade);
+  const tamanhos: { valor: TamanhoPorcao; rotulo: string }[] = [
+    { valor: "cento", rotulo: "Cento" },
+    { valor: "meio", rotulo: "Meio cento" },
+  ];
+  return (
+    <div className="grid gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div
+          role="radiogroup"
+          aria-label={`Tamanho da porção de ${nome}`}
+          className="bg-muted inline-flex rounded-full p-1"
+        >
+          {tamanhos.map((item) => (
+            <button
+              key={item.valor}
+              type="button"
+              role="radio"
+              aria-checked={tamanho === item.valor}
+              onClick={() => onMudar({ porcoes, tamanho: item.valor })}
+              className={cn(
+                "h-9 rounded-full px-3 text-sm font-medium transition-colors",
+                tamanho === item.valor
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {item.rotulo}
+            </button>
+          ))}
+        </div>
+        <div className="ring-primary/40 inline-flex items-center rounded-full ring-1">
+          <button
+            type="button"
+            onClick={() =>
+              porcoes <= 1 ? onRemover() : onMudar({ porcoes: porcoes - 1, tamanho })
+            }
+            aria-label={porcoes <= 1 ? `Remover ${nome}` : `Diminuir ${nome}`}
+            className="text-primary hover:bg-primary/5 grid size-10 place-items-center rounded-full"
+          >
+            {porcoes <= 1 ? (
+              <Trash2 className="size-4" aria-hidden />
+            ) : (
+              <Minus className="size-4" aria-hidden />
+            )}
+          </button>
+          <span
+            className="min-w-8 text-center text-base font-semibold tabular-nums"
+            aria-live="polite"
+          >
+            {porcoes}
+          </span>
+          <button
+            type="button"
+            onClick={() => onMudar({ porcoes: porcoes + 1, tamanho })}
+            disabled={porcoes >= MAXIMO_PORCOES}
+            aria-label={`Aumentar ${nome}`}
+            className="text-primary hover:bg-primary/5 grid size-10 place-items-center rounded-full disabled:opacity-40"
+          >
+            <Plus className="size-4" aria-hidden />
+          </button>
+        </div>
+      </div>
+      <p className="text-muted-foreground text-xs">
+        {tamanho === "meio" ? `${porcoes} × meio cento = ` : ""}
+        <span className="text-foreground font-medium">{textoCentos(centos)}</span> · {centos * 100}{" "}
+        unidades
+      </p>
     </div>
   );
 }

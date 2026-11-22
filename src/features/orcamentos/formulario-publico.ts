@@ -1,7 +1,9 @@
 export const ETAPAS_FORMULARIO = [
-  { numero: 1, label: "Seu evento" },
+  // O formato vem primeiro porque define os cardápios; os dados do evento vêm depois dos pratos.
+  { numero: 1, label: "Formato" },
   { numero: 2, label: "Cardápio" },
-  { numero: 3, label: "Revisão" },
+  { numero: 3, label: "Seus dados" },
+  { numero: 4, label: "Revisão" },
 ] as const;
 
 export type DadosFormularioOrcamento = {
@@ -94,6 +96,8 @@ export type PedidoParaRefazer = {
   servicosIds: string[];
   /** Por item, a opção escolhida em cada grupo: { [servicoId]: { Recheio: id, Molho: id } }. */
   escolhas: Record<string, Record<string, string>>;
+  /** Centos dos itens vendidos por cento (ex.: { bolinhoId: 1.5 }). */
+  quantidades: Record<string, number>;
   adicionais: string[];
 };
 
@@ -101,6 +105,8 @@ type ItemAntigo = {
   servicoId: string | null;
   descricao: string;
   opcoes: { id: string; nome: string; grupo: string }[];
+  quantidade?: number;
+  unidade?: string;
 };
 
 /**
@@ -121,9 +127,14 @@ export function montarPedidoParaRefazer(dados: {
 }): PedidoParaRefazer {
   const servicosIds: string[] = [];
   const escolhas: Record<string, Record<string, string>> = {};
+  const quantidades: Record<string, number> = {};
   for (const item of dados.itens) {
     if (!item.servicoId || servicosIds.includes(item.servicoId)) continue;
     servicosIds.push(item.servicoId);
+    // Itens por cento voltam com a mesma quantidade (ex.: 1,5 cento).
+    if (item.unidade && normalizarBusca(item.unidade).includes("cento") && item.quantidade) {
+      quantidades[item.servicoId] = item.quantidade;
+    }
     // As escolhas ficam depois do " — " na descrição; reconhece uma opção por grupo.
     const descricao = normalizarBusca(item.descricao.split(" — ").slice(1).join(" — "));
     const doItem: Record<string, string> = {};
@@ -145,6 +156,7 @@ export function montarPedidoParaRefazer(dados: {
     cidade: dados.cidade ?? "",
     servicosIds,
     escolhas,
+    quantidades,
     adicionais: dados.servicosAdicionais,
   };
 }
