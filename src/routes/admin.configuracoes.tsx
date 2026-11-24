@@ -8,6 +8,8 @@ import { SeletorImagem } from "@/components/seletor-imagem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { atualizarEmpresa, obterConfiguracoes } from "@/features/empresa/server-functions";
 import { uploadImagem } from "@/features/uploads/server-functions";
@@ -34,6 +36,105 @@ function Campo({ label, name, value }: { label: string; name: string; value: str
       <Label htmlFor={name}>{label}</Label>
       <Input id={name} name={name} defaultValue={value} />
     </div>
+  );
+}
+
+const EXEMPLO_RODAPE = "OBS. Será entregue tudo arrumado nas travessas.\n\nCheff Ray";
+
+/**
+ * Pedido pelo WhatsApp: liga ou desliga o modo do formulário público sem conta nem portal do
+ * cliente. O interruptor salva na hora; o texto final da mensagem tem o próprio botão.
+ */
+function PedidoPeloWhatsapp({
+  ligado,
+  rodape,
+  temWhatsapp,
+}: {
+  ligado: boolean;
+  rodape: string;
+  temWhatsapp: boolean;
+}) {
+  const atualizar = useServerFn(atualizarEmpresa);
+  const router = useRouter();
+  const [ativo, setAtivo] = useState(ligado);
+  const [texto, setTexto] = useState(rodape);
+  const [salvando, setSalvando] = useState(false);
+
+  async function alternar(valor: boolean) {
+    setAtivo(valor);
+    try {
+      await atualizar({ data: { pedidoPeloWhatsapp: valor } });
+      toast.success(valor ? "Pedido pelo WhatsApp ligado." : "Pedido pelo WhatsApp desligado.");
+      await router.invalidate();
+    } catch (error) {
+      setAtivo(!valor);
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar.");
+    }
+  }
+
+  async function salvarTexto() {
+    setSalvando(true);
+    try {
+      await atualizar({ data: { rodapePedidoWhatsapp: texto.trim() || null } });
+      toast.success("Texto final salvo.");
+      await router.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <Panel className="p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <Label htmlFor="pedidoPeloWhatsapp" className="text-base font-semibold">
+            Pedido pelo WhatsApp
+          </Label>
+          <p className="text-muted-foreground mt-1 text-sm">
+            O cliente monta o pedido no formulário sem criar conta nem entrar no portal. No fim, o
+            pedido abre no WhatsApp da empresa, pronto para enviar. Ele continua aparecendo em
+            Eventos.
+          </p>
+        </div>
+        <Switch
+          id="pedidoPeloWhatsapp"
+          checked={ativo}
+          onCheckedChange={(valor) => void alternar(valor)}
+          disabled={!temWhatsapp && !ativo}
+        />
+      </div>
+      {!temWhatsapp ? (
+        <p className="bg-warning/10 text-foreground mt-4 rounded-lg p-3 text-sm">
+          Cadastre o WhatsApp da empresa na aba Empresa para poder ligar.
+        </p>
+      ) : null}
+      <div className="mt-4 flex flex-col gap-1.5">
+        <Label htmlFor="rodapePedidoWhatsapp">Texto final da mensagem</Label>
+        <Textarea
+          id="rodapePedidoWhatsapp"
+          rows={4}
+          maxLength={1000}
+          placeholder={EXEMPLO_RODAPE}
+          value={texto}
+          onChange={(event) => setTexto(event.target.value)}
+        />
+        <p className="text-muted-foreground text-xs">
+          Opcional. Vai depois de “TOTAL: A definir”, no fim de cada pedido.
+        </p>
+      </div>
+      <div className="mt-3 flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={salvando || texto.trim() === rodape.trim()}
+          onClick={() => void salvarTexto()}
+        >
+          {salvando ? "Salvando…" : "Salvar texto"}
+        </Button>
+      </div>
+    </Panel>
   );
 }
 
@@ -390,6 +491,11 @@ function Configuracoes() {
               ))}
             </div>
           </Panel>
+          <PedidoPeloWhatsapp
+            ligado={empresa.pedidoPeloWhatsapp}
+            rodape={empresa.rodapePedidoWhatsapp ?? ""}
+            temWhatsapp={Boolean(empresa.whatsapp)}
+          />
         </TabsContent>
       </Tabs>
       {permissoesDe ? (

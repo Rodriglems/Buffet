@@ -44,7 +44,12 @@ const empresa = z.object({
   logoUrl: z.string().url().nullable().optional(),
   logoOrcamentoUrl: logoOrcamento,
   corTema: z.enum(COR_IDS).optional(),
+  pedidoPeloWhatsapp: z.boolean().optional(),
+  rodapePedidoWhatsapp: z.string().trim().max(1000).nullable().optional(),
 });
+
+const SEM_WHATSAPP =
+  "Cadastre o WhatsApp da empresa (aba Empresa) antes de ligar o pedido pelo WhatsApp.";
 
 export const obterEmpresa = createServerFn({ method: "GET" }).handler(async () => {
   const auth = await requireAnyPermission(["configuracoes", "orcamentos"]);
@@ -91,8 +96,19 @@ export const atualizarEmpresa = createServerFn({ method: "POST" })
     const auth = await requirePermission("configuracoes");
     const atual = await getPrisma().empresa.findUnique({
       where: { id: auth.empresaId },
-      select: { logoOrcamentoUrl: true },
+      select: { logoOrcamentoUrl: true, whatsapp: true, pedidoPeloWhatsapp: true },
     });
+    // O pedido pelo WhatsApp precisa de um número para onde ir: sem ele, o cliente ficaria
+    // sem conta e sem ter como mandar o pedido.
+    const pedidoPeloWhatsapp = data.pedidoPeloWhatsapp ?? atual?.pedidoPeloWhatsapp ?? false;
+    const whatsapp = data.whatsapp !== undefined ? data.whatsapp : atual?.whatsapp;
+    if (pedidoPeloWhatsapp && !whatsapp) {
+      throw new Error(
+        data.pedidoPeloWhatsapp
+          ? SEM_WHATSAPP
+          : "O pedido pelo WhatsApp está ligado: desligue-o em Preferências antes de apagar o WhatsApp.",
+      );
+    }
     const logoAlterada =
       data.logoOrcamentoUrl !== undefined && data.logoOrcamentoUrl !== atual?.logoOrcamentoUrl;
     if (logoAlterada && data.logoOrcamentoUrl && !ehUrlDoArmazenamento(data.logoOrcamentoUrl)) {

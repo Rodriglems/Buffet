@@ -11,6 +11,7 @@ import {
   ListChecks,
   Loader2,
   LogIn,
+  MessageCircle,
   Minus,
   RotateCcw,
   Plus,
@@ -104,7 +105,8 @@ export const Route = createFileRoute("/solicitar-orcamento/$token")({
 
 export type EmpresaFormularioOrcamento = Awaited<ReturnType<typeof obterFormularioOrcamento>>;
 type ServicoPublico = EmpresaFormularioOrcamento["servicos"][number];
-type Acesso = "CRIADO" | "JA_EXISTE" | "INDISPONIVEL" | "CONECTADO" | "CONFIRMAR_EMAIL";
+type Acesso =
+  "CRIADO" | "JA_EXISTE" | "INDISPONIVEL" | "CONECTADO" | "CONFIRMAR_EMAIL" | "WHATSAPP";
 type ClienteConectado = { nome: string; email: string; telefone: string; whatsapp: string };
 
 const idCategoria = (categoria: string) =>
@@ -146,7 +148,11 @@ export function FormularioOrcamento({
     acesso: Acesso;
     logado: boolean;
     linkEnviado: boolean;
+    whatsappUrl: string | null;
   }>(null);
+  // Pedido pelo WhatsApp (Configurações): sem login, sem senha e sem portal do cliente; no fim, o
+  // pedido abre no WhatsApp da empresa.
+  const pedidoWhatsapp = empresa.pedidoPeloWhatsapp;
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   const [mostrarTodos, setMostrarTodos] = useState(false);
@@ -373,6 +379,7 @@ export function FormularioOrcamento({
 
   // Quem já está conectado neste aparelho é reconhecido ao abrir o formulário.
   useEffect(() => {
+    if (pedidoWhatsapp) return;
     void buscarConectado({ data: { token } })
       .then((cliente) => {
         if (cliente) usarClienteConectado(cliente);
@@ -478,12 +485,12 @@ export function FormularioOrcamento({
       document.getElementById("dataEvento")?.focus();
       return;
     }
-    if (!conectado && modo === "cliente") {
+    if (!pedidoWhatsapp && !conectado && modo === "cliente") {
       setErro("Entre com seu e-mail e senha ou escolha “É meu primeiro pedido”.");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    if (!conectado && dados.senha !== dados.confirmarSenha) {
+    if (!pedidoWhatsapp && !conectado && dados.senha !== dados.confirmarSenha) {
       setErro("As senhas informadas são diferentes.");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -509,8 +516,9 @@ export function FormularioOrcamento({
         data: {
           token,
           nome: dados.nome,
-          email: dados.email,
-          telefone: dados.telefone,
+          // No pedido pelo WhatsApp só o WhatsApp é pedido; ele vale também como telefone.
+          email: pedidoWhatsapp ? "" : dados.email,
+          telefone: pedidoWhatsapp ? dados.whatsapp : dados.telefone,
           whatsapp: dados.whatsapp,
           tipoEvento: dados.tipoEvento === "Outros" ? dados.tipoEventoOutro : dados.tipoEvento,
           formatoServico: formato,
@@ -532,7 +540,7 @@ export function FormularioOrcamento({
           escolhas: Object.fromEntries(
             Object.entries(escolhas).filter(([id]) => servicosSelecionados.includes(id)),
           ),
-          senha: conectado ? "" : dados.senha,
+          senha: pedidoWhatsapp || conectado ? "" : dados.senha,
           website,
         },
       });
@@ -540,8 +548,12 @@ export function FormularioOrcamento({
         acesso: resposta.acesso,
         logado: resposta.logado,
         linkEnviado: resposta.linkEnviado,
+        whatsappUrl: resposta.whatsappUrl,
       });
       window.scrollTo({ top: 0, behavior: "smooth" });
+      // Mesma aba (não window.open): depois do envio, o celular bloquearia uma janela nova. No
+      // celular abre o app do WhatsApp; a tela de concluído fica com o botão para abrir de novo.
+      if (resposta.whatsappUrl) window.location.assign(resposta.whatsappUrl);
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Não foi possível enviar sua solicitação.");
     } finally {
@@ -583,13 +595,20 @@ export function FormularioOrcamento({
               <CheckCircle2 className="text-success size-9" />
             </div>
             <h2 className="font-display mt-5 text-2xl font-semibold">
-              Solicitação enviada com sucesso!
+              {concluido.whatsappUrl ? "Pedido pronto!" : "Solicitação enviada com sucesso!"}
             </h2>
             <p className="text-muted-foreground mt-3 text-sm leading-6">
-              Vamos analisar o seu pedido e, em breve, entraremos em contato para apresentar o
-              orçamento completo.
+              {concluido.whatsappUrl
+                ? "Abrimos o WhatsApp com o seu pedido escrito. É só tocar em enviar na conversa."
+                : "Vamos analisar o seu pedido e, em breve, entraremos em contato para apresentar o orçamento completo."}
             </p>
-            {concluido.acesso === "CONECTADO" ? (
+            {concluido.whatsappUrl ? (
+              <Button asChild className="mt-6 h-12 w-full sm:w-auto">
+                <a href={concluido.whatsappUrl}>
+                  <MessageCircle className="size-4" /> Abrir o WhatsApp de novo
+                </a>
+              </Button>
+            ) : concluido.acesso === "WHATSAPP" ? null : concluido.acesso === "CONECTADO" ? (
               <>
                 <p className="text-muted-foreground mt-3 text-sm leading-6">
                   O pedido foi registrado na sua conta. Você acompanha tudo pelo portal.
@@ -774,9 +793,35 @@ export function FormularioOrcamento({
                 <p className="text-muted-foreground mt-1 text-[13px]">
                   {conectado
                     ? "Seus dados já estão salvos. Siga para os detalhes do evento."
-                    : "Assim conseguimos retornar pelo canal certo."}
+                    : pedidoWhatsapp
+                      ? "Respondemos o seu pedido por este WhatsApp."
+                      : "Assim conseguimos retornar pelo canal certo."}
                 </p>
-                {conectado ? (
+                {pedidoWhatsapp ? (
+                  // Sem conta: só o nome e o WhatsApp, que vão no topo da mensagem do pedido.
+                  <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field
+                      label="Nome"
+                      name="nome"
+                      autoComplete="name"
+                      minLength={2}
+                      value={dados.nome}
+                      onChange={(e) => atualizar("nome", e.target.value)}
+                      required
+                    />
+                    <Field
+                      label="WhatsApp"
+                      name="whatsapp"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      value={dados.whatsapp}
+                      onChange={(e) => atualizar("whatsapp", e.target.value)}
+                      placeholder="(86) 99999-9999"
+                      required
+                    />
+                  </div>
+                ) : conectado ? (
                   <div className="bg-surface mt-5 grid gap-3 rounded-xl p-4 ring-1 ring-black/5">
                     <p className="flex items-center gap-2 text-sm font-semibold">
                       <CheckCircle2 className="text-success size-4" /> Você está conectado
@@ -1429,7 +1474,7 @@ export function FormularioOrcamento({
                 <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
                   <ResumoCard titulo="Contato" onEditar={() => setEtapa(3)}>
                     <p className="font-medium">{dados.nome}</p>
-                    <p className="break-all">{dados.email}</p>
+                    {pedidoWhatsapp ? null : <p className="break-all">{dados.email}</p>}
                     <p>{dados.whatsapp}</p>
                   </ResumoCard>
                   <ResumoCard titulo="Evento" onEditar={() => setEtapa(3)}>
@@ -1503,8 +1548,9 @@ export function FormularioOrcamento({
               <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-muted-foreground flex max-w-xl gap-2 text-xs leading-5">
                   <Sparkles className="text-primary mt-0.5 size-4 shrink-0" />
-                  Depois do envio, a equipe confere o cardápio e a data e manda o orçamento com os
-                  valores do seu evento.
+                  {pedidoWhatsapp
+                    ? "Ao enviar, o WhatsApp abre com o seu pedido escrito. É só tocar em enviar na conversa."
+                    : "Depois do envio, a equipe confere o cardápio e a data e manda o orçamento com os valores do seu evento."}
                 </p>
                 <div className="grid shrink-0 grid-cols-[auto_1fr] gap-2">
                   <Button
@@ -1520,10 +1566,16 @@ export function FormularioOrcamento({
                   <Button type="submit" disabled={enviando} className="h-12 sm:h-11 sm:min-w-44">
                     {enviando ? (
                       <Loader2 className="size-4 animate-spin" />
+                    ) : pedidoWhatsapp ? (
+                      <MessageCircle className="size-4" />
                     ) : (
                       <CheckCircle2 className="size-4" />
                     )}
-                    {enviando ? "Enviando…" : "Enviar solicitação"}
+                    {enviando
+                      ? "Enviando…"
+                      : pedidoWhatsapp
+                        ? "Enviar pelo WhatsApp"
+                        : "Enviar solicitação"}
                   </Button>
                 </div>
               </div>

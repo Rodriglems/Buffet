@@ -102,6 +102,9 @@ model Empresa {
   logoUrl            String?  @map("logo_url")
   logoOrcamentoUrl   String?  @map("logo_orcamento_url")
   corTema            String   @default("grafite") @map("cor_tema")
+  // Formulário sem conta nem portal: o pedido sai como mensagem para o WhatsApp da empresa.
+  pedidoPeloWhatsapp   Boolean @default(false) @map("pedido_pelo_whatsapp")
+  rodapePedidoWhatsapp String? @map("rodape_pedido_whatsapp")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 

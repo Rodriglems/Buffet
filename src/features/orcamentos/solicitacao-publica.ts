@@ -24,6 +24,8 @@ import { hashPassword } from "@/lib/password.server";
 import { exigirDentroDoLimite } from "@/lib/limite-taxa.server";
 import { quantidadePadrao, unidadeNoOrcamento } from "@/features/orcamentos/unidade-item";
 import { centosValidos, ehVendidoPorCento } from "@/features/orcamentos/quantidade-cento";
+import { montarMensagemPedidoWhatsapp } from "@/features/orcamentos/mensagem-pedido-whatsapp";
+import { createWhatsAppUrl } from "@/lib/sharing";
 import { getPrisma } from "@/lib/prisma.server";
 import { enviarPush } from "@/lib/push.server";
 import { getAuthContext, issueSession, requirePermission } from "@/lib/session.server";
@@ -36,7 +38,8 @@ const horarioSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário in
 const solicitacaoSchema = tokenSchema
   .extend({
     nome: z.string().trim().min(2).max(160),
-    email: z.string().trim().email().toLowerCase(),
+    // Vazio só no pedido pelo WhatsApp (sem conta); no modo normal o servidor exige o e-mail.
+    email: z.union([z.literal(""), z.string().trim().email().toLowerCase()]).default(""),
     telefone: phoneSchema,
     whatsapp: whatsappSchema,
     tipoEvento: z.string().trim().min(2).max(100),
@@ -91,6 +94,9 @@ function validarSolicitacao(value: unknown) {
   if (resultado.success) return resultado.data;
 
   const camposInvalidos = new Set(resultado.error.issues.map((issue) => issue.path[0]));
+  if (camposInvalidos.has("email")) {
+    throw new Error("Informe um e-mail válido.");
+  }
   if (camposInvalidos.has("senha")) {
     throw new Error("Crie uma senha com pelo menos 4 caracteres.");
   }
@@ -126,6 +132,8 @@ async function carregarFormularioOrcamento(token?: string) {
       logoUrl: true,
       logoOrcamentoUrl: true,
       corTema: true,
+      pedidoPeloWhatsapp: true,
+      whatsapp: true,
       servicos: {
         where: { ativo: true },
         select: {
@@ -166,11 +174,14 @@ async function carregarFormularioOrcamento(token?: string) {
   });
   if (!empresa) throw new Error("Link de orçamento inválido ou desativado.");
 
-  const { linkOrcamentoToken, datasBloqueadas, ...formulario } = empresa;
+  const { linkOrcamentoToken, datasBloqueadas, pedidoPeloWhatsapp, whatsapp, ...formulario } =
+    empresa;
   return {
     token: linkOrcamentoToken,
     formulario: serialize({
       ...formulario,
+      // O número da empresa não vai para a página: o link do WhatsApp vem pronto no envio.
+      pedidoPeloWhatsapp: pedidoPeloWhatsapp && Boolean(whatsapp),
       datasBloqueadas: datasBloqueadas.map((bloqueio) => chaveDaData(bloqueio.data)),
       urlPublica: urlFormularioPublico(),
     }),
@@ -269,9 +280,20 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
     }
     const empresa = await getPrisma().empresa.findUnique({
       where: { linkOrcamentoToken: data.token },
-      select: { id: true, nomeFantasia: true, email: true, whatsapp: true },
+      select: {
+        id: true,
+        nomeFantasia: true,
+        email: true,
+        whatsapp: true,
+        pedidoPeloWhatsapp: true,
+        rodapePedidoWhatsapp: true,
+      },
     });
     if (!empresa) throw new Error("Link de orçamento inválido ou desativado.");
+    // Pedido pelo WhatsApp: sem conta, sem sessão e sem portal; o pedido fica registrado para a
+    // equipe e o cliente o envia como mensagem para o WhatsApp da empresa.
+    const whatsappEmpresa = empresa.pedidoPeloWhatsapp ? empresa.whatsapp : null;
+    if (!whatsappEmpresa && !data.email) throw new Error("Informe um e-mail válido.");
     // A tela já avisa, mas o servidor também recusa: ninguém contorna o bloqueio pelo navegador.
     const dataBloqueada = await getPrisma().dataBloqueada.count({
       where: {
@@ -291,11 +313,13 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
     // Cliente conectado (sessão deste buffet): o pedido entra direto na conta dele.
     const sessao = await getAuthContext();
     const clienteConectadoId =
-      sessao?.role === "CLIENT" && sessao.empresaId === empresa.id ? sessao.clienteId : null;
-    if (!clienteConectadoId && data.senha.length < 4) {
+      !whatsappEmpresa && sessao?.role === "CLIENT" && sessao.empresaId === empresa.id
+        ? sessao.clienteId
+        : null;
+    if (!whatsappEmpresa && !clienteConectadoId && data.senha.length < 4) {
       throw new Error("Crie uma senha com pelo menos 4 caracteres.");
     }
-    const senhaHash = clienteConectadoId ? null : await hashPassword(data.senha);
+    const senhaHash = whatsappEmpresa || clienteConectadoId ? null : await hashPassword(data.senha);
 
     const resultado = await getPrisma().$transaction(async (tx) => {
       const servicosIds = [...new Set(data.servicosIds)];
@@ -358,10 +382,12 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
         throw new Error("Sessão inválida. Entre novamente.");
       const clienteExistente =
         clienteConectado ??
-        (await tx.cliente.findFirst({
-          where: { empresaId: empresa.id, email: { equals: data.email, mode: "insensitive" } },
-          orderBy: { updatedAt: "desc" },
-        }));
+        (data.email
+          ? await tx.cliente.findFirst({
+              where: { empresaId: empresa.id, email: { equals: data.email, mode: "insensitive" } },
+              orderBy: { updatedAt: "desc" },
+            })
+          : null);
       // Formulário público não autentica quem envia: nunca altera os dados de um cliente
       // existente (nem campos vazios, pois a equipe usa esse telefone para enviar o convite de
       // acesso). O que veio diferente fica registrado no evento para a equipe conferir.
@@ -396,7 +422,7 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
               empresaId: empresa.id,
               nome: data.nome,
               tipoPessoa: "FISICA",
-              email: data.email,
+              email: data.email || null,
               telefone: data.telefone,
               whatsapp: data.whatsapp,
               observacoes: "Cadastro realizado pelo formulário público de orçamento.",
@@ -405,9 +431,13 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
 
       // Só um e-mail que ninguém usa cria conta na hora. E-mail de cliente já cadastrado recebe
       // um link: sem isso, quem soubesse o e-mail abriria a conta e veria os eventos do cliente.
-      let acesso: "CRIADO" | "JA_EXISTE" | "INDISPONIVEL" | "CONECTADO" | "CONFIRMAR_EMAIL";
+      let acesso:
+        "CRIADO" | "JA_EXISTE" | "INDISPONIVEL" | "CONECTADO" | "CONFIRMAR_EMAIL" | "WHATSAPP";
       let usuarioCriado: { id: string; sessaoVersao: number } | null = null;
-      if (clienteConectado) {
+      if (whatsappEmpresa) {
+        // Pedido pelo WhatsApp não cria conta nem libera o portal.
+        acesso = "WHATSAPP";
+      } else if (clienteConectado) {
         acesso = "CONECTADO";
       } else if (clienteExistente?.usuarioId) {
         acesso = "JA_EXISTE";
@@ -524,7 +554,39 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
           })),
         });
       }
+      // A mensagem usa os nomes do cadastro (com recheio, molho...) e a ordem das categorias do
+      // cardápio, nunca o que veio da página.
+      const mensagemWhatsapp = whatsappEmpresa
+        ? montarMensagemPedidoWhatsapp({
+            nome: cliente.nome,
+            contato: telefoneDe(data.whatsapp) ?? data.whatsapp,
+            celebracao: data.tipoEvento,
+            convidados: data.quantidadeConvidados,
+            data: chaveDaData(data.dataEvento),
+            endereco: data.localNome,
+            cidade: data.cidade,
+            horario: data.horaInicio,
+            adicionais: data.servicosAdicionais,
+            observacoes: data.observacoes,
+            rodape: empresa.rodapePedidoWhatsapp,
+            ordemCategorias: new Map(
+              (
+                await tx.categoriaCardapio.findMany({
+                  where: { empresaId: empresa.id },
+                  select: { nome: true, ordem: true },
+                })
+              ).map((categoria) => [categoria.nome, categoria.ordem]),
+            ),
+            itens: itens.map(({ servico, unidade, quantidade }) => ({
+              categoria: servico.categoria,
+              descricao: descricoes.get(servico.id) ?? servico.nome,
+              // Salgados saem em unidades, como a equipe escreve: meio cento = 50.
+              unidades: ehVendidoPorCento(unidade) ? Math.round(quantidade * 100) : null,
+            })),
+          })
+        : null;
       return {
+        mensagemWhatsapp,
         eventoId: evento.id,
         orcamentoId: orcamento.id,
         nomeCliente: cliente.nome,
@@ -574,6 +636,11 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
       acesso: resultado.acesso,
       linkEnviado,
       logado: Boolean(resultado.usuarioCriado) || resultado.acesso === "CONECTADO",
+      // Pedido pelo WhatsApp: a página abre esta conversa com a mensagem pronta.
+      whatsappUrl:
+        whatsappEmpresa && resultado.mensagemWhatsapp
+          ? createWhatsAppUrl(whatsappEmpresa, resultado.mensagemWhatsapp)
+          : null,
       notificacoes,
     });
   });
