@@ -64,4 +64,10 @@ describe("listaDeEscolhas", () => {
     expect(listaDeEscolhas(["Recheio", "Molho"])).toBe("o recheio e o molho");
     expect(listaDeEscolhas(["Recheio", "Molho", "Sabor"])).toBe("o recheio, o molho e o sabor");
   });
+
+  it("usa o artigo certo para nomes femininos e no plural", () => {
+    expect(listaDeEscolhas(["Recheio", "massa"])).toBe("o recheio e a massa");
+    expect(listaDeEscolhas(["Cobertura", "Opção"])).toBe("a cobertura e a opção");
+    expect(listaDeEscolhas(["Molhos", "Massas"])).toBe("os molhos e as massas");
+  });
 });

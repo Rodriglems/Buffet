@@ -88,6 +88,13 @@ test("descreve o item com uma escolha de cada grupo", () => {
     "Rondelle — Recheio de queijo · Molho: Pomodoro",
   );
   assert.equal(descreverEscolhas("Penne", []), "Penne");
+  assert.equal(
+    descreverEscolhas("Conchiglioni", [
+      { rotulo: "Recheio", opcao: "Recheio de bacalhau" },
+      { rotulo: "massa", opcao: "Espaguete" },
+    ]),
+    "Conchiglioni — Recheio de bacalhau · Massa: Espaguete",
+  );
 });
 
 test("refazer pedido reconhece recheio e molho na mesma massa", () => {
