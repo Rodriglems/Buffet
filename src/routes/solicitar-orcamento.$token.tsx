@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
@@ -40,7 +41,6 @@ import {
   DADOS_INICIAIS_FORMULARIO,
   descreverEscolhas,
   ETAPAS_FORMULARIO,
-  intervaloHorarioValido,
   normalizarBusca,
   obterDataMinimaEvento,
   textoHorarioEvento,
@@ -435,6 +435,17 @@ export function FormularioOrcamento({
       );
     for (const campo of campos ?? []) {
       if (!campo.checkValidity()) {
+        // O balão do navegador nem sempre aparece no iPhone: o aviso também fica na tela, com o
+        // nome do campo, e a página rola até ele.
+        const rotulo =
+          document.querySelector(`label[for="${campo.id}"]`)?.textContent?.trim() || "destacado";
+        toast.error(
+          campo.validity.valueMissing
+            ? `Preencha o campo “${rotulo}”.`
+            : `Confira o campo “${rotulo}”.`,
+        );
+        campo.scrollIntoView({ behavior: "smooth", block: "center" });
+        campo.focus({ preventScroll: true });
         campo.reportValidity();
         return false;
       }
@@ -495,11 +506,6 @@ export function FormularioOrcamento({
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    if (!intervaloHorarioValido(dados.horaInicio, dados.horaFim)) {
-      setErro("O horário de término deve ser posterior ao início do evento.");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
     if (!etapaValida("etapa-dados")) return;
     irPara(4);
   }
@@ -525,7 +531,8 @@ export function FormularioOrcamento({
           servicosAdicionais: adicionais,
           dataEvento: new Date(`${dados.dataEvento}T12:00:00`),
           horaInicio: dados.horaInicio,
-          horaFim: dados.horaFim || null,
+          // O formulário pede só o horário de início; o término a equipe combina depois.
+          horaFim: null,
           quantidadeConvidados: Number(dados.quantidadeConvidados),
           localNome: dados.localNome || null,
           cidade: dados.cidade || null,
@@ -1099,19 +1106,9 @@ export function FormularioOrcamento({
                     label="Horário de início"
                     name="horaInicio"
                     type="time"
-                    step="900"
                     value={dados.horaInicio}
                     onChange={(e) => atualizar("horaInicio", e.target.value)}
                     required
-                  />
-                  <Field
-                    label="Horário de término (opcional)"
-                    name="horaFim"
-                    type="time"
-                    step="900"
-                    min={dados.horaInicio || undefined}
-                    value={dados.horaFim}
-                    onChange={(e) => atualizar("horaFim", e.target.value)}
                   />
                   <Field
                     label="Número de convidados"
@@ -1488,9 +1485,7 @@ export function FormularioOrcamento({
                       {dados.dataEvento
                         ? new Date(`${dados.dataEvento}T12:00:00`).toLocaleDateString("pt-BR")
                         : ""}
-                      {dados.horaInicio
-                        ? ` · ${textoHorarioEvento(dados.horaInicio, dados.horaFim)}`
-                        : ""}
+                      {dados.horaInicio ? ` · ${textoHorarioEvento(dados.horaInicio, "")}` : ""}
                       {dados.cidade ? ` · ${dados.cidade}` : ""}
                     </p>
                     {dados.observacoes ? (
