@@ -60,8 +60,21 @@ export function gruposSemEscolha(
 }
 
 /** "o recheio", "o recheio e o molho", "o recheio, o molho e o sabor". */
+/**
+ * Artigo do nome do grupo: "a massa", "a cobertura", "a opção", "o recheio", "os molhos".
+ * Regra simples pela terminação da primeira palavra, suficiente para os grupos de cardápio.
+ */
+function comArtigo(nome: string): string {
+  const texto = nome.trim().toLocaleLowerCase("pt-BR");
+  const palavra = texto.split(/\s+/)[0] ?? "";
+  const plural = palavra.length > 3 && palavra.endsWith("s");
+  const raiz = plural ? palavra.replace(/(es|s)$/, "") : palavra;
+  const feminino = /(a|ção|são|dade|gem)$/.test(raiz) || (plural && /çõ$/.test(raiz));
+  return `${feminino ? "a" : "o"}${plural ? "s" : ""} ${texto}`;
+}
+
 export function listaDeEscolhas(nomes: string[]): string {
-  const partes = nomes.map((nome) => `o ${nome.toLocaleLowerCase("pt-BR")}`);
+  const partes = nomes.map(comArtigo);
   if (partes.length <= 1) return partes[0] ?? "";
   return `${partes.slice(0, -1).join(", ")} e ${partes[partes.length - 1]}`;
 }

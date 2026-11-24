@@ -1135,7 +1135,7 @@ export function FormularioOrcamento({
                 </div>
                 <p className="text-muted-foreground mt-3 flex items-center gap-2 text-xs">
                   <CalendarDays className="size-4" /> Você pode escolher qualquer data a partir de
-                  hoje.
+                  amanhã.
                 </p>
               </div>
 
@@ -1428,7 +1428,8 @@ export function FormularioOrcamento({
                     <ListChecks className="text-primary size-5 shrink-0" />
                     <span>
                       <span className="block text-sm font-semibold">
-                        {servicosSelecionados.length} itens no seu cardápio
+                        {servicosSelecionados.length}{" "}
+                        {servicosSelecionados.length === 1 ? "item" : "itens"} no seu cardápio
                       </span>
                       <span className="text-primary block text-xs">
                         {verEscolhidos ? "Ocultar escolhidos" : "Ver escolhidos"}
@@ -1512,7 +1513,8 @@ export function FormularioOrcamento({
                   <div>
                     <h3 className="font-display font-semibold">Seu cardápio</h3>
                     <p className="text-muted-foreground text-xs">
-                      {selecionados.length} itens selecionados
+                      {selecionados.length}{" "}
+                      {selecionados.length === 1 ? "item selecionado" : "itens selecionados"}
                     </p>
                   </div>
                   <Button type="button" size="sm" variant="outline" onClick={() => setEtapa(2)}>

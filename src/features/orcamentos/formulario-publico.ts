@@ -71,7 +71,11 @@ export function descreverEscolhas(item: string, partes: { rotulo: string; opcao:
   if (!partes.length) return item;
   const texto = partes
     .map(({ rotulo, opcao }) =>
-      normalizarBusca(opcao).startsWith(normalizarBusca(rotulo)) ? opcao : `${rotulo}: ${opcao}`,
+      normalizarBusca(opcao).startsWith(normalizarBusca(rotulo))
+        ? opcao
+        : // Rótulo sempre com inicial maiúscula, mesmo que o grupo tenha sido cadastrado em
+          // minúsculas ("massa: Espaguete" → "Massa: Espaguete").
+          `${rotulo.trim().charAt(0).toLocaleUpperCase("pt-BR")}${rotulo.trim().slice(1)}: ${opcao}`,
     )
     .join(" · ");
   return `${item} — ${texto}`;
