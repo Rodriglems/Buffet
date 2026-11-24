@@ -2,20 +2,19 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { criarConvite } from "@/features/clientes/convites.server";
-import { dataEventoEhFutura } from "@/features/eventos/data-evento";
 import { chaveDaData, MENSAGEM_DATA_BLOQUEADA } from "@/features/eventos/datas-bloqueadas";
 import {
   descreverEscolhas,
   montarPedidoParaRefazer,
   type PedidoParaRefazer,
 } from "@/features/orcamentos/formulario-publico";
-import { phoneSchema, whatsappSchema } from "@/features/shared/validation/primitives";
+import { tokenSchema, validarSolicitacao } from "@/features/orcamentos/solicitacao-schema";
 import {
   agruparOpcoes,
   gruposSemEscolha,
   listaDeEscolhas,
 } from "@/features/servicos/grupos-opcoes";
-import { SERVICOS_ADICIONAIS, TIPOS_EVENTO } from "@/lib/catalogo";
+import { TIPOS_EVENTO } from "@/lib/catalogo";
 import { serialize } from "@/lib/domain.server";
 import { enviarEmailConvite } from "@/lib/email.server";
 import { notificarNovaSolicitacaoEmpresa } from "@/lib/empresa-notification.server";
@@ -31,91 +30,6 @@ import { enviarPush } from "@/lib/push.server";
 import { getAuthContext, issueSession, requirePermission } from "@/lib/session.server";
 import { telefoneDe } from "@/lib/empresa-cabecalho";
 import { mesmoTelefone } from "@/lib/telefone";
-
-const tokenSchema = z.object({ token: z.string().uuid() });
-const horarioSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido.");
-
-const solicitacaoSchema = tokenSchema
-  .extend({
-    nome: z.string().trim().min(2).max(160),
-    // Vazio só no pedido pelo WhatsApp (sem conta); no modo normal o servidor exige o e-mail.
-    email: z.union([z.literal(""), z.string().trim().email().toLowerCase()]).default(""),
-    telefone: phoneSchema,
-    whatsapp: whatsappSchema,
-    tipoEvento: z.string().trim().min(2).max(100),
-    formatoServico: z.string().trim().min(2).max(100),
-    servicosAdicionais: z
-      .array(z.enum(SERVICOS_ADICIONAIS))
-      .max(SERVICOS_ADICIONAIS.length)
-      .default([]),
-    dataEvento: z.coerce.date(),
-    horaInicio: horarioSchema,
-    horaFim: horarioSchema.nullable().optional(),
-    quantidadeConvidados: z.coerce.number().int().positive().max(100000),
-    localNome: z.string().trim().max(160).nullable().optional(),
-    cidade: z.string().trim().max(120).nullable().optional(),
-    observacoes: z.string().trim().max(4000).nullable().optional(),
-    servicosIds: z.array(z.string().uuid()).min(1).max(300),
-    // Centos escolhidos nos itens vendidos por cento (ex.: { bolinhoId: 1.5 }).
-    quantidades: z.record(z.string().uuid(), z.number()).default({}),
-    // Opção escolhida para cada item que pede uma escolha (ex.: { massaId: recheioId }).
-    // Por item, a opção escolhida em cada grupo ({ Recheio: id, Molho: id }). Um id solto é o
-    // formato antigo (um grupo só), aceito para páginas abertas antes da mudança.
-    escolhas: z
-      .record(
-        z.string().uuid(),
-        z.union([z.string().uuid(), z.record(z.string().max(60), z.string().uuid())]),
-      )
-      .default({}),
-    // Senha curta (a partir de 4 dígitos) é aceita porque o login bloqueia tentativas repetidas.
-    // Cliente já conectado não envia senha: o pedido vai para a conta da sessão.
-    senha: z.string().max(200).default(""),
-    website: z.string().max(0).optional(),
-  })
-  .superRefine((dados, contexto) => {
-    if (!dataEventoEhFutura(dados.dataEvento.toISOString().slice(0, 10))) {
-      contexto.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["dataEvento"],
-        message: "A data do evento deve ser a partir de amanhã.",
-      });
-    }
-    if (dados.horaFim && dados.horaFim <= dados.horaInicio) {
-      contexto.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["horaFim"],
-        message: "O horário de término deve ser posterior ao início do evento.",
-      });
-    }
-  });
-
-function validarSolicitacao(value: unknown) {
-  const resultado = solicitacaoSchema.safeParse(value);
-  if (resultado.success) return resultado.data;
-
-  const camposInvalidos = new Set(resultado.error.issues.map((issue) => issue.path[0]));
-  if (camposInvalidos.has("email")) {
-    throw new Error("Informe um e-mail válido.");
-  }
-  if (camposInvalidos.has("senha")) {
-    throw new Error("Crie uma senha com pelo menos 4 caracteres.");
-  }
-  if (camposInvalidos.has("telefone") || camposInvalidos.has("whatsapp")) {
-    throw new Error("Informe um telefone e WhatsApp válidos, incluindo o DDD.");
-  }
-  if (camposInvalidos.has("dataEvento")) {
-    throw new Error("A data do evento deve ser a partir de amanhã.");
-  }
-  if (camposInvalidos.has("horaInicio") || camposInvalidos.has("horaFim")) {
-    throw new Error(
-      resultado.error.issues.find((issue) =>
-        ["horaInicio", "horaFim"].includes(String(issue.path[0])),
-      )?.message ?? "Informe um horário válido para o evento.",
-    );
-  }
-
-  throw new Error("Revise os campos do formulário e tente novamente.");
-}
 
 const paraHorario = (horario: string | null | undefined) =>
   horario ? new Date(`1970-01-01T${horario}:00.000Z`) : null;
@@ -273,11 +187,7 @@ export const enviarSolicitacaoOrcamento = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (data.website) throw new Error("Solicitação inválida.");
     exigirDentroDoLimite("pedidoOrcamento");
-    const inicioDeHoje = new Date();
-    inicioDeHoje.setHours(0, 0, 0, 0);
-    if (data.dataEvento < inicioDeHoje) {
-      throw new Error("Escolha uma data a partir de hoje.");
-    }
+    // A data (a partir de amanhã, no horário de Brasília) já foi conferida em validarSolicitacao.
     const empresa = await getPrisma().empresa.findUnique({
       where: { linkOrcamentoToken: data.token },
       select: {
