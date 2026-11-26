@@ -98,8 +98,8 @@ export function AdicionaisInteresseEvento({
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Adicionais de interesse</DialogTitle>
-            <DialogDescription>
-              Ajuste o que o cliente demonstrou interesse para este evento.
+            <DialogDescription className="sr-only">
+              Adicionais de interesse do cliente.
             </DialogDescription>
           </DialogHeader>
 

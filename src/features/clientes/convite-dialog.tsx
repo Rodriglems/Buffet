@@ -106,9 +106,8 @@ export function ConviteClienteDialog({
         <DialogHeader>
           <DialogTitle>Convidar para acessar</DialogTitle>
           <DialogDescription>
-            {cliente?.nome} abre o link, confirma o e-mail e cria a própria senha. Os eventos e
-            pagamentos já aparecem no portal. O link vale por {VALIDADE_CONVITE_TEXTO} e só pode ser
-            usado uma vez.
+            {cliente?.nome} abre o link e cria a própria senha. Vale por {VALIDADE_CONVITE_TEXTO},
+            uma vez só.
           </DialogDescription>
         </DialogHeader>
         {erro ? (

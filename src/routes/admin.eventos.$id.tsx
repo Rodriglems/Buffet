@@ -157,7 +157,7 @@ function DetalheEvento() {
           subtitle={
             orcamentoAtual
               ? `Proposta #${orcamentoAtual.numero} · versão ${orcamentoAtual.versao}`
-              : "Este evento ainda não possui orçamento"
+              : undefined
           }
           action={
             orcamentoAtual &&
@@ -305,7 +305,6 @@ function DetalheEvento() {
         ) : (
           <EmptyState
             title="Nenhum orçamento criado"
-            description="Crie a primeira proposta diretamente a partir deste evento."
             action={
               <Button asChild>
                 <Link to="/admin/orcamentos/novo" search={{ eventoId: evento.id }}>
@@ -584,7 +583,7 @@ function PagamentosDoEvento({
           subtitle={
             parcelas.length
               ? `${parcelas.length} parcela(s) · ${formatBRL(parcelado)} de ${formatBRL(valorEvento)}`
-              : "O pagamento é definido depois da aprovação do orçamento"
+              : "Definido após a aprovação"
           }
         />
         {podeAdicionar ? (
@@ -602,15 +601,12 @@ function PagamentosDoEvento({
           <p>
             {diferenca > 0 ? (
               <>
-                <strong>Faltam {formatBRL(diferenca)} em parcelas.</strong> O total do evento é{" "}
-                {formatBRL(valorEvento)}, mas as parcelas somam {formatBRL(parcelado)}.
-                {podeAdicionar ? " Use Adicionar parcelas para completar." : ""}
+                <strong>Faltam {formatBRL(diferenca)} em parcelas.</strong>
               </>
             ) : (
               <>
-                <strong>As parcelas passam {formatBRL(-diferenca)} do total.</strong> O total do
-                evento é {formatBRL(valorEvento)}, mas as parcelas somam {formatBRL(parcelado)}.
-                Exclua uma parcela em aberto e lance de novo com o valor certo.
+                <strong>As parcelas passam {formatBRL(-diferenca)} do total.</strong> Exclua uma
+                parcela em aberto e lance de novo.
               </>
             )}
           </p>

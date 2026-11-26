@@ -104,8 +104,8 @@ export function RedefinirSenhaDialog({
           </DialogTitle>
           <DialogDescription>
             {alvo?.criarAcesso
-              ? `${alvo.nome} passa a entrar no portal com o e-mail do cadastro e a senha definida aqui.`
-              : `Nova senha de ${alvo?.nome ?? ""}. As sessões abertas com a senha antiga são encerradas e o bloqueio por tentativas é desfeito.`}
+              ? `${alvo.nome} entra no portal com o e-mail do cadastro e esta senha.`
+              : `Nova senha de ${alvo?.nome ?? ""}. As sessões abertas são encerradas.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -122,7 +122,7 @@ export function RedefinirSenhaDialog({
               </p>
             </div>
             <p className="text-muted-foreground text-xs">
-              Envie esses dados para {alvo?.nome}. Por segurança, a senha não aparece de novo.
+              Envie para {alvo?.nome}. A senha não aparece de novo.
             </p>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => void copiar()}>

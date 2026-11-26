@@ -306,15 +306,9 @@ function DetalheOrcamento() {
 
         <TabsContent value="negociacao" className="mt-4">
           <Panel className="p-5">
-            <PanelHeader
-              title="Histórico de versões"
-              subtitle="Alterações desde a proposta inicial"
-            />
+            <PanelHeader title="Histórico de versões" />
             {versoes.length === 0 ? (
-              <EmptyState
-                title="Sem versões anteriores"
-                description="Esta proposta ainda está na versão inicial."
-              />
+              <EmptyState title="Sem versões anteriores" />
             ) : (
               <ol className="mt-4 flex flex-col">
                 {versoes.map((v, i) => (
@@ -358,8 +352,7 @@ function DetalheOrcamento() {
             <DialogHeader>
               <DialogTitle>Enviar orçamento</DialogTitle>
               <DialogDescription>
-                Personalize o contato com {cliente.nome}. A mensagem também ficará disponível no
-                portal do cliente.
+                A mensagem também fica no portal de {cliente.nome}.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-1.5">

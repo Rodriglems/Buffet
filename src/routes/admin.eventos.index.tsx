@@ -408,8 +408,8 @@ function EventosPage() {
                   filtrosAtivos || busca
                     ? "Ajuste a busca ou os filtros aplicados."
                     : aba === "andamento"
-                      ? "Crie um evento ou envie o formulário de orçamento ao cliente."
-                      : "Os eventos aparecem aqui quando mudam para esta situação."
+                      ? "Crie um evento ou envie o formulário ao cliente."
+                      : undefined
                 }
               />
             ) : (

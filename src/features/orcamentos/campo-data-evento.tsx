@@ -127,7 +127,7 @@ export function CampoDataEvento({
           {bloqueadas.length ? (
             <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
               <span className="bg-destructive size-3 rounded-full" aria-hidden />
-              Datas já reservadas, indisponíveis para orçamento.
+              Data indisponível
             </p>
           ) : null}
         </div>

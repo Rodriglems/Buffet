@@ -602,8 +602,7 @@ export function FormularioOrcamento({
             Vamos montar seu evento?
           </h1>
           <p className="text-muted-foreground mx-auto mt-2 max-w-2xl text-[13px] leading-5 sm:text-base">
-            Conte o que está planejando, escolha seus pratos favoritos e receba uma proposta feita
-            para você.
+            Conte sobre o evento, escolha os pratos e receba sua proposta.
           </p>
         </header>
 
@@ -617,8 +616,8 @@ export function FormularioOrcamento({
             </h2>
             <p className="text-muted-foreground mt-3 text-sm leading-6">
               {concluido.whatsappUrl
-                ? "Abrimos o WhatsApp com o seu pedido escrito. É só tocar em enviar na conversa."
-                : "Vamos analisar o seu pedido e, em breve, entraremos em contato para apresentar o orçamento completo."}
+                ? "O WhatsApp abriu com o seu pedido. É só tocar em enviar."
+                : "Em breve entraremos em contato com o seu orçamento."}
             </p>
             {concluido.whatsappUrl ? (
               <Button asChild className="mt-6 h-12 w-full sm:w-auto">
@@ -629,7 +628,7 @@ export function FormularioOrcamento({
             ) : concluido.acesso === "WHATSAPP" ? null : concluido.acesso === "CONECTADO" ? (
               <>
                 <p className="text-muted-foreground mt-3 text-sm leading-6">
-                  O pedido foi registrado na sua conta. Você acompanha tudo pelo portal.
+                  Acompanhe tudo pelo portal.
                 </p>
                 <Button asChild className="mt-6">
                   <Link to="/cliente">Acompanhar meu pedido</Link>
@@ -662,8 +661,7 @@ export function FormularioOrcamento({
             ) : concluido.acesso === "JA_EXISTE" ? (
               <>
                 <p className="text-muted-foreground mt-3 text-sm leading-6">
-                  Você já tem uma conta conosco. Entre com a sua senha de sempre — a senha digitada
-                  agora não substituiu a anterior.
+                  Você já tem conta. Entre com a sua senha de sempre; a nova não foi salva.
                 </p>
                 <Button asChild className="mt-6">
                   <Link to="/">Acessar minha conta</Link>
@@ -672,8 +670,7 @@ export function FormularioOrcamento({
             ) : (
               <>
                 <p className="text-muted-foreground mt-3 text-sm leading-6">
-                  Este e-mail já tem acesso ao sistema. Entre com a sua senha; se não lembrar, use
-                  “Esqueci minha senha” na tela de acesso.
+                  Este e-mail já tem acesso. Entre com a sua senha ou use “Esqueci minha senha”.
                 </p>
                 <Button asChild className="mt-6">
                   <Link to="/">Acessar minha conta</Link>
@@ -810,10 +807,10 @@ export function FormularioOrcamento({
                 </h2>
                 <p className="text-muted-foreground mt-1 text-[13px]">
                   {conectado
-                    ? "Seus dados já estão salvos. Siga para os detalhes do evento."
+                    ? "Seus dados já estão salvos."
                     : pedidoWhatsapp
-                      ? "Respondemos o seu pedido por este WhatsApp."
-                      : "Assim conseguimos retornar pelo canal certo."}
+                      ? "Respondemos por este WhatsApp."
+                      : "Para retornarmos o seu pedido."}
                 </p>
                 {pedidoWhatsapp ? (
                   // Sem conta: só o nome e o WhatsApp, que vão no topo da mensagem do pedido.
@@ -1016,8 +1013,7 @@ export function FormularioOrcamento({
                         <div className="bg-surface mt-5 rounded-xl p-4 ring-1 ring-black/5">
                           <p className="text-sm font-semibold">Crie sua senha de acesso</p>
                           <p className="text-muted-foreground mt-1 text-xs">
-                            Com o seu e-mail e esta senha você acompanha orçamento, pagamentos e
-                            documentos no portal.
+                            Para acompanhar o pedido no portal.
                           </p>
                           <div className="mt-4 grid gap-4 sm:grid-cols-2">
                             <div>
@@ -1145,15 +1141,14 @@ export function FormularioOrcamento({
                   />
                 </div>
                 <p className="text-muted-foreground mt-3 flex items-center gap-2 text-xs">
-                  <CalendarDays className="size-4" /> Você pode escolher qualquer data a partir de
-                  amanhã.
+                  <CalendarDays className="size-4" /> A partir de amanhã.
                 </p>
               </div>
 
               <div className="border-border border-t pt-7">
                 <h3 className="font-display font-semibold">Adicionais de interesse</h3>
                 <p className="text-muted-foreground mt-1 text-[13px]">
-                  Marque o que gostaria de incluir ou conversar com a nossa equipe.
+                  Marque o que gostaria de incluir.
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {SERVICOS_ADICIONAIS.map((item) => (
@@ -1477,7 +1472,7 @@ export function FormularioOrcamento({
                   <ClipboardCheck className="size-5" /> Revise sua solicitação
                 </h2>
                 <p className="text-muted-foreground mt-2 text-sm">
-                  Confira os dados. O envio não fecha o pedido nem gera cobrança.
+                  Confira os dados. Enviar não gera cobrança.
                 </p>
 
                 <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1557,8 +1552,8 @@ export function FormularioOrcamento({
                 <p className="text-muted-foreground flex max-w-xl gap-2 text-xs leading-5">
                   <Sparkles className="text-primary mt-0.5 size-4 shrink-0" />
                   {pedidoWhatsapp
-                    ? "Ao enviar, o WhatsApp abre com o seu pedido escrito. É só tocar em enviar na conversa."
-                    : "Depois do envio, a equipe confere o cardápio e a data e manda o orçamento com os valores do seu evento."}
+                    ? "O WhatsApp abre com o seu pedido. É só tocar em enviar."
+                    : "A equipe confere o pedido e envia o orçamento com os valores."}
                 </p>
                 <div className="grid shrink-0 grid-cols-[auto_1fr] gap-2">
                   <Button

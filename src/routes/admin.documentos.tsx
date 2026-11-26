@@ -320,9 +320,7 @@ function DocumentosPage() {
           <EmptyState
             title={filtrando ? "Nenhum documento encontrado" : "Nenhum documento ainda"}
             description={
-              filtrando
-                ? "Ajuste a busca, a data ou o status para encontrar o evento."
-                : "Quando um evento for aprovado, o cardápio em PDF aparece aqui."
+              filtrando ? "Ajuste os filtros." : "O PDF aparece quando o evento é aprovado."
             }
           />
         ) : (

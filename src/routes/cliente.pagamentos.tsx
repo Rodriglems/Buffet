@@ -39,9 +39,7 @@ function MeusPagamentos() {
             ))}
           </ul>
         ) : (
-          <p className="text-muted-foreground text-sm">
-            Nenhuma parcela ainda. Elas aparecem aqui quando a equipe definir o pagamento.
-          </p>
+          <p className="text-muted-foreground text-sm">Nenhuma parcela ainda.</p>
         )}
       </Panel>
     </div>

@@ -203,7 +203,7 @@ function CardapioPage() {
   async function remover(item: Servico) {
     const ok = await confirmar({
       titulo: `Remover “${item.nome}”?`,
-      descricao: "O item sai do cardápio. Orçamentos já registrados com ele continuam preservados.",
+      descricao: "O item sai do cardápio. Orçamentos antigos não mudam.",
       textoConfirmar: "Remover item",
       perigoso: true,
     });
@@ -466,9 +466,7 @@ function CardapioPage() {
                           {doGrupo.length ? (
                             <div className="mt-3 sm:mt-4">{linhasDoItem(doGrupo)}</div>
                           ) : (
-                            <p className="text-muted-foreground mt-3 text-sm">
-                              Nenhum item nesta categoria ainda.
-                            </p>
+                            <p className="text-muted-foreground mt-3 text-sm">Nenhum item.</p>
                           )}
                         </div>
                       ) : null}
@@ -480,7 +478,7 @@ function CardapioPage() {
                 <Panel className="p-5">
                   <h2 className="font-display text-lg font-semibold">Sem categoria cadastrada</h2>
                   <p className="text-muted-foreground text-xs">
-                    Edite os itens abaixo e escolha uma categoria existente.
+                    Edite cada item e escolha uma categoria.
                   </p>
                   <div className="mt-4">{linhasDoItem(semCategoria)}</div>
                 </Panel>
@@ -489,7 +487,7 @@ function CardapioPage() {
                 <Panel className="p-5">
                   <EmptyState
                     title="Nenhum item encontrado"
-                    description="Ajuste a busca ou o filtro de cardápio."
+                    description="Ajuste a busca ou o filtro."
                   />
                 </Panel>
               ) : null}
@@ -854,8 +852,8 @@ function ItemDialog({
             <DialogTitle>{editandoId ? "Editar item" : "Novo item do cardápio"}</DialogTitle>
             <DialogDescription>
               {editandoId
-                ? "As mudanças valem para todos os cardápios em que o item aparece."
-                : "Cadastre o prato uma vez e escolha em quais cardápios ele aparece."}
+                ? "Vale para todos os cardápios do item."
+                : "Cadastre uma vez e escolha os cardápios."}
             </DialogDescription>
           </DialogHeader>
 
@@ -898,10 +896,7 @@ function ItemDialog({
                     role="status"
                     className="bg-secondary grid gap-1 rounded-lg px-3 py-2 text-sm"
                   >
-                    <p className="text-muted-foreground text-xs">
-                      Itens parecidos já cadastrados. Se for um deles, abra em vez de cadastrar de
-                      novo:
-                    </p>
+                    <p className="text-muted-foreground text-xs">Já existe algo parecido:</p>
                     <ul className="grid gap-0.5">
                       {parecidos.map((item) => (
                         <li key={item.id} className="flex items-center justify-between gap-2">
@@ -1092,7 +1087,7 @@ function ItemDialog({
                 </div>
                 {!cardapiosDoItem.length ? (
                   <p className="text-muted-foreground text-sm">
-                    Nenhum cardápio cadastrado. Crie um em “Gerenciar cardápios”.
+                    Nenhum cardápio. Crie em “Gerenciar cardápios”.
                   </p>
                 ) : null}
               </div>
@@ -1198,7 +1193,7 @@ function ItemDialog({
                     <div>
                       <p className="text-sm font-medium">Tipos de evento</p>
                       <p className="text-muted-foreground text-xs">
-                        Sem nenhum marcado, o item vale para todos os eventos.
+                        Nenhum marcado: vale para todos.
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2" role="group" aria-label="Tipos de evento">
@@ -1365,7 +1360,7 @@ function EditorGrupoOpcoes({
       ) : (
         <p className="text-muted-foreground text-xs">
           {termo
-            ? "Nenhum item encontrado. Cadastre a opção como item do cardápio primeiro."
+            ? "Nenhum item encontrado. Cadastre a opção no cardápio primeiro."
             : `Busque e marque os itens que servem de ${(grupo.nome || exemplo).toLocaleLowerCase("pt-BR")}.`}
         </p>
       )}

@@ -31,7 +31,7 @@ export function AlterarStatusEvento({ eventoId, status }: { eventoId: string; st
       novo === "CANCELADO" &&
       !(await confirmar({
         titulo: "Cancelar este evento?",
-        descricao: "O evento sai do fluxo de etapas. Você pode reativá-lo depois pelo status.",
+        descricao: "O evento sai das etapas. Dá para reativar depois.",
         textoConfirmar: "Cancelar evento",
         perigoso: true,
       }))

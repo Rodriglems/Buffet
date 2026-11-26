@@ -102,8 +102,8 @@ export function ResumoPedido({ orcamento }: { orcamento: Orcamento }) {
       <div className="border-border flex flex-wrap items-end justify-between gap-3 border-t pt-4">
         <p className="text-muted-foreground max-w-md text-xs">
           {total > 0
-            ? "Valores da proposta preparada pela nossa equipe."
-            : "Nossa equipe está preparando os valores da sua proposta. Avisaremos quando estiver pronta."}
+            ? "Valores da sua proposta."
+            : "Estamos preparando os valores. Avisaremos quando estiver pronta."}
         </p>
         <div className="text-right">
           {desconto > 0 ? (

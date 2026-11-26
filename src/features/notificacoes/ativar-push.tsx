@@ -134,8 +134,7 @@ export function AtivarPush() {
             </p>
           ) : situacao === "BLOQUEADO" ? (
             <p className="text-muted-foreground text-sm">
-              Estão bloqueadas neste aparelho. Libere em Ajustes do celular → Notificações → Mesly e
-              abra o app de novo.
+              Bloqueadas neste aparelho. Libere em Ajustes → Notificações → Mesly.
             </p>
           ) : (
             <div className="text-muted-foreground text-sm">

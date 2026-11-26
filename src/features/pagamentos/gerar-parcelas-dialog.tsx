@@ -180,8 +180,7 @@ export function GerarParcelasDialog({
           <DialogHeader>
             <DialogTitle>Definir pagamento</DialogTitle>
             <DialogDescription>
-              Escolha a forma de pagamento, divida o valor e defina o vencimento de cada parcela.
-              Você pode ajustar valores e datas antes de salvar.
+              Escolha a forma, divida o valor e defina os vencimentos.
             </DialogDescription>
           </DialogHeader>
 

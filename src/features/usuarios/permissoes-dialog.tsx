@@ -86,8 +86,8 @@ export function PermissoesDialog({
           <DialogTitle>Permissões de {usuario.nome}</DialogTitle>
           <DialogDescription>
             {cliente
-              ? "Este acesso entra só no portal do cliente. As áreas administrativas não se aplicam."
-              : "O início continua disponível. Cada item e cada aba do menu segue a permissão marcada."}
+              ? "Este acesso entra só no portal do cliente."
+              : "O início fica sempre disponível."}
           </DialogDescription>
         </DialogHeader>
         {cliente ? null : (

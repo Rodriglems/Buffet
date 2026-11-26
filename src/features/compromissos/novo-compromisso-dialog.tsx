@@ -61,9 +61,7 @@ export function NovoCompromissoDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Novo compromisso</DialogTitle>
-          <DialogDescription>
-            Lembretes da equipe que aparecem na agenda junto com eventos e vencimentos.
-          </DialogDescription>
+          <DialogDescription>Lembrete da equipe na agenda.</DialogDescription>
         </DialogHeader>
         {/* key: reabre com a data selecionada na agenda e os campos limpos. */}
         <form key={`${aberto}-${dataInicial}`} onSubmit={salvar} className="grid gap-4">

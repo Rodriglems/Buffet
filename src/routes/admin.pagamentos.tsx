@@ -163,9 +163,7 @@ function AReceber() {
           <EmptyState
             title={pendentes.length ? "Nada encontrado" : "Nenhuma parcela em aberto"}
             description={
-              pendentes.length
-                ? "Ajuste a busca ou a situação para ver outras parcelas."
-                : "Quando houver parcelas pendentes dos clientes, elas aparecem aqui."
+              pendentes.length ? "Ajuste os filtros." : "As parcelas pendentes aparecem aqui."
             }
           />
         </Panel>

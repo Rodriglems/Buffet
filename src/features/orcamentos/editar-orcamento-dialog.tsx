@@ -383,8 +383,8 @@ export function EditarOrcamentoDialog({
             </Select>
             <p className="text-muted-foreground text-xs">
               {cobranca === POR_PESSOA
-                ? "A quantidade de cada item é o número de convidados."
-                : "Cada item conta uma vez (quantidade 1). O frete fica no fim da tabela."}
+                ? "Quantidade = número de convidados."
+                : "Cada item conta uma vez."}
             </p>
           </div>
 
@@ -589,9 +589,7 @@ export function EditarOrcamentoDialog({
               <p id="orcamento-servicos" className="text-sm font-semibold">
                 Serviços
               </p>
-              <p className="text-muted-foreground text-xs">
-                Garçom, copeira, louças e outros, com o valor total de cada um.
-              </p>
+              <p className="text-muted-foreground text-xs">Valor total de cada um.</p>
             </div>
             {servicos.length ? (
               <ul className="grid gap-3">
@@ -702,8 +700,7 @@ export function EditarOrcamentoDialog({
           ) : null}
           {valorEmParcelas > 0 ? (
             <p className="text-muted-foreground text-xs">
-              Este evento tem {formatBRL(valorEmParcelas)} em parcelas. Se o total mudar, as
-              parcelas não mudam sozinhas: a tela do evento vai mostrar a diferença.
+              Já há {formatBRL(valorEmParcelas)} em parcelas; elas não mudam com o total.
             </p>
           ) : null}
 

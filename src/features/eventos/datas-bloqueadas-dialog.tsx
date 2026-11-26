@@ -135,8 +135,7 @@ export function DatasBloqueadasDialog({
               <span className="bg-primary size-3 rounded-full" /> Escolhida agora
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="bg-destructive size-3 rounded-full" /> Bloqueada (toque para
-              desbloquear)
+              <span className="bg-destructive size-3 rounded-full" /> Bloqueada
             </span>
             {consulta.isPending || desbloqueando ? (
               <Loader2 className="size-3.5 animate-spin" aria-label="Carregando" />

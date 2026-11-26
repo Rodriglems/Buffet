@@ -292,9 +292,7 @@ function EditorFormato({
           <p className="text-sm font-medium" id={`${idNome}-cardapios`}>
             Cardápios que este formato abre
           </p>
-          <p className="text-muted-foreground text-xs">
-            Toque para marcar. Sem nenhum marcado, o cliente vê todos os cardápios.
-          </p>
+          <p className="text-muted-foreground text-xs">Nenhum marcado: o cliente vê todos.</p>
         </div>
         <div className="flex flex-wrap gap-2" role="group" aria-labelledby={`${idNome}-cardapios`}>
           {cardapios.map((cardapio) => {
@@ -593,7 +591,7 @@ function AbaCardapios({
       </ListaArrastavel>
       {!cardapios.length ? (
         <p className="text-muted-foreground text-sm">
-          Nenhum cardápio ainda. Sem cardápios, o formulário não mostra itens.
+          Nenhum cardápio. Sem eles, o formulário não mostra itens.
         </p>
       ) : null}
       {cardapios.length && !cardapiosVisiveis.length ? (
@@ -637,7 +635,7 @@ function ResumoCardapio({
           <AlertTriangle className="size-3.5 shrink-0" />
           {quantidadeItens === 0
             ? "Vazio: use “Escolher itens” para montá-lo."
-            : "Nenhum formato abre este cardápio. Ligue-o a um formato na aba Formatos."}
+            : "Nenhum formato abre este cardápio (veja a aba Formatos)."}
         </p>
       ) : null}
     </div>
@@ -708,10 +706,7 @@ function EscolherItensDialog({
       <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-xl">
         <DialogHeader className="pr-8 text-left">
           <DialogTitle>Itens do cardápio “{cardapio.nome}”</DialogTitle>
-          <DialogDescription>
-            Marque os itens que o cliente vê neste cardápio. Cada item continua com um cadastro só e
-            pode estar em vários cardápios.
-          </DialogDescription>
+          <DialogDescription>Marque os itens que o cliente vê neste cardápio.</DialogDescription>
         </DialogHeader>
         <div className="relative">
           <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
@@ -752,7 +747,7 @@ function EscolherItensDialog({
             ))
           ) : (
             <p className="text-muted-foreground py-6 text-center text-sm">
-              Nenhum item encontrado. Cadastre o item no Cardápio e volte aqui.
+              Nenhum item encontrado.
             </p>
           )}
         </div>

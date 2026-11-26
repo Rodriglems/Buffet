@@ -339,8 +339,7 @@ function NovoOrcamento() {
                 className="bg-surface border-0 ring-1 ring-black/5"
               />
               <p className="text-muted-foreground mt-1 text-xs">
-                Ao enviar, a mensagem será registrada no portal e também poderá ser aberta no
-                WhatsApp do cliente.
+                Fica no portal e pode ser aberta no WhatsApp do cliente.
               </p>
             </div>
             <Textarea

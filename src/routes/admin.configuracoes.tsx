@@ -93,9 +93,7 @@ function PedidoPeloWhatsapp({
             Pedido pelo WhatsApp
           </Label>
           <p className="text-muted-foreground mt-1 text-sm">
-            O cliente monta o pedido no formulário sem criar conta nem entrar no portal. No fim, o
-            pedido abre no WhatsApp da empresa, pronto para enviar. Ele continua aparecendo em
-            Eventos.
+            O cliente faz o pedido sem criar conta e envia pelo WhatsApp da empresa.
           </p>
         </div>
         <Switch
@@ -107,7 +105,7 @@ function PedidoPeloWhatsapp({
       </div>
       {!temWhatsapp ? (
         <p className="bg-warning/10 text-foreground mt-4 rounded-lg p-3 text-sm">
-          Cadastre o WhatsApp da empresa na aba Empresa para poder ligar.
+          Cadastre o WhatsApp na aba Empresa para ligar.
         </p>
       ) : null}
       <div className="mt-4 flex flex-col gap-1.5">
@@ -120,9 +118,7 @@ function PedidoPeloWhatsapp({
           value={texto}
           onChange={(event) => setTexto(event.target.value)}
         />
-        <p className="text-muted-foreground text-xs">
-          Opcional. Vai depois de “TOTAL: A definir”, no fim de cada pedido.
-        </p>
+        <p className="text-muted-foreground text-xs">Opcional. Vai no fim de cada pedido.</p>
       </div>
       <div className="mt-3 flex justify-end">
         <Button
@@ -289,10 +285,7 @@ function Configuracoes() {
                     value={contato.telefonesContato}
                     onChange={(event) => alterarContato("telefonesContato", event.target.value)}
                   />
-                  <p className="text-muted-foreground text-xs">
-                    Escreva todos os números neste campo, separados por “/”, do jeito que devem
-                    aparecer no PDF do evento.
-                  </p>
+                  <p className="text-muted-foreground text-xs">Separe os números com “/”.</p>
                 </div>
 
                 <div className="border-border mt-2 border-t pt-4 sm:col-span-2">
@@ -397,7 +390,7 @@ function Configuracoes() {
                     onChange={(event) => void escolherLogo(event)}
                   />
                   <p className="text-muted-foreground text-xs">
-                    Opcional. Sem uma imagem específica, será usada a logo geral da empresa.
+                    Opcional. Sem ela, vale a logo da empresa.
                   </p>
                   {logoOrcamento || empresa.logoUrl ? (
                     <div className="bg-surface flex min-h-24 flex-col items-stretch gap-4 rounded-xl p-4 ring-1 ring-black/5 sm:flex-row sm:items-center sm:justify-between">
@@ -422,9 +415,7 @@ function Configuracoes() {
                       ) : null}
                     </div>
                   ) : (
-                    <p className="text-muted-foreground text-xs">
-                      Nenhuma logo cadastrada; o ícone padrão continuará sendo exibido.
-                    </p>
+                    <p className="text-muted-foreground text-xs">Nenhuma logo cadastrada.</p>
                   )}
                 </div>
               </div>

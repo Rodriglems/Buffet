@@ -38,7 +38,7 @@ function Documentos() {
         <Panel className="p-5">
           <EmptyState
             title="Nenhum documento ainda"
-            description="O PDF do seu evento fica disponível assim que ele for confirmado."
+            description="O PDF fica disponível quando o evento for confirmado."
           />
         </Panel>
       ) : (

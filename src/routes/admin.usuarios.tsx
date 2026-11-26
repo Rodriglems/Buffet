@@ -152,7 +152,7 @@ function UsuariosPage() {
         ) : lista.length === 0 ? (
           <EmptyState
             title="Nenhum usuário encontrado"
-            description="Ajuste a busca ou convide uma pessoa da equipe."
+            description="Ajuste a busca ou cadastre um usuário."
             action={<Button onClick={() => setAberto(true)}>Cadastrar usuário</Button>}
           />
         ) : (
@@ -257,7 +257,7 @@ function UsuariosPage() {
             <DialogHeader>
               <DialogTitle>Cadastrar usuário</DialogTitle>
               <DialogDescription>
-                A pessoa entra com o e-mail e a senha definidos aqui. Nenhum e-mail é enviado.
+                A pessoa entra com o e-mail e a senha definidos aqui.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 sm:grid-cols-2">

@@ -170,7 +170,7 @@ function Custos() {
           <form className="grid gap-4" onSubmit={registrar}>
             <DialogHeader>
               <DialogTitle>Registrar custo</DialogTitle>
-              <DialogDescription>Adicione uma despesa vinculada ao evento.</DialogDescription>
+              <DialogDescription className="sr-only">Despesa do evento.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-1.5 sm:col-span-2">
