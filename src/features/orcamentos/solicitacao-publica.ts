@@ -67,7 +67,7 @@ async function carregarFormularioOrcamento(token?: string) {
         orderBy: [{ ordem: "asc" }, { categoria: "asc" }, { nome: "asc" }],
       },
       categoriasCardapio: {
-        select: { nome: true, ordem: true },
+        select: { nome: true, ordem: true, ocultaNoFormulario: true },
         orderBy: [{ ordem: "asc" }, { nome: "asc" }],
       },
       cardapiosPublicos: {

@@ -327,6 +327,9 @@ model CategoriaCardapio {
   empresaId String   @map("empresa_id") @db.Uuid
   nome      String
   ordem     Int      @default(0)
+  /// Some da lista do formulário público; os itens continuam valendo como opção de outro
+  /// (ex.: molhos escolhidos dentro da massa).
+  ocultaNoFormulario Boolean @default(false) @map("oculta_no_formulario")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)

@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   Check,
   ChevronRight,
+  EyeOff,
   FolderTree,
   FolderPlus,
   ListTree,
@@ -91,7 +92,7 @@ export const Route = createFileRoute("/admin/servicos")({
   component: CardapioPage,
 });
 
-type Categoria = { id: string; nome: string; ordem: number };
+type Categoria = { id: string; nome: string; ordem: number; ocultaNoFormulario: boolean };
 type AbaCardapio = "categorias" | AbaCardapiosFormatos;
 const TODOS = "todos";
 
@@ -408,8 +409,14 @@ function CardapioPage() {
                             <span className="font-display block text-lg font-semibold">
                               {categoria.nome}
                             </span>
-                            <span className="text-muted-foreground block text-xs">
+                            <span className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
                               {contagem(doGrupo.length, "item", "itens")}
+                              {categoria.ocultaNoFormulario ? (
+                                <span className="inline-flex items-center gap-1 font-medium text-amber-700">
+                                  <EyeOff className="size-3.5" aria-hidden />
+                                  Oculta no formulário
+                                </span>
+                              ) : null}
                             </span>
                           </span>
                         </button>
@@ -419,12 +426,12 @@ function CardapioPage() {
                             size="sm"
                             variant="outline"
                             className="max-sm:size-11"
-                            aria-label={`Renomear a categoria ${categoria.nome}`}
-                            title="Renomear"
+                            aria-label={`Editar a categoria ${categoria.nome}`}
+                            title="Editar"
                             onClick={() => setCategoriaEditada(categoria)}
                           >
                             <Pencil className="size-4" />
-                            <span className="hidden sm:inline">Renomear</span>
+                            <span className="hidden sm:inline">Editar</span>
                           </Button>
                           {doGrupo.length ? null : (
                             <Button
@@ -648,12 +655,14 @@ function CategoriaDialog({
   const criar = useServerFn(criarCategoria);
   const renomear = useServerFn(renomearCategoria);
   const [nome, setNome] = useState("");
+  const [oculta, setOculta] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const nova = categoria === "nova";
   const [aberturaAnterior, setAberturaAnterior] = useState<typeof categoria>(null);
   if (categoria !== aberturaAnterior) {
     setAberturaAnterior(categoria);
     setNome(categoria && categoria !== "nova" ? categoria.nome : "");
+    setOculta(categoria && categoria !== "nova" ? categoria.ocultaNoFormulario : false);
   }
 
   async function submit(event: FormEvent) {
@@ -665,8 +674,12 @@ function CategoriaDialog({
     setSalvando(true);
     try {
       if (categoria === "nova") await criar({ data: { nome: nome.trim() } });
-      else if (categoria) await renomear({ data: { id: categoria.id, nome: nome.trim() } });
-      toast.success(nova ? "Categoria criada." : "Categoria renomeada.");
+      else if (categoria) {
+        await renomear({
+          data: { id: categoria.id, nome: nome.trim(), ocultaNoFormulario: oculta },
+        });
+      }
+      toast.success(nova ? "Categoria criada." : "Categoria atualizada.");
       onFechar();
       await onSalvo();
     } catch (error) {
@@ -681,11 +694,9 @@ function CategoriaDialog({
       <DialogContent>
         <form className="grid gap-4" onSubmit={submit}>
           <DialogHeader>
-            <DialogTitle>{nova ? "Nova categoria" : "Renomear categoria"}</DialogTitle>
-            <DialogDescription>
-              {nova
-                ? "A categoria aparece no cardápio do formulário com este nome."
-                : "Os itens da categoria acompanham o novo nome."}
+            <DialogTitle>{nova ? "Nova categoria" : "Editar categoria"}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {nova ? "Nome da nova categoria." : "Nome e visibilidade da categoria."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-1.5">
@@ -699,6 +710,14 @@ function CategoriaDialog({
               onChange={(event) => setNome(event.target.value)}
             />
           </div>
+          {nova ? null : (
+            <label className="border-border flex items-start justify-between gap-4 rounded-lg border p-3 text-sm">
+              <span className="grid gap-0.5">
+                <span className="font-medium">Mostrar no formulário do cliente</span>
+              </span>
+              <Switch checked={!oculta} onCheckedChange={(mostrar) => setOculta(!mostrar)} />
+            </label>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onFechar}>
               Cancelar

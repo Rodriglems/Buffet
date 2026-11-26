@@ -210,6 +210,16 @@ export function FormularioOrcamento({
     () => new Map(empresa.categoriasCardapio.map((categoria) => [categoria.nome, categoria.ordem])),
     [empresa.categoriasCardapio],
   );
+  // Categorias ocultas (ex.: Molhos) saem da lista, mas seus itens seguem como opção de outro.
+  const categoriasOcultas = useMemo(
+    () =>
+      new Set(
+        empresa.categoriasCardapio
+          .filter((categoria) => categoria.ocultaNoFormulario)
+          .map((categoria) => categoria.nome),
+      ),
+    [empresa.categoriasCardapio],
+  );
   const compararCategorias = (a: string, b: string) =>
     (ordemCategoria.get(a) ?? 9999) - (ordemCategoria.get(b) ?? 9999) || a.localeCompare(b);
   // Escolhas do item em grupos (ex.: Recheio e Molho), só com as opções que estão no cardápio.
@@ -237,6 +247,7 @@ export function FormularioOrcamento({
   const servicosDoCardapio = empresa.servicos.filter(
     (servico) =>
       !idsDeOpcoes.has(servico.id) &&
+      !categoriasOcultas.has(servico.categoria) &&
       aplicavelAoEvento(servico.tiposEvento) &&
       (cardapioAtivo ? servico.cardapios.includes(cardapioAtivo) : false),
   );

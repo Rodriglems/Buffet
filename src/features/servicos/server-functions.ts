@@ -253,9 +253,14 @@ export const criarCategoria = createServerFn({ method: "POST" })
     });
   });
 
-/** Renomeia a categoria e leva junto todos os itens que estavam nela. */
+/**
+ * Renomeia a categoria (levando junto os itens que estavam nela) e define se ela aparece na
+ * lista do formulário público.
+ */
 export const renomearCategoria = createServerFn({ method: "POST" })
-  .validator((value: unknown) => id.extend({ nome: nomeCategoria }).parse(value))
+  .validator((value: unknown) =>
+    id.extend({ nome: nomeCategoria, ocultaNoFormulario: z.boolean().optional() }).parse(value),
+  )
   .handler(async ({ data }) => {
     const auth = await requirePermission("servicos");
     return getPrisma().$transaction(async (tx) => {
@@ -263,7 +268,16 @@ export const renomearCategoria = createServerFn({ method: "POST" })
         where: { id: data.id, empresaId: auth.empresaId },
       });
       if (!categoria) throw new Error("Categoria não encontrada.");
-      if (categoria.nome === data.nome) return serialize(categoria);
+      const ocultaNoFormulario = data.ocultaNoFormulario ?? categoria.ocultaNoFormulario;
+      if (categoria.nome === data.nome) {
+        if (categoria.ocultaNoFormulario === ocultaNoFormulario) return serialize(categoria);
+        return serialize(
+          await tx.categoriaCardapio.update({
+            where: { id: categoria.id },
+            data: { ocultaNoFormulario },
+          }),
+        );
+      }
       const duplicada = await tx.categoriaCardapio.count({
         where: {
           empresaId: auth.empresaId,
@@ -279,7 +293,7 @@ export const renomearCategoria = createServerFn({ method: "POST" })
       return serialize(
         await tx.categoriaCardapio.update({
           where: { id: categoria.id },
-          data: { nome: data.nome },
+          data: { nome: data.nome, ocultaNoFormulario },
         }),
       );
     });
